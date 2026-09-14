@@ -4,7 +4,7 @@ const SHELL = [
   "/",
   "/static/styles.css",
   "/static/app.js",
-  "/static/manifest.webmanifest",
+  "/manifest.webmanifest",
   "/static/icons/icon-192.png",
   "/static/icons/icon-512.png",
 ];
