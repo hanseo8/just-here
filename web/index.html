@@ -26,7 +26,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=20260915-map1" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260915-ticket1" />
 </head>
 <body>
   <!-- 진입 인트로: 첫 페인트를 브랜드로 채우고, 그 사이 init()이 끝난다 -->
@@ -128,21 +128,30 @@
           </div>
         </div>
         <article id="card" class="card hidden">
-          <div class="card-media" id="card-media">
-            <div id="map-badge" class="map-badge hidden"></div>
-          </div>
-          <div class="card-scrim">
-            <div class="scrim-head">
-              <p class="place" id="card-place"></p>
-              <button type="button" id="btn-card-detail" class="detail-chip">
-                상세
-              </button>
+          <div class="card-photo" id="card-media" aria-hidden="true"></div>
+          <div class="card-face">
+            <div class="card-head">
+              <p class="kind" id="card-menu"></p>
+              <div class="card-flags">
+                <span id="gold-badge" class="gold-badge hidden">오늘 추천</span>
+                <span class="why hidden" id="card-tag"></span>
+              </div>
             </div>
-            <p class="menu" id="card-menu"></p>
-            <p class="eta" id="card-eta"></p>
-            <p class="tag" id="card-tag"></p>
+            <h2 class="place" id="card-place"></h2>
+            <p class="where" id="card-where"></p>
+            <div class="card-hero">
+              <p class="hero-num" id="card-hero-num">—</p>
+              <p class="hero-cap" id="card-hero-cap"></p>
+            </div>
+            <dl class="card-facts">
+              <div><dt>거리</dt><dd id="card-dist">—</dd></div>
+              <div><dt>1인 예상</dt><dd id="card-price">—</dd></div>
+            </dl>
+            <p class="note hidden" id="card-note"></p>
+            <button type="button" id="btn-card-detail" class="detail-chip">
+              상세 정보
+            </button>
           </div>
-          <div id="gold-badge" class="gold-badge hidden">오늘 추천</div>
           <div id="detail" class="detail hidden" role="dialog" aria-modal="true" aria-label="식당 상세"></div>
         </article>
       </div>
@@ -222,8 +231,8 @@
     </div>
   </div>
   <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
-  <script src="/static/auth.js?v=20260915-map1"></script>
-  <script src="/static/story.js?v=20260915-map1"></script>
-  <script src="/static/app.js?v=20260915-map1"></script>
+  <script src="/static/auth.js?v=20260915-ticket1"></script>
+  <script src="/static/story.js?v=20260915-ticket1"></script>
+  <script src="/static/app.js?v=20260915-ticket1"></script>
 </body>
 </html>

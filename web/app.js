@@ -1282,59 +1282,72 @@ function currentCard() {
   return state.cards[0] || null;
 }
 
-function clearMapChrome(media) {
-  media.classList.remove("is-map", "is-map-css");
-  const pin = media.querySelector(".map-pin");
-  if (pin) pin.remove();
-  const badge = $("map-badge");
-  if (badge) {
-    badge.classList.add("hidden");
-    badge.textContent = "";
-  }
-}
+/* 카카오 장소에는 상호 사진이 없다. 실제 사진이 확인된 경우에만 띄우고,
+   그 외에는 카드 전체를 판단 정보로 채운다. */
+function setCardPhoto(card) {
+  const el = $("card");
+  const photo = $("card-media");
+  el.classList.remove("has-photo");
+  photo.style.backgroundImage = "";
 
-/* 카카오 장소는 상호 사진이 없다. 외부 스태틱맵 제공자에 의존하면
-   응답을 기다리는 동안 카드가 빈 색면으로 남으므로, 바로 그려낸다. */
-function showMapFallback(card) {
-  const media = $("card-media");
-  const badge = $("map-badge");
-  clearMapChrome(media);
-  media.classList.add("is-map", "is-map-css");
-  media.style.backgroundImage = "";
-
-  if (badge) {
-    badge.textContent =
-      card.eta_label ||
-      (card.distance_m != null ? `${card.distance_m}m` : "근처");
-    badge.classList.remove("hidden");
-  }
-
-  const pin = document.createElement("div");
-  pin.className = "map-pin";
-  pin.textContent = "📍";
-  media.appendChild(pin);
-}
-
-function setCardMedia(card) {
-  const media = $("card-media");
-  clearMapChrome(media);
   const url = (card.image_url || "").trim();
-  const looksFake =
-    !url ||
-    url.includes("picsum.photos") ||
-    card.has_photo === false;
-
-  if (looksFake) {
-    showMapFallback(card);
-    return;
-  }
+  if (!url || url.includes("picsum.photos") || card.has_photo === false) return;
 
   const probe = new Image();
   probe.onload = () => {
-    media.style.backgroundImage = `url('${url}')`;
+    // 로딩 중 카드가 넘어갔으면 다음 카드에 덧칠하지 않는다
+    if (currentCard()?.card_id !== card.card_id) return;
+    photo.style.backgroundImage = `url('${url}')`;
+    el.classList.add("has-photo");
   };
-  probe.onerror = () => showMapFallback(card);
   probe.src = url;
+}
+
+function distanceLabel(m) {
+  if (m == null) return "—";
+  return m >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${m}m`;
+}
+
+function walkMinutes(m) {
+  if (m == null) return null;
+  return Math.max(1, Math.round(m / 80));
+}
+
+function deliveryMinutes(m) {
+  if (m == null) return null;
+  return Math.max(20, 15 + Math.round(m / 250));
+}
+
+function kindLabel(card) {
+  const menu = String(card.menu_name || "").trim();
+  if (menu && menu !== "추천 메뉴") return menu;
+  const labels = {
+    korean: "한식",
+    chinese: "중식",
+    japanese: "일식",
+    western: "양식",
+    snack: "분식",
+    meat: "고기",
+    asian: "아시안",
+    mexican: "멕시칸",
+    cafe: "카페",
+    noodle: "면",
+  };
+  return labels[card.category] || "근처 가게";
+}
+
+function heroMetric(card) {
+  const visit = state.intent === "visit";
+  const mins = visit
+    ? walkMinutes(card.distance_m)
+    : deliveryMinutes(card.distance_m);
+  if (mins == null) {
+    return { num: "—", cap: visit ? "걸어가면 도착" : "배달 도착 예상" };
+  }
+  return {
+    num: `${mins}분`,
+    cap: visit ? "걸어가면 도착" : "배달 도착 예상",
+  };
 }
 
 /** 서버 해시태그(#스트레스_풀리는_국물)를 읽기 쉬운 문장으로 */
@@ -1373,15 +1386,36 @@ function renderCard() {
   el.classList.remove("hidden");
   el.classList.toggle("gold", !!card.is_gold);
   $("gold-badge").classList.toggle("hidden", !card.is_gold);
-  setCardMedia(card);
+  setCardPhoto(card);
   $("card-place").textContent = card.place_name;
-  $("card-menu").textContent = card.menu_name;
-  $("card-eta").textContent = card.eta_label;
+  $("card-menu").textContent = kindLabel(card);
+  const hero = heroMetric(card);
+  $("card-hero-num").textContent = hero.num;
+  $("card-hero-cap").textContent = hero.cap;
+
+  // 주소는 카카오가 준 실제 값일 때만 — 자리 채우기용 문구는 숨긴다
+  const where = $("card-where");
+  const address = card.address && card.address !== "주소 확인 중" ? card.address : "";
+  where.textContent = address;
+  where.classList.toggle("hidden", !address);
+
+  $("card-dist").textContent = distanceLabel(card.distance_m);
+  $("card-price").textContent = card.price_band || "—";
+
+  // 배달일 때만: 이 메뉴가 배달을 견디는지에 대한 안내
+  const note = $("card-note");
+  const noteText =
+    state.intent === "delivery" && card.sensitivity_tip ? card.sensitivity_tip : "";
+  note.textContent = noteText;
+  note.classList.toggle("hidden", !noteText);
+
   // 이유가 있을 때만 태그를 보여준다 (#그냥여기 같은 빈 태그는 정보가 없음)
+  const rawTag = readableTag(card.hashtag);
   const tagText = card.taste_match
     ? "취향 맞춤"
-    : readableTag(card.hashtag) ||
-      (card.source === "kakao" ? "근처 실제 상호" : "");
+    : rawTag === "그냥여기"
+      ? ""
+      : rawTag;
   const tagEl = $("card-tag");
   tagEl.textContent = tagText;
   tagEl.classList.toggle("hidden", !tagText);
@@ -1817,18 +1851,16 @@ function renderDetailModal(card) {
   const tip =
     card.sensitivity_tip ||
     "배달 중 맛·형태가 얼마나 변하는지 보여주는 지표예요.";
-  const rating =
-    card.rating != null ? Number(card.rating).toFixed(1) : "—";
   d.innerHTML = `
     <div class="detail-head">
       <strong>${escapeHtml(card.place_name)}</strong>
       <button type="button" class="detail-close" id="detail-close" aria-label="닫기">✕</button>
     </div>
     <div class="detail-grid">
+      <div class="detail-row"><span class="k">주소</span><span class="v">${escapeHtml(card.address || "주소 확인 중")}</span></div>
       <div class="detail-row"><span class="k">영업시간</span><span class="v">${escapeHtml(card.hours || "확인 중")}</span></div>
-      <div class="detail-row"><span class="k">실시간 평점</span><span class="v">★ ${escapeHtml(rating)}</span></div>
-      <div class="detail-row"><span class="k">주소</span><span class="v">${escapeHtml(card.address || card.review || "주소 확인 중")}</span></div>
-      <div class="detail-row"><span class="k">예상 가격</span><span class="v">${escapeHtml(card.price_band || "확인 중")} / 1인</span></div>
+      <div class="detail-row"><span class="k">거리</span><span class="v">${escapeHtml(distanceLabel(card.distance_m))} · ${escapeHtml(card.eta_label || "—")}</span></div>
+      <div class="detail-row"><span class="k">1인 예상</span><span class="v">${escapeHtml(card.price_band || "확인 중")}</span></div>
     </div>
     <div class="sens-box">
       <div class="sens-title">

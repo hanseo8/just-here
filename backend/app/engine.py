@@ -509,6 +509,7 @@ def build_cards(session: Session, limit: int = 20) -> tuple[list[dict], int, boo
                     if session.intent == "visit"
                     else f"배달 약 {delivery_eta_minutes(dist)}분"
                 ),
+                "category": p.get("category") or "",
                 "hashtag": tags[0],
                 "delivery_sensitivity": meta["delivery_sensitivity"],
                 "sensitivity_level": meta["sensitivity_level"],

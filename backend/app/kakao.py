@@ -133,7 +133,7 @@ def _doc_to_place(doc: dict, i: int = 0, tag: str = "#근처_실상호") -> dict
         "lng": float(doc["x"]),
         "menu_id": f"kakao_m_{pid}",
         "menu_name": short or "추천 메뉴",
-        # 카카오는 상호 사진 없음 → 프론트에서 거리 지도 폴백
+        # 카카오는 상호 사진 없음 → 프론트는 결정 티켓으로 그린다
         "image_url": "",
         "has_photo": False,
         "tags": [tag],
