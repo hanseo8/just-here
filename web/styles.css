@@ -551,16 +551,26 @@ select {
   color: #fff;
   box-shadow: 0 12px 32px rgba(0,0,0,0.22);
 }
-/* Asset ID gradients (용량 최적화: 이미지 대신 CSS) */
+/* Asset ID gradients (용량 최적화: 이미지 대신 CSS) — 페르소나 20선 */
 .receipt-card.theme-bg_destiny { background: linear-gradient(165deg, #FF6B6B 0%, #FF8E8B 100%); color: #1a120e; }
 .receipt-card.theme-bg_ironwall { background: linear-gradient(165deg, #4A4A4A 0%, #2C3E50 100%); }
 .receipt-card.theme-bg_sprint { background: linear-gradient(165deg, #00E676 0%, #1DE9B6 100%); color: #0b2e1c; }
+.receipt-card.theme-bg_overthink { background: linear-gradient(165deg, #5C6BC0 0%, #283593 100%); }
+.receipt-card.theme-bg_meat { background: linear-gradient(165deg, #F44336 0%, #BF360C 100%); }
+.receipt-card.theme-bg_herb { background: linear-gradient(165deg, #66BB6A 0%, #1B5E20 100%); }
+.receipt-card.theme-bg_chameleon { background: linear-gradient(165deg, #AB47BC 0%, #6A1B9A 100%); }
 .receipt-card.theme-bg_survival { background: linear-gradient(165deg, #34495E 0%, #5D6D7E 100%); }
 .receipt-card.theme-bg_midnight { background: linear-gradient(165deg, #1A1A2E 0%, #E94560 100%); }
 .receipt-card.theme-bg_nomad { background: linear-gradient(165deg, #D4A373 0%, #FAEDCD 100%); color: #3b2a1a; }
+.receipt-card.theme-bg_heat { background: linear-gradient(165deg, #FF7043 0%, #E65100 100%); color: #2a1000; }
+.receipt-card.theme-bg_morning { background: linear-gradient(165deg, #FFCC80 0%, #FF8A65 100%); color: #3b2410; }
+.receipt-card.theme-bg_hermit { background: linear-gradient(165deg, #90A4AE 0%, #455A64 100%); }
 .receipt-card.theme-bg_spicy { background: linear-gradient(165deg, #D32F2F 0%, #FF0000 100%); }
 .receipt-card.theme-bg_temp { background: linear-gradient(165deg, #FF5A00 0%, #FF9B00 100%); color: #2a1200; }
 .receipt-card.theme-bg_flex { background: linear-gradient(165deg, #FFD700 0%, #F1C40F 100%); color: #2a2200; }
+.receipt-card.theme-bg_value { background: linear-gradient(165deg, #26A69A 0%, #004D40 100%); }
+.receipt-card.theme-bg_carb { background: linear-gradient(165deg, #FFB74D 0%, #EF6C00 100%); color: #2a1600; }
+.receipt-card.theme-bg_hangover { background: linear-gradient(165deg, #4DB6AC 0%, #00695C 100%); }
 .receipt-card.theme-bg_basic { background: linear-gradient(165deg, #FF5A00 0%, #E62E00 100%); }
 .receipt-sticker {
   font-size: 56px;
@@ -603,7 +613,10 @@ select {
 .receipt-card.theme-bg_sprint .receipt-divider,
 .receipt-card.theme-bg_nomad .receipt-divider,
 .receipt-card.theme-bg_temp .receipt-divider,
-.receipt-card.theme-bg_flex .receipt-divider {
+.receipt-card.theme-bg_flex .receipt-divider,
+.receipt-card.theme-bg_heat .receipt-divider,
+.receipt-card.theme-bg_morning .receipt-divider,
+.receipt-card.theme-bg_carb .receipt-divider {
   background: rgba(0,0,0,0.18);
 }
 .receipt-row {

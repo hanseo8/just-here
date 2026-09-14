@@ -78,6 +78,11 @@ def _build_persona(s: engine.Session, place: dict) -> dict:
     from .radius import haversine_m, session_radius_m
 
     dist = haversine_m(s.lat, s.lng, place["lat"], place["lng"])
+    # enrich price for flexer/value titles
+    if "price_krw" not in place:
+        from .place_meta import estimated_price_krw
+
+        place = {**place, "price_krw": estimated_price_krw(place)}
     persona = titles.resolve_persona(
         intent=s.intent,
         weather=s.weather,
@@ -86,6 +91,9 @@ def _build_persona(s: engine.Session, place: dict) -> dict:
         decision_time_seconds=engine.decision_seconds(s),
         distance_m=dist,
         place=place,
+        category_path=list(getattr(s, "category_path", []) or []),
+        herbivore_streak=int(getattr(s, "herbivore_streak", 0) or 0),
+        taste=list(s.taste or []),
     )
     if persona["id"] == "storm_survivor":
         r = session_radius_m(s.intent, s.weather)  # type: ignore[arg-type]

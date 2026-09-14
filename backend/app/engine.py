@@ -36,6 +36,8 @@ class Session:
     left_swipe_count: int = 0
     right_swipe_count: int = 0
     card_shown_at: float | None = None  # time.time() when top card shown
+    category_path: list[str] = field(default_factory=list)
+    herbivore_streak: int = 0
     perfect_slots_left: int = 5
     seen_menu_ids: set[str] = field(default_factory=set)
     force_gold_once: bool = False
@@ -318,11 +320,24 @@ def _score(place: dict, distance_m: float, session: Session) -> float:
     return score
 
 
+def _track_category(session: Session, place: dict) -> None:
+    cat = place.get("category") or "other"
+    session.category_path.append(str(cat))
+    # 초식 연속: 클린 메뉴를 넘기며 쌓고, 아니면 리셋
+    blob = f"{place.get('menu_name','')} {place.get('name','')} {' '.join(place.get('tags') or [])}"
+    herb_keys = ("샐러드", "포케", "채식", "채소", "salad", "poke", "veggie")
+    if any(k.lower() in blob.lower() for k in herb_keys):
+        session.herbivore_streak += 1
+    else:
+        session.herbivore_streak = 0
+
+
 def apply_nope(session: Session, place: dict) -> bool:
     session.consecutive_nopes += 1
     session.left_swipe_count += 1
     session.seen_menu_ids.add(place["menu_id"])
     session.card_shown_at = time.time()  # 다음 카드 노출 시각
+    _track_category(session, place)
     for tag in place.get("tags", []):
         session.nope_tags[tag] = session.nope_tags.get(tag, 0.0) + 1.0
     cat = place.get("category") or "other"
@@ -338,6 +353,7 @@ def apply_lets_go(session: Session, place: dict) -> dict:
     session.consecutive_nopes = 0
     session.right_swipe_count += 1
     session.seen_menu_ids.add(place["menu_id"])
+    _track_category(session, place)
     if session.perfect_slots_left > 0:
         session.perfect_slots_left -= 1
     return build_handoff(session, place)

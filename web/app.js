@@ -800,7 +800,7 @@ async function ensureReceipt(data) {
   const created = await api("/v1/share/receipt", {
     method: "POST",
     body: JSON.stringify({
-      title: data.receipt_title || persona.title || "본능 100% 그냥여기 마스터",
+      title: data.receipt_title || persona.title || "본능 100% 그냥이거 마스터",
       place_name: data.place_name,
       menu_name: data.menu_name,
       intent: state.intent,
@@ -866,7 +866,7 @@ function showDone(data) {
   show("screen-done");
   $("done-sub").textContent = `${data.place_name} · ${data.menu_name}`;
   const persona = data.persona || {};
-  const title = data.receipt_title || persona.title || "본능 100% 그냥여기 마스터";
+  const title = data.receipt_title || persona.title || "본능 100% 그냥이거 마스터";
   $("receipt-title").textContent = title;
   $("receipt-sub").textContent = persona.sub_text || data.receipt?.sub_text || "";
   $("receipt-sticker").textContent =
