@@ -16,16 +16,21 @@
 
 ## 1. 앱 배포 (Render 추천)
 
-1. https://render.com 가입 (GitHub 연동)  
-2. 이 레포 `just-here` Push  
-3. **New → Blueprint** 또는 **Web Service** → Docker  
-4. 루트 `Dockerfile` 사용  
-5. 배포 후 주소 예: `https://just-here-xxxx.onrender.com`  
-6. Environment:
+GitHub 레포: **https://github.com/hanseo8/just-here**
+
+1. https://dashboard.render.com 가입 (GitHub `hanseo8` 연동)  
+2. **New → Web Service** → `hanseo8/just-here` 선택  
+3. 설정:
+   - Runtime: **Docker**
+   - Region: Singapore (또는 Oregon)
+   - Instance: Free
+4. Environment:
    - `PUBLIC_BASE_URL` = `https://www.justthis.co.kr`
    - `KAKAO_REST_API_KEY` = (있으면)
+5. **Create Web Service** → 배포 완료 후 주소 예: `https://just-here-xxxx.onrender.com`
+6. 헬스체크: `https://just-here-xxxx.onrender.com/health`
 
-헬스체크: `https://just-here-xxxx.onrender.com/health`
+또는 Blueprint: 레포 루트 `render.yaml` 사용 → **New → Blueprint** → 같은 레포 선택.
 
 ---
 
