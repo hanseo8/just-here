@@ -410,6 +410,7 @@ async function init() {
 
   setupSwipeGestures();
   setupLongPress();
+  setupInstallPwa();
   await requestLocation().catch(() => {});
   startWatchingLocation();
   await applySmartIntent().catch(console.error);
@@ -940,6 +941,67 @@ function setupLongPress() {
     clearTimeout(timer);
     hide();
   });
+}
+
+function setupInstallPwa() {
+  const btn = $("btn-install");
+  if (!btn) return;
+
+  let deferred = null;
+  const showBtn = () => btn.classList.remove("hidden");
+  const hideBtn = () => btn.classList.add("hidden");
+
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferred = e;
+    showBtn();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    deferred = null;
+    hideBtn();
+    setLocStatus("홈 화면에 추가됐어요. 앱처럼 실행하면 됩니다.", true);
+  });
+
+  // iOS / 이미 설치됨: 안내만
+  const isStandalone =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true;
+  if (isStandalone) {
+    hideBtn();
+  }
+
+  btn.onclick = async () => {
+    if (deferred) {
+      deferred.prompt();
+      try {
+        await deferred.userChoice;
+      } catch (_) {}
+      deferred = null;
+      hideBtn();
+      return;
+    }
+    const ua = navigator.userAgent || "";
+    const ios = /iPhone|iPad|iPod/i.test(ua);
+    alert(
+      ios
+        ? "Safari 하단 공유 버튼 → 「홈 화면에 추가」를 눌러 주세요."
+        : "브라우저 메뉴에서 「앱 설치」 또는 「홈 화면에 추가」를 선택해 주세요.\n\n바로 쓰기: https://justthis.co.kr"
+    );
+  };
+
+  // Android Chrome 외 환경에서도 버튼은 보이게 (수동 안내)
+  if (!isStandalone && !/CriOS/i.test(navigator.userAgent)) {
+    setTimeout(() => {
+      if (!deferred) showBtn();
+    }, 1200);
+  }
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch((err) => {
+      console.warn("SW register failed", err);
+    });
+  }
 }
 
 init().catch((err) => {

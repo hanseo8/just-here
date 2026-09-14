@@ -84,8 +84,10 @@ https://www.justthis.co.kr/health
 - [x] 가비아 `www` CNAME 등록
 - [x] 루트 → Render A(`216.24.57.1`) + 인증서 Issued
 - [x] `PUBLIC_BASE_URL=https://www.justthis.co.kr` (`render.yaml`)
-- [ ] Duo/영수증 공유 링크가 `justthis.co.kr` 로 나가는지 확인
+- [x] Duo/영수증 공유 링크가 `justthis.co.kr` 로 나가는지 확인 (`PUBLIC_BASE_URL`)
 - [ ] (카카오) 플랫폼 도메인에 `www.justthis.co.kr` 등록
+- [x] PWA 홈화면 설치 (`/manifest.webmanifest`, `/sw.js`)
+- [x] 소프트런칭 배포 가이드 → [SOFT-LAUNCH.md](./SOFT-LAUNCH.md)
 
 ---
 

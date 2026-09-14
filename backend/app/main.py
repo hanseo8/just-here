@@ -354,6 +354,21 @@ def swipe(body: SwipeBody, request: Request):
 
 
 if WEB_DIR.is_dir():
+
+    @app.get("/manifest.webmanifest")
+    def web_manifest():
+        path = WEB_DIR / "manifest.webmanifest"
+        return FileResponse(path, media_type="application/manifest+json")
+
+    @app.get("/sw.js")
+    def service_worker():
+        path = WEB_DIR / "sw.js"
+        return FileResponse(
+            path,
+            media_type="application/javascript",
+            headers={"Cache-Control": "no-cache"},
+        )
+
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
 

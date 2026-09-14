@@ -110,6 +110,18 @@ select {
   opacity: 0.45;
   cursor: not-allowed;
 }
+.install-btn {
+  margin-top: 12px;
+}
+.install-hint {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  opacity: 0.88;
+}
+.install-hint strong {
+  font-weight: 800;
+}
 
 .btn {
   display: inline-flex;

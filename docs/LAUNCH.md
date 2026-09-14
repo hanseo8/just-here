@@ -47,8 +47,9 @@ Status: CTO 목표 잠금
 - [x] 실날씨 자동 (Open-Meteo) → 스마트 토글
 - [x] Duo 3+3 교집합 1곳 (`/duo/{id}`)
 - [x] 커스텀 도메인 `justthis.co.kr` / `www` 연결
+- [x] PWA 홈 화면 추가 (앱스토어 전 배포 경로)
 
-없으면 안 나감. 있으면 **나간다.** 다듬기는 출시 후.
+소프트런칭 실행 절차: [SOFT-LAUNCH.md](./SOFT-LAUNCH.md)
 
 ---
 

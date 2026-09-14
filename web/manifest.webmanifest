@@ -1,0 +1,26 @@
+{
+  "name": "그냥여기",
+  "short_name": "그냥여기",
+  "description": "메뉴 고민은 사치, 지금 당장 그냥여기 어때?",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ff6a3d",
+  "theme_color": "#ff6a3d",
+  "lang": "ko-KR",
+  "icons": [
+    {
+      "src": "/static/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

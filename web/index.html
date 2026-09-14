@@ -2,8 +2,20 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#ff6a3d" />
+  <meta name="description" content="메뉴 고민은 사치, 지금 당장 그냥여기 어때? 근처 맛집 원픽 큐레이션." />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="그냥여기" />
+  <meta property="og:title" content="그냥여기" />
+  <meta property="og:description" content="메뉴 고민은 사치, 지금 당장 그냥여기 어때?" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.justthis.co.kr/" />
   <title>그냥여기</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/static/icons/icon-192.png" type="image/png" />
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
@@ -42,6 +54,8 @@
         </details>
         <p class="hint">딱 맞는 맛집을 위해 <strong>실시간 현재 위치</strong>가 필요합니다. 위치 없이 시작할 수 없습니다.</p>
         <button type="button" id="btn-start" class="btn primary" disabled>시작하기</button>
+        <button type="button" id="btn-install" class="btn ghost install-btn hidden">홈 화면에 추가 (앱처럼 쓰기)</button>
+        <p class="install-hint">앱스토어 없이 <strong>https://justthis.co.kr</strong> 로 바로 쓸 수 있어요. iPhone은 공유 → 홈 화면에 추가.</p>
       </div>
     </section>
 
@@ -128,6 +142,6 @@
       </div>
     </section>
   </div>
-  <script src="/static/app.js?v=20260914-done-scroll"></script>
+  <script src="/static/app.js?v=20260914-pwa1"></script>
 </body>
 </html>
