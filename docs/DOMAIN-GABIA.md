@@ -80,10 +80,10 @@ https://www.justthis.co.kr/health
 
 ## 4. 체크리스트
 
-- [ ] Render 배포 성공 (`/health` OK)
-- [ ] 가비아 `www` CNAME 등록
-- [ ] 루트 → www 포워딩
-- [ ] `PUBLIC_BASE_URL=https://www.justthis.co.kr`
+- [x] Render 배포 성공 (`/health` OK)
+- [x] 가비아 `www` CNAME 등록
+- [x] 루트 → Render A(`216.24.57.1`) + 인증서 Issued
+- [x] `PUBLIC_BASE_URL=https://www.justthis.co.kr` (`render.yaml`)
 - [ ] Duo/영수증 공유 링크가 `justthis.co.kr` 로 나가는지 확인
 - [ ] (카카오) 플랫폼 도메인에 `www.justthis.co.kr` 등록
 

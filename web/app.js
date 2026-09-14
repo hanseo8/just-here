@@ -9,6 +9,7 @@ const state = {
   lat: null,
   lng: null,
   locationReady: false,
+  usingFallbackLoc: false,
   watchId: null,
   cards: [],
   perfect: 5,
@@ -32,13 +33,49 @@ const GEO_OPTS_FORCE = {
   maximumAge: 0,
 };
 
+// 위치 거부/실패 시 첫 세션이 죽지 않도록 송도 허브 폴백
+const FALLBACK_LAT = 37.3925;
+const FALLBACK_LNG = 126.645;
+const FALLBACK_LABEL = "송도 센트럴파크 근처(임시)";
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 async function api(path, opts = {}) {
-  const res = await fetch(path, {
-    headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
-    ...opts,
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const retries = opts.retries ?? 2;
+  const { retries: _r, ...fetchOpts } = opts;
+  let lastErr;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const res = await fetch(path, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(fetchOpts.headers || {}),
+        },
+        ...fetchOpts,
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    } catch (err) {
+      lastErr = err;
+      if (i < retries) await sleep(1200 * (i + 1));
+    }
+  }
+  throw lastErr;
+}
+
+function useFallbackLocation(reason) {
+  state.lat = FALLBACK_LAT;
+  state.lng = FALLBACK_LNG;
+  state.locationReady = true;
+  state.usingFallbackLoc = true;
+  setLocStatus(
+    `${reason} → ${FALLBACK_LABEL}로 시작해요. 가능하면 「위치 다시 가져오기」를 눌러 주세요.`,
+    false
+  );
+  const startBtn = $("btn-start");
+  if (startBtn) startBtn.disabled = false;
 }
 
 function show(id) {
@@ -87,6 +124,7 @@ function applyPosition(coords) {
   state.lat = coords.latitude;
   state.lng = coords.longitude;
   state.locationReady = true;
+  state.usingFallbackLoc = false;
   const acc = Math.round(coords.accuracy || 0);
   setLocStatus(
     `현재 위치 확인 · 정확도 ±${acc}m (${state.lat.toFixed(5)}, ${state.lng.toFixed(5)})`,
@@ -106,7 +144,8 @@ function applyPosition(coords) {
 function requestLocation(force = false) {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
-      reject(new Error("이 브라우저는 위치를 지원하지 않습니다."));
+      useFallbackLocation("이 브라우저는 위치를 지원하지 않아요");
+      resolve({ latitude: FALLBACK_LAT, longitude: FALLBACK_LNG });
       return;
     }
     setLocStatus("현재 위치 확인 중…");
@@ -122,15 +161,12 @@ function requestLocation(force = false) {
           resolve({ latitude: state.lat, longitude: state.lng });
           return;
         }
-        state.locationReady = false;
-        const msg =
+        const reason =
           err.code === 1
-            ? "위치 권한이 필요합니다. 브라우저에서 허용해 주세요."
-            : "현재 위치를 가져오지 못했습니다. 다시 시도해 주세요.";
-        setLocStatus(msg, false);
-        const startBtn = $("btn-start");
-        if (startBtn) startBtn.disabled = true;
-        reject(err);
+            ? "위치 권한이 없어요"
+            : "위치를 가져오지 못했어요";
+        useFallbackLocation(reason);
+        resolve({ latitude: FALLBACK_LAT, longitude: FALLBACK_LNG });
       },
       opts
     );
@@ -189,9 +225,9 @@ async function applySmartIntent() {
 
 const TASTE_MENU_POOL = [
   { key: "jjajang", label: "짜장면", category: "chinese", image: "https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=600&q=80" },
-  { key: "jjamppong", label: "짬뽕", category: "chinese", image: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=600&q=80" },
-  { key: "sundaeguk", label: "순대국", category: "korean", image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&q=80" },
-  { key: "gukbap", label: "국밥", category: "korean", image: "https://images.unsplash.com/photo-1476224203421-9ac39bcb3327?w=600&q=80" },
+  { key: "jjamppong", label: "짬뽕", category: "chinese", image: "/static/tastes/jjamppong.jpg" },
+  { key: "sundaeguk", label: "순대국", category: "korean", image: "/static/tastes/sundaeguk.jpg" },
+  { key: "gukbap", label: "국밥", category: "korean", image: "/static/tastes/gukbap.jpg" },
   { key: "bibimbap", label: "비빔밥", category: "korean", image: "https://images.unsplash.com/photo-1553163147-622ab57be1c7?w=600&q=80" },
   { key: "tteokbokki", label: "떡볶이", category: "korean", image: "https://images.unsplash.com/photo-1635363638580-c2809d049eee?w=600&q=80" },
   { key: "kalguksu", label: "칼국수", category: "noodle", image: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=600&q=80" },
@@ -200,8 +236,8 @@ const TASTE_MENU_POOL = [
   { key: "sushi", label: "초밥", category: "japanese", image: "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600&q=80" },
   { key: "donkatsu", label: "돈가스", category: "japanese", image: "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=600&q=80" },
   { key: "udon", label: "우동", category: "japanese", image: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=600&q=80" },
-  { key: "pork", label: "삼겹살", category: "meat", image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&q=80" },
-  { key: "galbi", label: "갈비", category: "meat", image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&q=80" },
+  { key: "pork", label: "삼겹살", category: "meat", image: "/static/tastes/pork.jpg" },
+  { key: "galbi", label: "갈비", category: "meat", image: "/static/tastes/galbi.jpg" },
   { key: "chicken", label: "치킨", category: "meat", image: "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=600&q=80" },
   { key: "pizza", label: "피자", category: "western", image: "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&q=80" },
   { key: "pasta", label: "파스타", category: "western", image: "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=600&q=80" },
@@ -260,15 +296,19 @@ async function onStartClick() {
 
     if (!state.locationReady || state.lat == null || state.lng == null) {
       btn.textContent = "위치 확인 중…";
-      await Promise.race([
-        requestLocation(false),
-        new Promise((_, rej) =>
-          setTimeout(() => rej(new Error("location timeout")), 8000)
-        ),
-      ]);
+      try {
+        await Promise.race([
+          requestLocation(false),
+          new Promise((_, rej) =>
+            setTimeout(() => rej(new Error("location timeout")), 8000)
+          ),
+        ]);
+      } catch (_) {
+        useFallbackLocation("위치 확인이 지연됐어요");
+      }
     }
     if (!state.locationReady || state.lat == null || state.lng == null) {
-      throw new Error("location required");
+      useFallbackLocation("위치 확인이 지연됐어요");
     }
 
     // 취향 페어는 클라이언트에서 매번 랜덤 (서버 캐시/구버전과 무관)
@@ -371,9 +411,13 @@ async function ensureFreshLocation() {
   if (state.locationReady && state.lat != null && state.lng != null) {
     return { latitude: state.lat, longitude: state.lng };
   }
-  await requestLocation(false);
+  try {
+    await requestLocation(false);
+  } catch (_) {
+    useFallbackLocation("위치를 가져오지 못했어요");
+  }
   if (!state.locationReady || state.lat == null || state.lng == null) {
-    throw new Error("location required");
+    useFallbackLocation("위치를 가져오지 못했어요");
   }
   return { latitude: state.lat, longitude: state.lng };
 }
@@ -805,5 +849,23 @@ function setupLongPress() {
 
 init().catch((err) => {
   console.error(err);
-  alert("서버 연결 실패. backend를 먼저 실행하세요.");
+  const local =
+    location.hostname === "localhost" || location.hostname === "127.0.0.1";
+  alert(
+    local
+      ? "서버 연결 실패. backend를 먼저 실행하세요."
+      : "서버가 깨어나는 중일 수 있어요. 10초 뒤 새로고침 해 주세요."
+  );
+  setLocStatus(
+    local
+      ? "서버 연결 실패"
+      : "잠시 후 새로고침 하면 됩니다 (첫 접속은 30~60초 걸릴 수 있어요)",
+    false
+  );
+  const startBtn = $("btn-start");
+  if (startBtn) {
+    startBtn.disabled = false;
+    startBtn.textContent = "다시 시도";
+    startBtn.onclick = () => location.reload();
+  }
 });
