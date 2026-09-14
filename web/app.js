@@ -434,13 +434,22 @@ async function completeKakaoCodeLink(code) {
   return linked;
 }
 
-async function linkKakaoAccount() {
+function kakaoLinkLabel(busy = false) {
+  return busy
+    ? `<span class="kakao-ico" aria-hidden="true"></span>연결 중…`
+    : `<span class="kakao-ico" aria-hidden="true"></span>카카오로 도감 저장`;
+}
+
+function setKakaoLinkBusy(busy) {
   const btn = $("btn-kakao-link");
+  if (!btn) return;
+  btn.disabled = !!busy;
+  btn.innerHTML = kakaoLinkLabel(busy);
+}
+
+async function linkKakaoAccount() {
   try {
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = "카카오 연결 중…";
-    }
+    setKakaoLinkBusy(true);
     const sdk = ensureKakaoSdk();
     if (!sdk.ok) {
       if (sdk.reason === "no_key") {
@@ -449,9 +458,9 @@ async function linkKakaoAccount() {
         alert("카카오 SDK를 불러오지 못했어요. 네트워크를 확인한 뒤 새로고침해 주세요.");
       }
       setAuthStatus("게스트 식별 유지 중 — 카카오 연동 대기");
+      setKakaoLinkBusy(false);
       return;
     }
-    // JS SDK v2: popup login 제거됨 → authorize 리다이렉트
     sessionStorage.setItem("jh_kakao_redirect", kakaoRedirectUri());
     window.Kakao.Auth.authorize({
       redirectUri: kakaoRedirectUri(),
@@ -460,10 +469,7 @@ async function linkKakaoAccount() {
   } catch (err) {
     console.error(err);
     setAuthStatus("카카오 연동 실패. 잠시 후 다시 시도해 주세요.");
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = "카카오로 3초 만에 도감 저장";
-    }
+    setKakaoLinkBusy(false);
   }
 }
 
@@ -502,9 +508,6 @@ async function init() {
   $("btn-go").onclick = () => swipe("lets_go");
   $("btn-again").onclick = () => location.reload();
   $("btn-share").onclick = () => shareReceipt();
-  $("btn-copy").onclick = () => copyShareLink();
-  const igBtn = $("btn-share-ig");
-  if (igBtn) igBtn.onclick = () => shareForInstagramStory();
   const kakaoBtn = $("btn-kakao-link");
   if (kakaoBtn) kakaoBtn.onclick = () => linkKakaoAccount();
   const duoBtn = $("btn-duo");
@@ -931,47 +934,50 @@ async function ensureReceipt(data) {
   return created;
 }
 
+function buildShareText(receipt) {
+  const url = receipt.share_url || "";
+  const title = receipt.title || "식탐 영수증";
+  const place = receipt.place_name || "";
+  const menu = receipt.menu_name || "";
+  const reason = receipt.match_reason || receipt.sub_text || "";
+  return (
+    `${title} · 그냥여기\n` +
+    `${place}${menu ? ` / ${menu}` : ""}\n` +
+    (reason ? `${reason}\n` : "") +
+    `인스타 스토리에 올리면 JUSTHERE10\n` +
+    url
+  );
+}
+
 async function shareReceipt() {
   try {
     const receipt = state.lastReceipt;
-    if (!receipt) {
-      setShareStatus("공유할 영수증이 없어요.");
+    if (!receipt?.share_url) {
+      setShareStatus("아직 공유할 영수증이 없어요.");
       return;
     }
+    const text = buildShareText(receipt);
     const payload = {
-      title: "식탐 영수증 · 그냥여기",
-      text: receipt.share_text,
+      title: "그냥여기 영수증",
+      text,
       url: receipt.share_url,
     };
     if (navigator.share) {
       await navigator.share(payload);
-      setShareStatus("공유했어요!");
+      setShareStatus("공유했어요.");
       return;
     }
-    await navigator.clipboard.writeText(receipt.share_text);
-    setShareStatus("카톡에 붙여넣기 하세요 — 링크 복사됨");
+    await navigator.clipboard.writeText(text);
+    setShareStatus("링크 복사됐어요. 카톡·인스타에 붙여넣으면 돼요.");
   } catch (err) {
     if (err && err.name === "AbortError") return;
     try {
-      await navigator.clipboard.writeText(state.lastReceipt?.share_text || "");
-      setShareStatus("링크 텍스트를 복사했어요");
+      const receipt = state.lastReceipt;
+      await navigator.clipboard.writeText(buildShareText(receipt || {}));
+      setShareStatus("링크 복사됐어요.");
     } catch {
-      setShareStatus("공유에 실패했어요. 링크 복사를 눌러 주세요.");
+      setShareStatus("공유에 실패했어요. 잠시 후 다시 눌러 주세요.");
     }
-  }
-}
-
-async function copyShareLink() {
-  try {
-    const receipt = state.lastReceipt;
-    if (!receipt) {
-      setShareStatus("공유할 영수증이 없어요.");
-      return;
-    }
-    await navigator.clipboard.writeText(receipt.share_text);
-    setShareStatus("복사 완료 — 카톡에 붙여넣기");
-  } catch {
-    setShareStatus("복사 실패. 브라우저 권한을 확인해 주세요.");
   }
 }
 
@@ -1012,8 +1018,8 @@ function showDone(data) {
   setShareStatus("");
   updateKakaoLinkButton();
   ensureReceipt(data)
-    .then(() => setShareStatus("친구에게 자랑할 준비 완료"))
-    .catch(() => setShareStatus("공유 링크 생성 실패"));
+    .then(() => setShareStatus("공유할 준비됐어요"))
+    .catch(() => setShareStatus("공유 링크를 아직 못 만들었어요"));
 }
 
 function setupSwipeGestures() {
@@ -1162,28 +1168,7 @@ function setupLongPress() {
 }
 
 async function shareForInstagramStory() {
-  try {
-    const receipt = state.lastReceipt;
-    if (!receipt?.share_url) {
-      setShareStatus("공유할 영수증이 없어요.");
-      return;
-    }
-    const text =
-      `🧾 ${receipt.title || "식탐 영수증"} · 그냥여기\n` +
-      `🍽 ${receipt.place_name || ""} / ${receipt.menu_name || ""}\n` +
-      `🤖 ${receipt.match_reason || receipt.sub_text || ""}\n` +
-      `🎁 스토리 공유 리워드: JUSTHERE10\n` +
-      `${receipt.share_url}`;
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch (_) {
-      prompt("인스타 스토리에 붙여넣을 텍스트", text);
-    }
-    setShareStatus("복사 완료! 인스타 스토리에 붙여넣으면 JUSTHERE10 할인 리워드");
-  } catch (err) {
-    console.error(err);
-    setShareStatus("스토리용 링크 생성 실패");
-  }
+  return shareReceipt();
 }
 
 function setupInstallPwa() {

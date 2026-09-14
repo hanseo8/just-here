@@ -401,7 +401,7 @@ select {
   max-width: 340px;
   padding: 12px 14px;
   border-radius: 14px;
-  background: rgba(0,0,0,0.22);
+  background: rgba(0,0,0,0.18);
   text-align: left;
 }
 .story-reward-badge {
@@ -409,16 +409,69 @@ select {
   margin: 0 0 6px;
   padding: 4px 10px;
   border-radius: 999px;
-  background: #fee500;
+  background: rgba(255,255,255,0.92);
   color: #191919;
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 800;
 }
 .story-reward-copy {
   margin: 0;
   font-size: 13px;
   line-height: 1.45;
   opacity: 0.95;
+}
+.done-actions-row {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 8px;
+  margin-top: 10px;
+  max-width: 340px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.done-actions-row .btn {
+  margin-top: 0;
+  width: 100%;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-weight: 800;
+}
+.btn.share.outline {
+  background: #fff;
+  color: #191919;
+  border: 1.5px solid rgba(255,255,255,0.85);
+  box-shadow: none;
+}
+.btn.kakao-link {
+  background: #fee500;
+  color: #191919;
+  border: none;
+  margin-top: 10px;
+}
+.done-actions-row .btn.kakao-link {
+  margin-top: 0;
+}
+.kakao-ico {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: inline-block;
+  background: #191919;
+  border-radius: 45% 45% 45% 8%;
+  position: relative;
+}
+.kakao-ico::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 5px;
+  width: 10px;
+  height: 7px;
+  border-radius: 40%;
+  background: #fee500;
 }
 #btn-locate {
   margin-bottom: 10px;
@@ -643,11 +696,6 @@ select {
   font-weight: 700;
 }
 .done-box .btn { margin-top: 10px; }
-.btn.kakao-link {
-  background: #fee500;
-  color: #191919;
-  margin-top: 10px;
-}
 .auth-status {
   margin: 8px 0 0;
   font-size: 12px;
