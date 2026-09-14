@@ -81,6 +81,14 @@ function useFallbackLocation(reason) {
 function show(id) {
   document.querySelectorAll(".screen").forEach((el) => el.classList.add("hidden"));
   $(id).classList.remove("hidden");
+  const scrollable = id === "screen-done" || id === "screen-onboard";
+  document.body.classList.toggle("allow-scroll", scrollable);
+  document.documentElement.classList.toggle("allow-scroll", scrollable);
+  if (scrollable) {
+    window.scrollTo(0, 0);
+    const screen = $(id);
+    if (screen) screen.scrollTop = 0;
+  }
 }
 
 function setLocStatus(text, ok = false) {
@@ -230,12 +238,12 @@ const TASTE_MENU_POOL = [
   { key: "gukbap", label: "국밥", category: "korean", image: "/static/tastes/gukbap.jpg" },
   { key: "bibimbap", label: "비빔밥", category: "korean", image: "https://images.unsplash.com/photo-1553163147-622ab57be1c7?w=600&q=80" },
   { key: "tteokbokki", label: "떡볶이", category: "korean", image: "https://images.unsplash.com/photo-1635363638580-c2809d049eee?w=600&q=80" },
-  { key: "kalguksu", label: "칼국수", category: "noodle", image: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=600&q=80" },
+  { key: "kalguksu", label: "칼국수", category: "noodle", image: "/static/tastes/kalguksu.jpg" },
   { key: "naengmyeon", label: "냉면", category: "noodle", image: "https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?w=600&q=80" },
   { key: "ramen", label: "라멘", category: "japanese", image: "https://images.unsplash.com/photo-1617093727343-374698b1b08d?w=600&q=80" },
   { key: "sushi", label: "초밥", category: "japanese", image: "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600&q=80" },
   { key: "donkatsu", label: "돈가스", category: "japanese", image: "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=600&q=80" },
-  { key: "udon", label: "우동", category: "japanese", image: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=600&q=80" },
+  { key: "udon", label: "우동", category: "japanese", image: "/static/tastes/udon.jpg" },
   { key: "pork", label: "삼겹살", category: "meat", image: "/static/tastes/pork.jpg" },
   { key: "galbi", label: "갈비", category: "meat", image: "/static/tastes/galbi.jpg" },
   { key: "chicken", label: "치킨", category: "meat", image: "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=600&q=80" },

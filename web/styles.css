@@ -15,6 +15,15 @@ html, body {
   overflow: hidden;
   touch-action: none;
 }
+html.allow-scroll,
+body.allow-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
+  height: auto;
+  min-height: 100%;
+  -webkit-overflow-scrolling: touch;
+}
 
 #app, .screen {
   height: 100%;
@@ -22,6 +31,14 @@ html, body {
   max-width: 430px;
   margin: 0 auto;
   position: relative;
+}
+body.allow-scroll #app {
+  height: auto;
+  min-height: 100%;
+}
+body.allow-scroll .screen:not(.hidden) {
+  height: auto;
+  min-height: 100%;
 }
 
 .hidden { display: none !important; }
@@ -392,10 +409,21 @@ select {
 }
 
 .done-box {
-  padding: 18vh 24px;
+  padding: 8vh 24px calc(28px + env(safe-area-inset-bottom, 0px));
   text-align: center;
 }
-.done-box h2 { font-size: 40px; margin-bottom: 8px; }
+.done-box h2 { font-size: 34px; margin: 0 0 6px; }
+#screen-done {
+  height: auto;
+  min-height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+#screen-done .done-box .btn,
+#screen-done .done-box a.btn {
+  margin-top: 10px;
+}
 .receipt-card {
   display: block;
   margin: 16px auto 20px;
