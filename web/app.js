@@ -45,6 +45,36 @@ const FALLBACK_LAT = 37.3925;
 const FALLBACK_LNG = 126.645;
 const FALLBACK_LABEL = "송도 센트럴파크 근처(임시)";
 
+// 진입 인트로 — init()이 끝날 때까지 덮고, 최소 시간은 채운 뒤 비킨다
+const INTRO_START = Date.now();
+const INTRO_MIN_MS = 1150;
+const INTRO_SLOW_MS = 2600;
+
+function prefersReducedMotion() {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+}
+
+function dismissIntro() {
+  const el = document.getElementById("intro");
+  if (!el || el.dataset.done) return;
+  el.dataset.done = "1";
+  const min = prefersReducedMotion() ? 0 : INTRO_MIN_MS;
+  const left = Math.max(0, min - (Date.now() - INTRO_START));
+  window.setTimeout(() => {
+    el.classList.add("is-out");
+    window.setTimeout(() => el.remove(), 560);
+  }, left);
+}
+
+// 콜드스타트가 길어지면 멈춘 게 아니라는 걸 알린다
+window.setTimeout(() => {
+  const el = document.getElementById("intro");
+  if (el && !el.dataset.done) document.getElementById("intro-wait")?.classList.add("show");
+}, INTRO_SLOW_MS);
+
+// 전체 화면을 덮는 요소라 어떤 경우에도 갇히면 안 된다
+window.setTimeout(dismissIntro, 12000);
+
 function isInAppBrowser() {
   const ua = navigator.userAgent || "";
   return /KAKAOTALK|Instagram|FBAN|FBAV|Line\//i.test(ua);
@@ -1015,7 +1045,6 @@ async function init() {
     console.error(err);
     setAuthStatus("카카오 연동 실패. 다시 시도해 주세요.");
   }
-  $("btn-start").disabled = true;
   $("btn-start").onclick = onStartClick;
   syncStartState();
   const retasteBtn = $("btn-retaste");
@@ -1981,25 +2010,28 @@ function setupInstallPwa() {
   }
 }
 
-init().catch((err) => {
-  console.error(err);
-  const local =
-    location.hostname === "localhost" || location.hostname === "127.0.0.1";
-  alert(
-    local
-      ? "서버 연결 실패. backend를 먼저 실행하세요."
-      : "서버가 깨어나는 중일 수 있어요. 10초 뒤 새로고침 해 주세요."
-  );
-  setLocStatus(
-    local
-      ? "서버 연결 실패"
-      : "잠시 후 새로고침 하면 됩니다 (첫 접속은 30~60초 걸릴 수 있어요)",
-    false
-  );
-  const startBtn = $("btn-start");
-  if (startBtn) {
-    startBtn.disabled = false;
-    startBtn.textContent = "다시 시도";
-    startBtn.onclick = () => location.reload();
-  }
-});
+init()
+  .catch((err) => {
+    console.error(err);
+    const local =
+      location.hostname === "localhost" || location.hostname === "127.0.0.1";
+    alert(
+      local
+        ? "서버 연결 실패. backend를 먼저 실행하세요."
+        : "서버가 깨어나는 중일 수 있어요. 10초 뒤 새로고침 해 주세요."
+    );
+    setLocStatus(
+      local
+        ? "서버 연결 실패"
+        : "잠시 후 새로고침 하면 됩니다 (첫 접속은 30~60초 걸릴 수 있어요)",
+      false
+    );
+    const startBtn = $("btn-start");
+    if (startBtn) {
+      startBtn.disabled = false;
+      startBtn.textContent = "다시 시도";
+      startBtn.onclick = () => location.reload();
+    }
+  })
+  // 실패해도 주황 화면에 갇히면 안 된다
+  .finally(() => dismissIntro());

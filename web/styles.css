@@ -75,6 +75,86 @@ body.allow-scroll {
   outline-offset: 2px;
 }
 
+/* ── 진입 인트로 ───────────────────────────────────── */
+
+/* 첫 화면이 뜨기 전 init()이 도는 구간을 덮는다.
+   퇴장은 카드 스와이프와 같은 동작 — 앱의 기본 제스처를 미리 보여준다. */
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: linear-gradient(165deg, #ff5a00 0%, #e62e00 100%);
+  color: #fff;
+  will-change: transform, opacity;
+}
+.intro-mark { text-align: center; }
+.intro-word {
+  margin: 0;
+  font-family: "Black Han Sans", "IBM Plex Sans KR", sans-serif;
+  font-size: 46px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  animation: intro-rise 520ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.intro-tag {
+  position: relative;
+  display: inline-block;
+  margin: 12px 0 0;
+  padding-bottom: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.92);
+  animation: intro-rise 520ms cubic-bezier(0.2, 0.7, 0.2, 1) 160ms both;
+}
+/* 브랜드 이미지의 손글씨 밑줄을 그려 넣는 동작 */
+.intro-tag::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.9);
+  transform: scaleX(0);
+  transform-origin: left center;
+  animation: intro-underline 420ms cubic-bezier(0.2, 0.7, 0.2, 1) 420ms both;
+}
+.intro-wait {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  opacity: 0;
+  transition: opacity 240ms ease;
+}
+.intro-wait.show { opacity: 1; }
+.intro.is-out {
+  animation: intro-swipe 500ms cubic-bezier(0.55, 0.06, 0.3, 1) forwards;
+  pointer-events: none;
+}
+
+@keyframes intro-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes intro-underline {
+  to { transform: scaleX(1); }
+}
+@keyframes intro-swipe {
+  to { transform: translateX(112%) rotate(11deg); opacity: 0; }
+}
+
 /* ── 앱 바 ─────────────────────────────────────────── */
 
 .app-bar {
