@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>그냥여기</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- ONBOARDING -->
+    <section id="screen-onboard" class="screen">
+      <div class="brand-hero">
+        <p class="eyebrow">JUST HERE</p>
+        <h1>그냥여기</h1>
+        <p class="sub">메뉴 고민은 사치, 지금 당장 그냥여기 어때?</p>
+      </div>
+      <div id="taste-stage" class="taste-stage hidden">
+        <p id="taste-prompt" class="taste-prompt"></p>
+        <div class="taste-pair">
+          <button type="button" class="taste-card" id="taste-left"></button>
+          <button type="button" class="taste-card" id="taste-right"></button>
+        </div>
+        <p class="taste-progress" id="taste-progress"></p>
+      </div>
+      <div id="start-panel" class="start-panel">
+        <p id="loc-status" class="loc-status">현재 위치를 확인합니다…</p>
+        <button type="button" id="btn-retry-loc" class="btn ghost">위치 다시 가져오기</button>
+        <p id="weather-status" class="weather-status">날씨 확인 중…</p>
+        <details class="dev-weather">
+          <summary>날씨 수동 테스트</summary>
+          <label class="field">날씨 덮어쓰기
+            <select id="weather">
+              <option value="">자동 (실날씨)</option>
+              <option value="clear">맑음</option>
+              <option value="rain">비</option>
+              <option value="snow">눈</option>
+              <option value="hot">더움</option>
+              <option value="cold">추움</option>
+            </select>
+          </label>
+        </details>
+        <p class="hint">딱 맞는 맛집을 위해 <strong>실시간 현재 위치</strong>가 필요합니다. 위치 없이 시작할 수 없습니다.</p>
+        <button type="button" id="btn-start" class="btn primary" disabled>시작하기</button>
+      </div>
+    </section>
+
+    <!-- FEED -->
+    <section id="screen-feed" class="screen hidden">
+      <header class="top">
+        <p class="copy" id="feed-copy">오늘 점심은 그냥여기 어때?</p>
+        <p id="intent-reason" class="intent-reason hidden"></p>
+        <div class="toggle" role="tablist">
+          <button type="button" class="tog on" data-intent="visit">방문</button>
+          <button type="button" class="tog" data-intent="delivery">배달</button>
+        </div>
+        <div class="meta-row">
+          <span id="tier-label">티어 —</span>
+          <span id="slots-label">5/5</span>
+        </div>
+        <div class="meta-row">
+          <span id="radius-label">반경 —</span>
+          <span id="source-label"></span>
+        </div>
+        <button type="button" id="btn-duo" class="btn-duo">둘이서 고르기</button>
+      </header>
+
+      <div id="card-stage" class="card-stage">
+        <div id="empty" class="empty hidden">
+          <p id="empty-msg">근처에 지금 갈 곳이 없어요.</p>
+          <button type="button" id="btn-reload-feed" class="btn primary" style="margin-top:16px;max-width:240px">근처 다시 불러오기</button>
+        </div>
+        <article id="card" class="card hidden">
+          <div class="card-media" id="card-media"></div>
+          <div class="card-scrim">
+            <p class="place" id="card-place"></p>
+            <p class="menu" id="card-menu"></p>
+            <p class="eta" id="card-eta"></p>
+            <p class="tag" id="card-tag"></p>
+          </div>
+          <div id="gold-badge" class="gold-badge hidden">오늘의 100% 정답</div>
+          <div id="detail" class="detail hidden"></div>
+        </article>
+      </div>
+
+      <footer class="bottom">
+        <button type="button" id="btn-nope" class="btn ghost">Nope</button>
+        <button type="button" id="btn-go" class="btn primary go"></button>
+      </footer>
+      <p class="swipe-hint">← 거절 · 수락 → · 길게 누르면 상세</p>
+    </section>
+
+    <!-- MATCH FLASH (즉시 딥링크 전 폭죽) -->
+    <div id="match-flash" class="match-flash hidden" aria-hidden="true">
+      <div id="confetti-layer" class="confetti-layer"></div>
+      <p class="match-title">그냥여기!</p>
+      <p id="match-sub" class="match-sub"></p>
+    </div>
+
+    <!-- HANDOFF + 영수증 공유 -->
+    <section id="screen-done" class="screen hidden">
+      <div class="done-box">
+        <h2 id="done-title">그냥여기!</h2>
+        <p id="done-sub"></p>
+        <article id="receipt" class="receipt-card theme-bg_basic" role="status">
+          <p class="receipt-label">나만의 식탐 영수증</p>
+          <div class="receipt-sticker" id="receipt-sticker" aria-hidden="true">🛋️</div>
+          <p id="receipt-title" class="receipt-title"></p>
+          <p id="receipt-sub" class="receipt-sub"></p>
+          <div class="receipt-divider"></div>
+          <p class="receipt-row"><span>식당</span><strong id="receipt-place"></strong></p>
+          <p class="receipt-row"><span>메뉴</span><strong id="receipt-menu"></strong></p>
+          <p class="receipt-row reason"><span>매칭</span><strong id="receipt-reason"></strong></p>
+          <p class="receipt-wm">JUST HERE · 그냥여기</p>
+        </article>
+        <p id="handoff-note" class="handoff-note hidden"></p>
+        <a id="handoff-link" class="btn primary" target="_blank" rel="noopener">지도에서 보기</a>
+        <button type="button" id="btn-share" class="btn share">영수증 자랑하기</button>
+        <button type="button" id="btn-duo-done" class="btn ghost">둘이서 고르기</button>
+        <button type="button" id="btn-copy" class="btn ghost">링크 복사</button>
+        <p id="share-status" class="share-status hidden"></p>
+        <button type="button" id="btn-again" class="btn ghost">다시 선택</button>
+      </div>
+    </section>
+  </div>
+  <script src="/static/app.js?v=20260914-duo2"></script>
+</body>
+</html>

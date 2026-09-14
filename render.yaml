@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: just-here
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    envVars:
+      - key: PUBLIC_BASE_URL
+        value: https://www.justthis.co.kr
+      - key: KAKAO_REST_API_KEY
+        sync: false

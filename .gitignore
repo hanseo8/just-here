@@ -1,0 +1,39 @@
+# 환경
+.env
+**/.env
+.env.*
+!**/.env.example
+!.env.example
+
+# Python
+.venv/
+**/venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+*.egg-info/
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+.pub-cache/
+.pub/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Secrets
+*.pem
+google-services.json
+GoogleService-Info.plist
+serviceAccount*.json

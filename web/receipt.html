@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>식탐 영수증 · 그냥여기</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    .share-landing {
+      min-height: 100%;
+      padding: 10vh 24px 40px;
+      text-align: center;
+      max-width: 430px;
+      margin: 0 auto;
+    }
+    .share-landing .cta { margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <div class="share-landing">
+    <p class="eyebrow">JUST HERE · 식탐 영수증</p>
+    <h1>그냥여기</h1>
+    <p class="sub">친구가 고민 없이 골랐어요</p>
+    <article id="ticket" class="receipt-card theme-bg_basic">
+      <p class="receipt-label">나만의 식탐 영수증</p>
+      <div class="receipt-sticker" id="r-sticker" aria-hidden="true">🛋️</div>
+      <h2 id="r-title" class="receipt-title">불러오는 중…</h2>
+      <p id="r-sub" class="receipt-sub"></p>
+      <div class="receipt-divider"></div>
+      <p class="receipt-row"><span>식당</span><strong id="r-place"></strong></p>
+      <p class="receipt-row"><span>메뉴</span><strong id="r-menu"></strong></p>
+      <p class="receipt-row reason"><span>매칭</span><strong id="r-reason"></strong></p>
+      <p class="receipt-wm">JUST HERE · 그냥여기</p>
+    </article>
+    <a class="btn primary cta" href="/">나도 선택 시작</a>
+    <p class="hint" style="margin-top:16px">메뉴 고민은 사치, 지금 당장 그냥여기 어때?</p>
+  </div>
+  <script>
+    (async () => {
+      const id = location.pathname.split("/").filter(Boolean).pop();
+      try {
+        const res = await fetch(`/v1/share/receipt/${id}`);
+        if (!res.ok) throw new Error("missing");
+        const data = await res.json();
+        const theme = data.asset_id || data.theme || "bg_basic";
+        document.getElementById("r-sticker").textContent = data.sticker || "🛋️";
+        document.getElementById("r-title").textContent = data.title;
+        document.getElementById("r-sub").textContent = data.sub_text || "";
+        document.getElementById("r-place").textContent = data.place_name;
+        document.getElementById("r-menu").textContent =
+          `${data.menu_name} · ${data.intent === "delivery" ? "배달" : "방문"}`;
+        document.getElementById("r-reason").textContent = data.match_reason || "";
+        document.getElementById("ticket").className = `receipt-card theme-${theme}`;
+        document.title = `${data.title} · 그냥여기`;
+      } catch {
+        document.getElementById("r-title").textContent = "영수증을 찾을 수 없어요";
+        document.getElementById("r-sub").textContent = "링크가 만료됐거나 잘못된 주소예요.";
+      }
+    })();
+  </script>
+</body>
+</html>

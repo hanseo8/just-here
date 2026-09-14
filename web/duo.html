@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Duo · 그냥여기</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    .duo-wrap { max-width: 430px; margin: 0 auto; min-height: 100%; padding: 8vh 20px 40px; text-align: center; }
+    .duo-pick { margin-top: 20px; text-align: left; }
+    .duo-pick img { width: 100%; height: 220px; object-fit: cover; border-radius: 20px; display: block; background: rgba(0,0,0,.2); }
+    .duo-pick h2 { margin: 14px 0 4px; font-size: 24px; }
+    .duo-meta { opacity: .9; font-size: 14px; margin: 0 0 8px; }
+    .duo-reason { font-size: 13px; opacity: .9; line-height: 1.4; margin: 12px 0; }
+    .duo-wait { margin: 24px 0; font-size: 16px; }
+  </style>
+</head>
+<body>
+  <div class="duo-wrap">
+    <p class="eyebrow">JUST HERE · DUO</p>
+    <h1>둘이서 고르기</h1>
+    <p id="duo-sub" class="sub">친구 취향 3장만 고르면 교집합 1곳!</p>
+
+    <div id="stage-taste" class="taste-stage hidden">
+      <p id="taste-prompt" class="taste-prompt"></p>
+      <div class="taste-pair">
+        <button type="button" class="taste-card" id="taste-left"></button>
+        <button type="button" class="taste-card" id="taste-right"></button>
+      </div>
+      <p class="taste-progress" id="taste-progress"></p>
+    </div>
+
+    <div id="stage-wait" class="hidden">
+      <p class="duo-wait" id="wait-msg">초대 링크를 보내는 중…</p>
+      <button type="button" id="btn-copy-invite" class="btn share">초대 링크 복사</button>
+      <p id="copy-status" class="share-status hidden"></p>
+      <button type="button" id="btn-poll" class="btn ghost">결과 새로고침</button>
+    </div>
+
+    <div id="stage-result" class="duo-pick hidden">
+      <img id="pick-img" alt="" />
+      <h2 id="pick-place"></h2>
+      <p class="duo-meta" id="pick-menu"></p>
+      <p class="duo-meta" id="pick-eta"></p>
+      <p class="duo-reason" id="pick-reason"></p>
+      <a id="pick-map" class="btn primary" target="_blank" rel="noopener">지도에서 보기</a>
+      <a class="btn ghost" href="/" style="margin-top:10px;display:flex">혼자 다시 고르기</a>
+    </div>
+  </div>
+  <script src="/static/duo.js?v=1"></script>
+</body>
+</html>

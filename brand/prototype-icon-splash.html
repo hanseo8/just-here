@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>그냥이거 - 디자인 프로토타입</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        :root {
+            --brand-orange: #FF5A00;
+            --brand-red: #E62E00;
+        }
+        
+        body {
+            font-family: "Pretendard", sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            gap: 50px;
+            flex-wrap: wrap;
+            padding: 20px;
+        }
+
+        .brand-gradient {
+            background: linear-gradient(135deg, var(--brand-orange) 0%, var(--brand-red) 100%);
+        }
+
+        .app-icon-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .app-icon {
+            width: 150px;
+            height: 150px;
+            border-radius: 33px;
+            box-shadow: 0 10px 25px rgba(230, 46, 0, 0.4);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .app-icon::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 40%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 100%);
+            border-radius: 33px 33px 0 0;
+        }
+
+        .icon-logo {
+            font-size: 4rem;
+            color: white;
+            font-weight: 900;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            z-index: 10;
+            text-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        .splash-screen {
+            width: 375px;
+            height: 812px;
+            border-radius: 40px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+            border: 8px solid #333;
+            background-image: url("https://images.unsplash.com/photo-1529193591184-b1d58069ecdd?q=80&w=1000&auto=format&fit=crop"); 
+            background-size: cover;
+            background-position: center;
+        }
+
+        .splash-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(to bottom, rgba(230, 46, 0, 0.4) 0%, rgba(255, 90, 0, 0.95) 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            padding: 40px 30px;
+        }
+
+        .fade-in-up {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .loading-dots {
+            display: flex;
+            gap: 8px;
+            margin-top: 30px;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            background-color: white;
+            border-radius: 50%;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-icon-container">
+        <h2 class="text-xl font-bold text-gray-700 mb-2">App Icon</h2>
+        <div class="app-icon brand-gradient" id="capture-icon">
+            <div class="icon-logo">
+                <i class="ph-fill ph-hand-pointing text-5xl mb-[-10px]"></i>
+                <span class="text-3xl tracking-tighter">ㅇㄱ</span>
+            </div>
+        </div>
+        <p class="text-sm text-gray-500 font-semibold mt-2">그냥이거</p>
+    </div>
+
+    <div>
+        <h2 class="text-xl font-bold text-gray-700 mb-4 text-center">Splash Screen</h2>
+        <div class="splash-screen" id="capture-splash">
+            <div class="splash-overlay">
+                <div class="mb-auto mt-12 fade-in-up">
+                    <i class="ph-fill ph-target text-white text-4xl opacity-80"></i>
+                </div>
+                <div class="text-white">
+                    <p class="text-lg font-semibold opacity-90 mb-2 fade-in-up" style="text-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+                        메뉴 고민은 사치,
+                    </p>
+                    <h1 class="text-5xl font-black tracking-tight leading-tight fade-in-up" style="text-shadow: 0 4px 15px rgba(0,0,0,0.4);">
+                        오늘 점심은<br>
+                        <span class="text-yellow-300">그냥이거!</span>
+                    </h1>
+                </div>
+                <div class="loading-dots fade-in-up">
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
