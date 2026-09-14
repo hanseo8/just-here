@@ -111,11 +111,48 @@ function useFallbackLocation(reason) {
     track("locate_fallback", { reason: String(reason || "").slice(0, 80) });
   }
   setLocStatus(
-    `${reason} → ${FALLBACK_LABEL}로 시작해요. 가능하면 「위치 다시 가져오기」를 눌러 주세요.`,
+    `${reason} → ${FALLBACK_LABEL}로 시작해요. 위치 줄의 「확인」을 누르면 다시 잡아요.`,
     false
   );
   const startBtn = $("btn-start");
   if (startBtn) startBtn.disabled = false;
+}
+
+let feedHintDefault = null;
+
+/** 피드 하단 한 줄을 안내·진행·실패 메시지로 함께 쓴다 */
+function setFeedHint(text, tone = "") {
+  const el = $("feed-hint");
+  if (!el) return;
+  if (feedHintDefault === null) feedHintDefault = el.textContent;
+  el.textContent = text || feedHintDefault;
+  el.classList.toggle("is-error", tone === "error");
+  el.classList.toggle("is-busy", tone === "busy");
+}
+
+/** 카드 액션 진행 중: 중복 탭 차단 + 무슨 일이 일어나는지 표시 */
+function setSwipeBusy(busy, action) {
+  const pass = $("btn-nope");
+  const go = $("btn-go");
+  [pass, go].forEach((btn) => {
+    if (btn) btn.disabled = !!busy;
+  });
+  if (busy) {
+    const target = action === "lets_go" ? go : pass;
+    if (target) target.dataset.label = target.textContent;
+    if (target) target.textContent = "잠시만요…";
+    setFeedHint(
+      action === "lets_go" ? "가게를 확정하는 중이에요." : "다음 카드를 가져오는 중이에요.",
+      "busy"
+    );
+    return;
+  }
+  [pass, go].forEach((btn) => {
+    if (btn?.dataset.label) {
+      btn.textContent = btn.dataset.label;
+      delete btn.dataset.label;
+    }
+  });
 }
 
 function show(id) {
@@ -146,10 +183,12 @@ function syncStartState() {
   const hint = $("start-hint");
   if (!btn) return;
   const ready = !!state.locationReady;
-  btn.disabled = !ready;
+  // 위치가 없어도 버튼은 살려 둔다 — 누르면 권한을 물어보고 이어서 진행한다
+  btn.disabled = false;
+  btn.textContent = ready ? "시작하기" : "위치 확인하고 시작";
   if (!hint) return;
   if (!ready) {
-    hint.textContent = "위치를 확인하면 시작할 수 있어요.";
+    hint.textContent = "위치 권한을 물어본 뒤 근처 가게를 찾아요.";
   } else if (state.savedTaste?.length && !state.forceRetaste) {
     hint.textContent = "저장된 취향으로 바로 매칭해요.";
   } else {
@@ -355,6 +394,27 @@ function openTasteFlow() {
   applySmartIntent();
 }
 
+/** 취향 고르기에서 온보딩으로 돌아가기 (막다른 길 방지) */
+function closeTasteFlow() {
+  $("taste-stage")?.classList.add("hidden");
+  $("onboard-main")?.classList.remove("hidden");
+  $("onboard-cta")?.classList.remove("hidden");
+  setTasteStatus("");
+  state.tasteChoices = [];
+  updateTasteReuseHint();
+  window.scrollTo(0, 0);
+}
+
+function backToTasteCategories() {
+  setTasteStatus("");
+  $("taste-step-tone")?.classList.add("hidden");
+  $("taste-step-cat")?.classList.remove("hidden");
+  state.tasteChoices = state.tasteChoices.filter((k) =>
+    TASTE_CATEGORIES.some((c) => c.key === k)
+  );
+  renderTasteCategories();
+}
+
 function renderTasteCategories() {
   const box = $("taste-cats");
   if (!box) return;
@@ -365,13 +425,14 @@ function renderTasteCategories() {
   TASTE_CATEGORIES.forEach((c) => {
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = `taste-cat${selected.has(c.key) ? " on" : ""}`;
+    btn.className = "taste-cat";
     btn.dataset.key = c.key;
+    btn.setAttribute("aria-pressed", selected.has(c.key) ? "true" : "false");
     btn.innerHTML = `<span class="taste-cat-name">${c.label}</span>`;
     btn.onclick = () => toggleTasteCategory(c.key);
     box.appendChild(btn);
   });
-  syncTasteCatNext();
+  syncTasteCatUI();
 }
 
 function toggleTasteCategory(key) {
@@ -385,7 +446,24 @@ function toggleTasteCategory(key) {
   try {
     if (navigator.vibrate) navigator.vibrate(8);
   } catch (_) {}
-  renderTasteCategories();
+  // 전체를 다시 그리면 누른 버튼의 포커스가 사라진다 — 상태만 갱신
+  syncTasteCatUI();
+}
+
+function syncTasteCatUI() {
+  const selected = new Set(
+    state.tasteChoices.filter((k) =>
+      TASTE_CATEGORIES.some((c) => c.key === k)
+    )
+  );
+  const full = selected.size >= TASTE_CAT_MAX;
+  document.querySelectorAll(".taste-cat").forEach((btn) => {
+    const on = selected.has(btn.dataset.key);
+    btn.classList.toggle("on", on);
+    btn.classList.toggle("is-capped", full && !on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+  syncTasteCatNext();
 }
 
 function syncTasteCatNext() {
@@ -394,18 +472,21 @@ function syncTasteCatNext() {
   );
   const n = cats.length;
   const hint = $("taste-cat-hint");
-  if (hint) hint.textContent = `${n} / ${TASTE_CAT_MAX}`;
+  if (hint) {
+    // 안내는 문구 줄이 맡고, 버튼은 행동만 말한다
+    if (n < TASTE_CAT_MIN) {
+      hint.textContent = `${n} / ${TASTE_CAT_MAX} · ${TASTE_CAT_MIN}개부터 넘어갈 수 있어요`;
+    } else if (n >= TASTE_CAT_MAX) {
+      hint.textContent = `${n} / ${TASTE_CAT_MAX} · 바꾸려면 고른 걸 다시 누르세요`;
+    } else {
+      hint.textContent = `${n} / ${TASTE_CAT_MAX}`;
+    }
+  }
   const next = $("btn-taste-next");
   if (!next) return;
   next.disabled = n < TASTE_CAT_MIN;
   next.classList.toggle("ready", n >= TASTE_CAT_MIN);
-  if (n === 0) {
-    next.textContent = `원하는 종류를 눌러보세요 (${n}/${TASTE_CAT_MAX})`;
-  } else if (n < TASTE_CAT_MIN) {
-    next.textContent = `하나 더 고르면 시작해요 (${n}/${TASTE_CAT_MAX})`;
-  } else {
-    next.textContent = "선택 완료 · 시작";
-  }
+  next.textContent = "다음";
 }
 
 function goTasteToneStep() {
@@ -427,7 +508,35 @@ async function finishTasteWithTone(tone) {
     btn.classList.toggle("is-on", !!tone && btn.dataset.tone === tone);
   });
   track("taste_done", { taste: [...state.tasteChoices], tone: tone || "skip" });
-  await startSession();
+  setTasteBusy(true);
+  try {
+    await startSession();
+  } catch (err) {
+    console.error(err);
+    setTasteStatus(
+      "근처 가게를 불러오지 못했어요. 잠시 후 다시 눌러 주세요.",
+      "error"
+    );
+  } finally {
+    setTasteBusy(false);
+  }
+}
+
+function setTasteStatus(text, tone = "") {
+  const el = $("taste-status");
+  if (!el) return;
+  el.textContent = text || "";
+  el.classList.toggle("hidden", !text);
+  el.classList.toggle("is-error", tone === "error");
+}
+
+function setTasteBusy(busy) {
+  document
+    .querySelectorAll(".taste-tone, #btn-taste-skip-tone, #btn-taste-back")
+    .forEach((btn) => {
+      btn.disabled = !!busy;
+    });
+  setTasteStatus(busy ? "근처 가게를 찾는 중이에요. 몇 초 걸릴 수 있어요." : "");
 }
 
 async function onStartClick() {
@@ -461,9 +570,11 @@ async function onStartClick() {
       if (!state.tasteChoices?.length) {
         state.tasteChoices = [...state.savedTaste];
       }
+      // 세션이 열릴 때까지 버튼을 잠가 둔다 (중복 탭으로 세션이 두 번 생김)
+      btn.textContent = "가게 찾는 중…";
+      await startSession();
       btn.disabled = false;
       btn.textContent = "시작하기";
-      await startSession();
       return;
     }
 
@@ -921,6 +1032,10 @@ async function init() {
   });
   const skipTone = $("btn-taste-skip-tone");
   if (skipTone) skipTone.onclick = () => finishTasteWithTone("");
+  const tasteCancel = $("btn-taste-cancel");
+  if (tasteCancel) tasteCancel.onclick = () => closeTasteFlow();
+  const tasteBack = $("btn-taste-back");
+  if (tasteBack) tasteBack.onclick = () => backToTasteCategories();
   const locateBtn = $("btn-locate");
   if (locateBtn) locateBtn.onclick = () => locateAndSyncWeather(true);
   $("btn-nope").onclick = () => swipe("nope");
@@ -939,6 +1054,9 @@ async function init() {
   const reloadBtn = $("btn-reload-feed");
   if (reloadBtn) {
     reloadBtn.onclick = async () => {
+      if (reloadBtn.disabled) return;
+      reloadBtn.disabled = true;
+      reloadBtn.textContent = "찾는 중…";
       try {
         await ensureFreshLocation();
         const data = await api("/v1/session", {
@@ -959,6 +1077,9 @@ async function init() {
         console.error(err);
         const msg = $("empty-msg");
         if (msg) msg.textContent = "다시 불러오지 못했어요. 잠시 후 시도해 주세요.";
+      } finally {
+        reloadBtn.disabled = false;
+        reloadBtn.textContent = "다시 불러오기";
       }
     };
   }
@@ -975,26 +1096,46 @@ async function init() {
       if (state.swiping || state.modeSwitching) return;
       const next = btn.dataset.intent;
       if (!next || next === state.intent) return;
+      const prev = state.intent;
+      const prevReason = state.intentReason;
       state.modeSwitching = true;
       state.intent = next;
       state.intentReason = "";
       setToggleUI(state.intent);
+      setFeedHint(
+        next === "delivery"
+          ? "배달 가능한 곳으로 다시 찾는 중이에요."
+          : "걸어갈 수 있는 곳으로 다시 찾는 중이에요.",
+        "busy"
+      );
+      document.querySelectorAll(".tog").forEach((b) => (b.disabled = true));
       try {
         await refreshFeed();
         renderCard();
       } catch (err) {
         console.error(err);
+        state.intent = prev;
+        state.intentReason = prevReason;
+        setToggleUI(prev);
+        setFeedHint(
+          `${next === "delivery" ? "배달" : "방문"}으로 못 바꿨어요. 잠시 후 다시 눌러 주세요.`,
+          "error"
+        );
       } finally {
         state.modeSwitching = false;
+        document.querySelectorAll(".tog").forEach((b) => (b.disabled = false));
       }
     };
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (!$("detail")?.classList.contains("hidden")) hideDetailModal();
   });
 
   setupSwipeGestures();
   setupLongPress();
   setupInstallPwa();
-  const ws = $("weather-status");
-  if (ws) ws.textContent = "위치 파악 후 날씨가 자동으로 연동됩니다.";
 }
 
 async function ensureFreshLocation() {
@@ -1194,6 +1335,14 @@ function setCardMedia(card) {
   probe.src = url;
 }
 
+/** 서버 해시태그(#스트레스_풀리는_국물)를 읽기 쉬운 문장으로 */
+function readableTag(raw) {
+  return String(raw || "")
+    .replace(/^#/, "")
+    .replace(/_/g, " ")
+    .trim();
+}
+
 function renderCard() {
   const card = currentCard();
   const empty = $("empty");
@@ -1212,8 +1361,12 @@ function renderCard() {
       swapBtn.textContent =
         state.intent === "delivery" ? "방문으로 바꿔 보기" : "배달로 바꿔 보기";
     }
+    // 카드가 없으면 스와이프 안내는 의미 없음
+    $("feed-hint")?.classList.add("hidden");
     return;
   }
+  $("feed-hint")?.classList.remove("hidden");
+  setFeedHint("");
   empty.classList.add("hidden");
   el.classList.remove("hidden");
   el.classList.toggle("gold", !!card.is_gold);
@@ -1222,20 +1375,17 @@ function renderCard() {
   $("card-place").textContent = card.place_name;
   $("card-menu").textContent = card.menu_name;
   $("card-eta").textContent = card.eta_label;
-  $("card-tag").textContent = card.taste_match
-    ? "#취향맞춤"
-    : card.hashtag || (card.source === "kakao" ? "#근처_실상호" : "#그냥여기");
+  // 이유가 있을 때만 태그를 보여준다 (#그냥여기 같은 빈 태그는 정보가 없음)
+  const tagText = card.taste_match
+    ? "취향 맞춤"
+    : readableTag(card.hashtag) ||
+      (card.source === "kakao" ? "근처 실제 상호" : "");
+  const tagEl = $("card-tag");
+  tagEl.textContent = tagText;
+  tagEl.classList.toggle("hidden", !tagText);
   $("detail").classList.add("hidden");
-  const goLabel = $("btn-go")?.querySelector(".go-label");
-  if (goLabel) {
-    goLabel.textContent = "그냥여기";
-  }
   el.style.transform = "";
   el.style.opacity = "1";
-}
-
-function spawnConfetti() {
-  // 매칭 연출용 폭죽은 쓰지 않음 — 장식 모션은 제품 사용을 느리게 함
 }
 
 function openHandoff(handoff) {
@@ -1265,10 +1415,12 @@ function showMatchThenHandoff(data) {
   }, 700);
 }
 
+/** @returns {Promise<boolean>} 카드가 실제로 넘어갔는지 */
 async function swipe(action) {
   const card = currentCard();
-  if (!card || state.swiping) return;
+  if (!card || state.swiping) return false;
   state.swiping = true;
+  setSwipeBusy(true, action);
   try {
     const data = await api("/v1/swipe", {
       method: "POST",
@@ -1292,15 +1444,21 @@ async function swipe(action) {
         place: data.place_name || card.name || "",
       });
       showMatchThenHandoff(data);
-      return;
+      return true;
     }
     track("swipe_nope", {
       category: card.category || card.category_path?.[0] || "",
     });
     applyFeed(data);
     renderCard();
+    return true;
+  } catch (err) {
+    console.error(err);
+    setFeedHint("연결이 끊겼어요. 한 번 더 눌러 주세요.", "error");
+    return false;
   } finally {
     state.swiping = false;
+    setSwipeBusy(false);
   }
 }
 
@@ -1317,9 +1475,10 @@ async function createDuoInvite() {
       await ensureFreshLocation();
     }
     if (!state.tasteChoices?.length) {
-      alert("취향 선택 후 Duo를 만들 수 있어요.");
+      notify("취향을 먼저 고르면 둘이서 고르기를 만들 수 있어요.", "error");
       return;
     }
+    notify("초대 링크를 만드는 중이에요.", "busy");
     const room = await api("/v1/duo", {
       method: "POST",
       body: JSON.stringify({
@@ -1335,21 +1494,29 @@ async function createDuoInvite() {
     track("duo_create", {});
     try {
       await navigator.clipboard.writeText(url);
-      alert(`Duo 초대 링크를 복사했어요!\n카톡에 붙여넣기 하세요.\n\n${url}`);
+      notify("초대 링크를 복사했어요. 친구에게 붙여넣어 보내세요.");
     } catch {
       prompt("이 링크를 친구에게 보내세요", url);
     }
   } catch (err) {
     console.error(err);
-    const msg = String(err?.message || err || "");
-    if (msg.includes("404") || msg.includes("Not Found")) {
-      alert(
-        "Duo API가 없어요. 서버를 재시작해 주세요.\n\nPowerShell에서:\ncd backend\n.\\run.bat"
-      );
-      return;
-    }
-    alert("Duo 방 만들기에 실패했어요.\n" + msg.slice(0, 160));
+    notify("초대 링크를 만들지 못했어요. 잠시 후 다시 눌러 주세요.", "error");
   }
+}
+
+/** 현재 화면에 맞는 상태 줄에 메시지를 띄운다 (없으면 alert) */
+function notify(text, tone = "") {
+  const onDone = !$("screen-done")?.classList.contains("hidden");
+  if (onDone) {
+    setShareStatus(text);
+    return;
+  }
+  if (!$("screen-feed")?.classList.contains("hidden")) {
+    $("feed-hint")?.classList.remove("hidden");
+    setFeedHint(text, tone);
+    return;
+  }
+  alert(text);
 }
 
 async function ensureReceipt(data) {
@@ -1548,8 +1715,13 @@ function setupSwipeGestures() {
   let dx = 0;
   let active = false;
 
+  const resetCard = () => {
+    el.style.transform = "";
+    el.style.opacity = "1";
+  };
   const onStart = (x) => {
     if ($("detail") && !$("detail").classList.contains("hidden")) return;
+    if (state.swiping || state.modeSwitching) return;
     active = true;
     startX = x;
     dx = 0;
@@ -1563,12 +1735,13 @@ function setupSwipeGestures() {
   const onEnd = async () => {
     if (!active) return;
     active = false;
-    if (dx > 100) await swipe("lets_go");
-    else if (dx < -100) await swipe("nope");
-    else {
-      el.style.transform = "";
-      el.style.opacity = "1";
+    if (Math.abs(dx) <= 100) {
+      resetCard();
+      return;
     }
+    // 실패하면 카드가 밀려난 채로 남지 않도록 원위치시킨다
+    const moved = await swipe(dx > 0 ? "lets_go" : "nope");
+    if (!moved) resetCard();
   };
 
   el.addEventListener("touchstart", (e) => onStart(e.touches[0].clientX), {
@@ -1625,15 +1798,20 @@ function renderDetailModal(card) {
   `;
   d.classList.remove("hidden");
   const close = $("detail-close");
-  if (close) close.onclick = (e) => {
-    e.stopPropagation();
-    hideDetailModal();
-  };
+  if (close) {
+    close.onclick = (e) => {
+      e.stopPropagation();
+      hideDetailModal();
+    };
+    close.focus();
+  }
 }
 
 function hideDetailModal() {
   const d = $("detail");
-  if (d) d.classList.add("hidden");
+  if (!d || d.classList.contains("hidden")) return;
+  d.classList.add("hidden");
+  $("btn-card-detail")?.focus();
 }
 
 function setupLongPress() {

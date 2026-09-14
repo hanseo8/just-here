@@ -106,6 +106,14 @@ body.allow-scroll {
 
 /* ── 온보딩 ────────────────────────────────────────── */
 
+/* 시작 버튼을 화면 아래(엄지 위치)에 고정 — 첫 화면 하단이 비지 않게 */
+#screen-onboard {
+  display: flex;
+  flex-direction: column;
+}
+#onboard-main,
+#taste-stage:not(.hidden) { flex: 1 1 auto; }
+
 .onboard { padding: 22px 16px 8px; }
 
 .screen-title {
@@ -223,6 +231,7 @@ body.allow-scroll {
 
 /* ── 취향 고르기 ───────────────────────────────────── */
 
+/* 선택지가 적은 단계라 아래 고정보다 위에서 이어 읽히는 흐름이 낫다 */
 .taste-stage { padding: 20px 16px calc(24px + env(safe-area-inset-bottom, 0px)); }
 
 .taste-prompt {
@@ -265,6 +274,9 @@ body.allow-scroll {
   color: #fff;
   font-weight: 600;
 }
+/* 3개를 채우면 나머지는 눌러도 안 되므로 그렇게 보이게 한다 */
+.taste-cat.is-capped { color: var(--text-3); border-color: var(--border); }
+.taste-cat.is-capped:hover { background: transparent; }
 .taste-cat-name { font: inherit; }
 .taste-cat-check { display: none !important; }
 
@@ -285,8 +297,8 @@ body.allow-scroll {
 }
 .taste-tone {
   position: relative;
-  min-height: 96px;
-  padding: 16px 14px;
+  min-height: 72px;
+  padding: 14px;
   border: 1px solid var(--border-strong);
   border-radius: var(--r);
   background: transparent;
@@ -296,10 +308,12 @@ body.allow-scroll {
   font-weight: 400;
   cursor: pointer;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
+  justify-content: center;
   transition: background 0.12s ease, border-color 0.12s ease;
   -webkit-tap-highlight-color: transparent;
 }
+.taste-tone:disabled { opacity: 0.55; cursor: default; }
 .taste-tone .tone-emoji { display: none; }
 .taste-tone:hover { background: var(--surface-2); }
 .taste-tone.is-on {
@@ -350,6 +364,7 @@ body.allow-scroll {
   font-weight: 500;
   cursor: pointer;
 }
+.tog:disabled { opacity: 0.55; cursor: default; }
 .tog.on {
   background: var(--surface-2);
   color: var(--text);
@@ -454,11 +469,19 @@ body.allow-scroll {
   padding: 52px 16px 16px;
   background: linear-gradient(transparent, rgba(10, 8, 7, 0.92) 68%);
 }
+/* 가게 이름이 먼저 읽히고, 상세는 그 옆에 붙는 보조 행동 */
+.scrim-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
 .detail-chip {
   display: inline-flex;
   align-items: center;
-  margin: 0 0 8px;
-  padding: 4px 0;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 4px 0 4px 8px;
   border: none;
   border-radius: 0;
   background: transparent;
@@ -590,6 +613,21 @@ body.allow-scroll {
   font-size: 12px;
   color: var(--text-3);
 }
+.swipe-hint.hidden { display: none; }
+.swipe-hint.is-busy { color: var(--text-2); }
+.swipe-hint.is-error {
+  color: var(--warn);
+  font-weight: 500;
+}
+
+.taste-status {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.taste-status.is-error { color: var(--warn); }
+.taste-status.hidden { display: none; }
 
 /* ── 카드 상세 ─────────────────────────────────────── */
 
@@ -842,9 +880,12 @@ body.allow-scroll {
   border: 1px solid var(--border-strong);
   color: var(--text);
 }
+/* 카톡 공유는 보조 행동 — 브랜드 색은 지키되 높이를 낮춰 길찾기/주문보다 뒤에 둔다 */
 .btn.kakao-link {
+  min-height: 46px;
   background: #fee500;
   color: #191919;
+  font-size: 15px;
   font-weight: 700;
 }
 .btn.kakao-link:hover { background: #f2da00; }
@@ -887,6 +928,14 @@ body.allow-scroll {
   cursor: pointer;
 }
 .link-btn:hover { color: var(--text); }
+.link-btn:disabled { color: var(--text-3); cursor: default; text-decoration: none; }
+
+/* 취향 단계에서 빠져나가는 길 — 조용하지만 항상 있어야 한다 */
+.taste-back {
+  display: block;
+  margin: 12px auto 0;
+  color: var(--text-3);
+}
 
 .share-status {
   margin: 10px 2px 0;
@@ -1109,7 +1158,10 @@ body:has(.duo-wrap) {
 @media (max-height: 700px) {
   .feed-context { padding: 6px 16px 4px; }
   .stat-row { display: none; }
+  /* 안내 문구는 접되, 진행·실패 메시지는 작은 화면에서도 반드시 보여준다 */
   .swipe-hint { display: none; }
+  .swipe-hint.is-busy,
+  .swipe-hint.is-error { display: block; }
   .onboard { padding-top: 16px; }
   .screen-title { font-size: 23px; }
   .screen-desc { margin-bottom: 16px; }

@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=20260914-human1" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260914-states1" />
 </head>
 <body>
   <div id="app">
@@ -61,6 +61,7 @@
           <div id="taste-cats" class="taste-cats" role="group" aria-label="음식 종류"></div>
           <p id="taste-cat-hint" class="taste-progress" aria-live="polite">0 / 3</p>
           <button type="button" id="btn-taste-next" class="btn primary" disabled>다음</button>
+          <button type="button" id="btn-taste-cancel" class="link-btn taste-back">돌아가기</button>
         </div>
         <div id="taste-step-tone" class="hidden">
           <p class="taste-prompt">매운 쪽? 담백한 쪽?</p>
@@ -70,12 +71,14 @@
             <button type="button" class="taste-tone" data-tone="mild">담백</button>
           </div>
           <button type="button" id="btn-taste-skip-tone" class="btn ghost">건너뛰기</button>
+          <button type="button" id="btn-taste-back" class="link-btn taste-back">종류 다시 고르기</button>
+          <p id="taste-status" class="taste-status hidden" role="status"></p>
         </div>
       </div>
 
       <div id="onboard-cta" class="onboard-cta">
-        <button type="button" id="btn-start" class="btn primary" disabled>시작하기</button>
-        <p id="start-hint" class="cta-hint">위치를 확인하면 시작할 수 있어요.</p>
+        <button type="button" id="btn-start" class="btn primary">위치 확인하고 시작</button>
+        <p id="start-hint" class="cta-hint">위치 권한을 물어본 뒤 근처 가게를 찾아요.</p>
       </div>
     </section>
 
@@ -113,10 +116,12 @@
             <div id="map-badge" class="map-badge hidden"></div>
           </div>
           <div class="card-scrim">
-            <button type="button" id="btn-card-detail" class="detail-chip">
-              상세
-            </button>
-            <p class="place" id="card-place"></p>
+            <div class="scrim-head">
+              <p class="place" id="card-place"></p>
+              <button type="button" id="btn-card-detail" class="detail-chip">
+                상세
+              </button>
+            </div>
             <p class="menu" id="card-menu"></p>
             <p class="eta" id="card-eta"></p>
             <p class="tag" id="card-tag"></p>
@@ -130,7 +135,7 @@
         <button type="button" id="btn-nope" class="act pass">패스</button>
         <button type="button" id="btn-go" class="act go">그냥 여기</button>
       </footer>
-      <p class="swipe-hint">좌우로 밀면 패스 / 선택 · 상세는 「상세」또는 길게 누르기</p>
+      <p id="feed-hint" class="swipe-hint" role="status">카드를 좌우로 밀어서 넘겨도 돼요.</p>
     </section>
 
     <!-- MATCH FLASH (즉시 딥링크 전 폭죽) -->
@@ -142,7 +147,7 @@
     <!-- HANDOFF + 영수증 공유 -->
     <section id="screen-done" class="screen hidden">
       <div class="done-box">
-        <h2 id="done-title">그냥여기</h2>
+        <h2 id="done-title">여기로 정했어요</h2>
         <p id="done-sub"></p>
         <article id="receipt" class="receipt-card theme-bg_basic" role="status">
           <p class="receipt-label">나만의 식탐 영수증</p>
@@ -169,7 +174,7 @@
         <div class="done-subactions">
           <button type="button" id="btn-share" class="link-btn">링크 복사</button>
           <button type="button" id="btn-duo-done" class="link-btn">둘이서 고르기</button>
-          <button type="button" id="btn-again" class="link-btn">다시 고르기</button>
+          <button type="button" id="btn-again" class="link-btn">처음부터 다시</button>
         </div>
         <p id="auth-status" class="auth-status hidden"></p>
         <p id="title-badge" class="title-badge hidden"></p>
@@ -198,7 +203,7 @@
     </div>
   </div>
   <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
-  <script src="/static/auth.js?v=20260914-human1"></script>
-  <script src="/static/app.js?v=20260914-human1"></script>
+  <script src="/static/auth.js?v=20260914-states1"></script>
+  <script src="/static/app.js?v=20260914-states1"></script>
 </body>
 </html>
