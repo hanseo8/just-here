@@ -459,9 +459,9 @@ async function linkKakaoAccount() {
       return;
     }
     sessionStorage.setItem("jh_kakao_redirect", kakaoRedirectUri());
+    // scope 생략: 콘솔 동의항목 설정을 따름 (미설정 scope 넣으면 KOE205)
     window.Kakao.Auth.authorize({
       redirectUri: kakaoRedirectUri(),
-      scope: "profile_nickname",
     });
   } catch (err) {
     console.error(err);

@@ -1,10 +1,10 @@
 /* just-here soft-launch SW: shell cache only */
-const CACHE = "just-here-shell-v4";
+const CACHE = "just-here-shell-v5";
 const SHELL = [
   "/",
   "/static/styles.css?v=20260914-done2",
-  "/static/app.js?v=20260914-done2",
-  "/static/auth.js?v=20260914-done2",
+  "/static/app.js?v=20260914-koe205",
+  "/static/auth.js?v=20260914-koe205",
   "/manifest.webmanifest",
   "/static/icons/icon-192.png",
   "/static/icons/icon-512.png",
