@@ -32,6 +32,7 @@ ALLOWED_EVENTS = {
     "install_click",
     "delivery_copy",
     "story_unlock",
+    "story_image",
 }
 
 

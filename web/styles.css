@@ -977,21 +977,16 @@ body.allow-scroll {
   color: var(--text-2);
 }
 .story-reward-copy strong { color: var(--text); font-weight: 600; }
-.btn.gold-unlock {
+/* 이미지 만들기가 먼저, 해금은 그 다음 — 순서대로 하는 일이다 */
+#btn-story-image {
   margin-top: 10px;
   min-height: 44px;
-  border: 1px solid var(--border-strong);
-  background: transparent;
-  color: var(--text);
   font-size: 14px;
   font-weight: 500;
 }
-.btn.gold-unlock:hover { background: var(--surface-2); }
-.btn.gold-unlock:disabled {
-  border-color: var(--border);
-  color: var(--text-3);
-  background: transparent;
-  cursor: default;
+.story-done {
+  display: block;
+  margin: 10px auto 0;
 }
 
 /* ── 오버레이 ──────────────────────────────────────── */

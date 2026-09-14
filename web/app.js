@@ -1048,6 +1048,8 @@ async function init() {
   if (duoBtn) duoBtn.onclick = () => createDuoInvite();
   const duoDone = $("btn-duo-done");
   if (duoDone) duoDone.onclick = () => createDuoInvite();
+  const storyImgBtn = $("btn-story-image");
+  if (storyImgBtn) storyImgBtn.onclick = () => makeStoryImage();
   const storyBtn = $("btn-story-unlock");
   if (storyBtn) storyBtn.onclick = () => unlockStoryGold();
   updateStoryReward();
@@ -1646,6 +1648,47 @@ function updateStoryReward() {
   }
 }
 
+/** 올릴 이미지를 손에 쥐여 준다 — 이게 없으면 보상 루프가 성립하지 않는다 */
+async function makeStoryImage() {
+  const btn = $("btn-story-image");
+  if (!btn || btn.disabled) return;
+  if (!window.JustHereStory) {
+    setShareStatus("이미지를 만들 수 없는 환경이에요. 「링크 복사」를 써 주세요.");
+    return;
+  }
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "만드는 중…";
+  try {
+    if (state.lastDone) await ensureReceipt(state.lastDone);
+    const receipt = {
+      ...(state.lastReceipt || {}),
+      place_name: state.lastReceipt?.place_name || state.lastDone?.place_name,
+      menu_name: state.lastReceipt?.menu_name || state.lastDone?.menu_name,
+      intent: state.lastReceipt?.intent || state.intent,
+    };
+    const result = await window.JustHereStory.shareStoryImage(receipt, {
+      gold: !!state.goldUnlocked,
+    });
+    track("story_image", { result });
+    if (result === "shared") {
+      setShareStatus("스토리에 올린 뒤 「스토리 올렸어요」를 눌러 주세요.");
+    } else if (result === "saved") {
+      setShareStatus("이미지를 저장했어요. 인스타 스토리에 올려 주세요.");
+    } else if (result === "opened") {
+      setShareStatus("새 탭의 이미지를 길게 눌러 저장한 뒤 스토리에 올려 주세요.");
+    } else if (result === "failed") {
+      setShareStatus("이미지를 만들지 못했어요. 잠시 후 다시 눌러 주세요.");
+    }
+  } catch (err) {
+    console.error(err);
+    setShareStatus("이미지를 만들지 못했어요. 잠시 후 다시 눌러 주세요.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+}
+
 async function unlockStoryGold() {
   if (state.goldUnlocked) return;
   state.goldUnlocked = true;
@@ -1874,10 +1917,6 @@ function setupLongPress() {
       if (!moved) hideDetailModal();
     }
   });
-}
-
-async function shareForInstagramStory() {
-  return shareReceipt();
 }
 
 function setupInstallPwa() {

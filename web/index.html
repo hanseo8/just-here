@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=20260914-states1" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260914-story1" />
 </head>
 <body>
   <div id="app">
@@ -180,10 +180,13 @@
         <p id="title-badge" class="title-badge hidden"></p>
         <div id="story-reward" class="story-reward">
           <p class="story-reward-copy">
-            인스타 스토리에 영수증을 올리고 <strong>@official.just.this</strong>를 태그하면
+            영수증을 스토리에 올리고 <strong>@official.just.this</strong>를 태그하면
             골드 영수증을 열어 드려요.
           </p>
-          <button type="button" id="btn-story-unlock" class="btn gold-unlock">
+          <button type="button" id="btn-story-image" class="btn ghost">
+            스토리용 이미지 만들기
+          </button>
+          <button type="button" id="btn-story-unlock" class="link-btn story-done">
             스토리 올렸어요
           </button>
         </div>
@@ -203,7 +206,8 @@
     </div>
   </div>
   <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
-  <script src="/static/auth.js?v=20260914-states1"></script>
-  <script src="/static/app.js?v=20260914-states1"></script>
+  <script src="/static/auth.js?v=20260914-story1"></script>
+  <script src="/static/story.js?v=20260914-story1"></script>
+  <script src="/static/app.js?v=20260914-story1"></script>
 </body>
 </html>
