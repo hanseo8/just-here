@@ -76,11 +76,39 @@ async function api(path, opts = {}) {
   throw lastErr;
 }
 
+/** 소프트런치 퍼널 이벤트 — 실패해도 UX 방해 없음 */
+function track(event, props = {}) {
+  try {
+    const body = {
+      event,
+      uid: state.uid || window.JustHereAuth?.getUid?.() || "",
+      device_id: window.JustHereAuth?.getDeviceId?.() || "",
+      props: props || {},
+    };
+    const payload = JSON.stringify(body);
+    if (navigator.sendBeacon) {
+      const blob = new Blob([payload], { type: "application/json" });
+      navigator.sendBeacon("/v1/analytics/event", blob);
+      return;
+    }
+    fetch("/v1/analytics/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: payload,
+      keepalive: true,
+    }).catch(() => {});
+  } catch (_) {}
+}
+
 function useFallbackLocation(reason) {
   state.lat = FALLBACK_LAT;
   state.lng = FALLBACK_LNG;
   state.locationReady = true;
   state.usingFallbackLoc = true;
+  if (!state.trackedLocateFallback) {
+    state.trackedLocateFallback = true;
+    track("locate_fallback", { reason: String(reason || "").slice(0, 80) });
+  }
   setLocStatus(
     `${reason} → ${FALLBACK_LABEL}로 시작해요. 가능하면 「위치 다시 가져오기」를 눌러 주세요.`,
     false
@@ -145,6 +173,10 @@ function applyPosition(coords) {
   state.locationReady = true;
   state.usingFallbackLoc = false;
   const acc = Math.round(coords.accuracy || 0);
+  if (!state.trackedLocateOk) {
+    state.trackedLocateOk = true;
+    track("locate_ok", { accuracy_m: acc });
+  }
   setLocStatus(
     `현재 위치 확인 · 정확도 ±${acc}m (${state.lat.toFixed(5)}, ${state.lng.toFixed(5)})`,
     true
@@ -368,6 +400,7 @@ async function finishTasteWithTone(tone) {
   document.querySelectorAll(".taste-tone").forEach((btn) => {
     btn.classList.toggle("is-on", !!tone && btn.dataset.tone === tone);
   });
+  track("taste_done", { taste: [...state.tasteChoices], tone: tone || "skip" });
   await startSession();
 }
 
@@ -598,6 +631,7 @@ async function completeKakaoCodeLink(code) {
     const linked = await window.JustHereAuth.linkKakaoCode(api, code, redirectUri);
     state.uid = linked.uid;
     state.authType = "kakao";
+    track("kakao_link", {});
     clearKakaoRedirect();
     const resume = consumeKakaoResume();
     const restored = restoreFromResume(resume);
@@ -741,6 +775,8 @@ async function shareToKakaoTalk() {
       },
     ],
   });
+  track("kakao_share", {});
+  track("share", { channel: "kakao" });
   setShareStatus("카톡 공유창을 열었어요");
 }
 
@@ -813,6 +849,12 @@ async function init() {
   } catch (err) {
     console.warn("guest auth skipped", err);
   }
+  track("app_open", {
+    standalone:
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true,
+    in_app: isInAppBrowser(),
+  });
   // 카카오 authorize 콜백 (?code=)
   try {
     const params = new URLSearchParams(window.location.search);
@@ -953,6 +995,12 @@ async function startSession() {
       taste: state.tasteChoices,
       uid: state.uid || undefined,
     }),
+  });
+  track("session_start", {
+    intent: state.intent,
+    weather: state.weather,
+    taste: state.tasteChoices || [],
+    fallback_loc: !!state.usingFallbackLoc,
   });
   if (state.tasteChoices?.length) {
     state.savedTaste = [...state.tasteChoices];
@@ -1187,9 +1235,22 @@ async function swipe(action) {
       }),
     });
     if (action === "lets_go") {
+      track("swipe_go", {
+        category: card.category || card.category_path?.[0] || "",
+        place: card.name || "",
+      });
+      track("match_done", {
+        category: card.category || card.category_path?.[0] || "",
+        intent: state.intent,
+        persona: data.persona?.id || "",
+        place: data.place_name || card.name || "",
+      });
       showMatchThenHandoff(data);
       return;
     }
+    track("swipe_nope", {
+      category: card.category || card.category_path?.[0] || "",
+    });
     applyFeed(data);
     renderCard();
   } finally {
@@ -1225,6 +1286,7 @@ async function createDuoInvite() {
       }),
     });
     const url = room.invite_url || `${location.origin}${room.invite_path}`;
+    track("duo_create", {});
     try {
       await navigator.clipboard.writeText(url);
       alert(`Duo 초대 링크를 복사했어요!\n카톡에 붙여넣기 하세요.\n\n${url}`);
@@ -1302,16 +1364,19 @@ async function shareReceipt() {
     };
     if (navigator.share) {
       await navigator.share(payload);
+      track("share", { channel: "native" });
       setShareStatus("공유했어요.");
       return;
     }
     await navigator.clipboard.writeText(text);
+    track("share", { channel: "clipboard" });
     setShareStatus("링크 복사됐어요. 카톡·인스타에 붙여넣으면 돼요.");
   } catch (err) {
     if (err && err.name === "AbortError") return;
     try {
       const receipt = state.lastReceipt;
       await navigator.clipboard.writeText(buildShareText(receipt || {}));
+      track("share", { channel: "clipboard_fallback" });
       setShareStatus("링크 복사됐어요.");
     } catch {
       setShareStatus("공유에 실패했어요. 잠시 후 다시 눌러 주세요.");
@@ -1540,6 +1605,7 @@ function setupInstallPwa() {
   }
 
   btn.onclick = async () => {
+    track("install_click", { has_prompt: !!deferred });
     if (deferred) {
       deferred.prompt();
       try {

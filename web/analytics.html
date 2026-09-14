@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Analytics · 그냥여기</title>
+  <style>
+    :root {
+      --bg: #12100e;
+      --panel: #1c1814;
+      --fg: #f3ebe3;
+      --muted: rgba(243, 235, 227, 0.65);
+      --line: rgba(243, 235, 227, 0.12);
+      --accent: #e8b84a;
+      --ok: #7dcea0;
+      --warn: #e07a5f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans KR", "Apple SD Gothic Neo", sans-serif;
+      background:
+        radial-gradient(90% 60% at 10% -10%, #2a2218 0%, transparent 55%),
+        radial-gradient(70% 50% at 100% 0%, #1a2418 0%, transparent 45%),
+        var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+    }
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 28px 18px 64px;
+    }
+    h1 {
+      font-family: "Black Han Sans", "IBM Plex Sans KR", sans-serif;
+      font-size: 28px;
+      font-weight: 400;
+      margin: 0 0 4px;
+      letter-spacing: -0.02em;
+    }
+    .meta { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+    .gate {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 24px;
+      padding: 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+    }
+    .gate input {
+      flex: 1;
+      min-width: 160px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      background: #0e0c0a;
+      color: var(--fg);
+      font: inherit;
+    }
+    .gate select, .gate button {
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      background: #0e0c0a;
+      color: var(--fg);
+      font: inherit;
+      cursor: pointer;
+    }
+    .gate button.primary {
+      background: var(--accent);
+      color: #1a1408;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+    .err {
+      color: var(--warn);
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+    .note {
+      color: var(--muted);
+      font-size: 12px;
+      margin: 8px 0 20px;
+      line-height: 1.5;
+    }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 10px;
+      margin-bottom: 22px;
+    }
+    .kpi {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      padding: 14px 12px;
+    }
+    .kpi .l { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+    .kpi .v { font-size: 22px; font-weight: 600; letter-spacing: -0.03em; }
+    .kpi .s { font-size: 11px; color: var(--ok); margin-top: 4px; }
+    h2 {
+      font-size: 15px;
+      margin: 28px 0 10px;
+      font-weight: 600;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+    }
+    th, td {
+      text-align: left;
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    th { color: var(--muted); font-weight: 500; font-size: 11px; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .bar-row {
+      display: grid;
+      grid-template-columns: 88px 1fr 48px;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    .bar-track {
+      height: 8px;
+      background: rgba(255,255,255,0.06);
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      background: var(--accent);
+      width: 0;
+    }
+    .hidden { display: none !important; }
+    a.home { color: var(--muted); font-size: 13px; }
+  </style>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <main>
+    <p><a class="home" href="/">← 그냥여기</a></p>
+    <h1>퍼널 대시보드</h1>
+    <p class="meta">소프트런치용 · ADMIN_TOKEN 필요</p>
+
+    <div class="gate">
+      <input id="token" type="password" placeholder="ADMIN_TOKEN" autocomplete="off" />
+      <select id="days">
+        <option value="1">오늘</option>
+        <option value="7" selected>7일</option>
+        <option value="14">14일</option>
+        <option value="30">30일</option>
+      </select>
+      <button type="button" class="primary" id="btn-load">불러오기</button>
+    </div>
+    <p id="err" class="err hidden"></p>
+    <p id="note" class="note hidden"></p>
+
+    <div id="board" class="hidden">
+      <div class="kpis" id="kpis"></div>
+
+      <h2>전환율</h2>
+      <div id="conv"></div>
+
+      <h2>일별</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>날짜</th>
+            <th class="num">오픈</th>
+            <th class="num">세션</th>
+            <th class="num">매칭</th>
+            <th class="num">공유</th>
+            <th class="num">카카오</th>
+          </tr>
+        </thead>
+        <tbody id="daily"></tbody>
+      </table>
+
+      <h2>취향 TOP</h2>
+      <div id="taste"></div>
+
+      <h2>매칭 카테고리</h2>
+      <div id="match-cat"></div>
+
+      <h2>전체 이벤트</h2>
+      <table>
+        <thead><tr><th>이벤트</th><th class="num">횟수</th></tr></thead>
+        <tbody id="totals"></tbody>
+      </table>
+    </div>
+  </main>
+  <script>
+    const TOKEN_KEY = "jh_admin_token";
+    const $ = (id) => document.getElementById(id);
+
+    function loadToken() {
+      const q = new URLSearchParams(location.search).get("token");
+      if (q) {
+        try { localStorage.setItem(TOKEN_KEY, q); } catch (_) {}
+        return q;
+      }
+      try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (_) { return ""; }
+    }
+
+    function bars(rows, max) {
+      if (!rows?.length) return "<p class='meta'>데이터 없음</p>";
+      const m = max || Math.max(...rows.map((r) => r[1]), 1);
+      return rows
+        .map(([k, v]) => {
+          const pct = Math.round((v / m) * 100);
+          return `<div class="bar-row"><span>${k}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><span class="num">${v}</span></div>`;
+        })
+        .join("");
+    }
+
+    async function refresh() {
+      const token = $("token").value.trim();
+      const days = $("days").value;
+      $("err").classList.add("hidden");
+      if (!token) {
+        $("err").textContent = "ADMIN_TOKEN을 입력하세요. Render Environment에 설정한 값입니다.";
+        $("err").classList.remove("hidden");
+        return;
+      }
+      try { localStorage.setItem(TOKEN_KEY, token); } catch (_) {}
+      try {
+        const res = await fetch(
+          `/v1/analytics/summary?token=${encodeURIComponent(token)}&days=${days}`
+        );
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(res.status === 401 ? "토큰이 틀렸거나 서버에 ADMIN_TOKEN이 없습니다." : t);
+        }
+        const data = await res.json();
+        render(data);
+      } catch (e) {
+        $("board").classList.add("hidden");
+        $("err").textContent = String(e.message || e);
+        $("err").classList.remove("hidden");
+      }
+    }
+
+    function render(data) {
+      $("board").classList.remove("hidden");
+      $("note").textContent = data.note || "";
+      $("note").classList.toggle("hidden", !data.note);
+      const f = data.funnel || {};
+      const c = data.conversion || {};
+      $("kpis").innerHTML = [
+        ["오늘 기기", data.unique_devices_today, "app_open 기준"],
+        ["기간 기기", data.unique_devices_period, `${data.since_days}일`],
+        ["앱 오픈", f.app_open, ""],
+        ["세션 시작", f.session_start, `${c.open_to_session || 0}%`],
+        ["매칭", f.match_done, `${c.session_to_match || 0}%`],
+        ["공유", f.share, `${c.match_to_share || 0}%`],
+        ["카카오 연동", f.kakao_link, `${c.match_to_kakao || 0}%`],
+        ["위치 성공률", `${c.locate_ok_rate || 0}%`, `${f.locate_ok || 0} / ${(f.locate_ok || 0) + (f.locate_fallback || 0)}`],
+      ]
+        .map(
+          ([l, v, s]) =>
+            `<div class="kpi"><div class="l">${l}</div><div class="v">${v ?? 0}</div>${s ? `<div class="s">${s}</div>` : ""}</div>`
+        )
+        .join("");
+
+      $("conv").innerHTML = `
+        <table>
+          <tbody>
+            <tr><td>오픈 → 세션</td><td class="num">${c.open_to_session || 0}%</td></tr>
+            <tr><td>세션 → 매칭</td><td class="num">${c.session_to_match || 0}%</td></tr>
+            <tr><td>매칭 → 공유</td><td class="num">${c.match_to_share || 0}%</td></tr>
+            <tr><td>매칭 → 카카오</td><td class="num">${c.match_to_kakao || 0}%</td></tr>
+          </tbody>
+        </table>`;
+
+      $("daily").innerHTML = (data.daily || [])
+        .map(
+          (d) =>
+            `<tr><td>${d.day}</td><td class="num">${d.app_open}</td><td class="num">${d.session_start}</td><td class="num">${d.match_done}</td><td class="num">${d.share}</td><td class="num">${d.kakao_link}</td></tr>`
+        )
+        .join("");
+
+      $("taste").innerHTML = bars(data.top_taste || []);
+      $("match-cat").innerHTML = bars(data.top_match_category || []);
+
+      const totals = Object.entries(data.totals || {}).sort((a, b) => b[1] - a[1]);
+      $("totals").innerHTML = totals
+        .map(([k, v]) => `<tr><td>${k}</td><td class="num">${v}</td></tr>`)
+        .join("") || `<tr><td colspan="2">이벤트 없음</td></tr>`;
+
+      $("meta")?.remove();
+      const meta = document.querySelector(".meta");
+      if (meta) meta.textContent = `생성 ${data.generated_at || ""} · ${data.since_days}일`;
+    }
+
+    $("token").value = loadToken();
+    $("btn-load").onclick = refresh;
+    $("days").onchange = () => {
+      if ($("token").value.trim()) refresh();
+    };
+    if ($("token").value.trim()) refresh();
+  </script>
+</body>
+</html>

@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
+from . import analytics
 from . import duo
 from . import engine
 from . import kakao
@@ -73,6 +74,13 @@ class KakaoCodeBody(BaseModel):
 class TasteSyncBody(BaseModel):
     uid: str
     taste: list[str] = Field(default_factory=list)
+
+
+class AnalyticsEventBody(BaseModel):
+    event: str
+    uid: str | None = None
+    device_id: str | None = None
+    props: dict = Field(default_factory=dict)
 
 
 def _strip(cards: list[dict]) -> list[dict]:
@@ -138,6 +146,32 @@ def health():
         "kakao_enabled": kakao.kakao_configured(),
         "auth": "guest_first",
     }
+
+
+@app.post("/v1/analytics/event")
+def analytics_event(body: AnalyticsEventBody):
+    """클라이언트 퍼널 이벤트 수집 (공개, 허용 이벤트만)."""
+    try:
+        row = analytics.append_event(
+            body.event,
+            uid=body.uid or "",
+            device_id=body.device_id or "",
+            props=body.props or {},
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"ok": True, "ts": row["ts"]}
+
+
+@app.get("/v1/analytics/summary")
+def analytics_summary(
+    token: str | None = Query(None),
+    days: int = Query(7, ge=1, le=30),
+):
+    """ADMIN_TOKEN 필요. CTO 대시보드용 집계."""
+    if not analytics.admin_token_ok(token):
+        raise HTTPException(401, "admin token required")
+    return analytics.summarize(since_days=days)
 
 
 @app.get("/v1/meta")
@@ -524,6 +558,13 @@ if WEB_DIR.is_dir():
         path = WEB_DIR / "kakao-scenario.html"
         if not path.exists():
             raise HTTPException(404, "scenario page missing")
+        return FileResponse(path)
+
+    @app.get("/analytics")
+    def analytics_page():
+        path = WEB_DIR / "analytics.html"
+        if not path.exists():
+            raise HTTPException(404, "analytics page missing")
         return FileResponse(path)
 
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")

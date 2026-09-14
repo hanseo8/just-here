@@ -40,5 +40,6 @@ serviceAccount*.json
 
 # Guest-First user store (runtime)
 data/users.json
+data/events.jsonl
 data/*.tmp
 
