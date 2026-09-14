@@ -724,6 +724,69 @@ select {
   font-size: 12px;
   opacity: 0.9;
 }
+.kakao-link-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(20, 8, 4, 0.78);
+}
+.kakao-link-overlay.hidden { display: none; }
+.kakao-link-card {
+  width: min(360px, 100%);
+  border-radius: 20px;
+  padding: 22px 20px 18px;
+  background: #fff7f2;
+  color: #1a120e;
+  box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+}
+.kakao-link-eyebrow {
+  margin: 0 0 12px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+  opacity: 0.7;
+}
+.kakao-steps {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.kakao-steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  opacity: 0.4;
+}
+.kakao-steps li span {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #ddd;
+  color: #333;
+  font-size: 12px;
+}
+.kakao-steps li.on { opacity: 1; }
+.kakao-steps li.on span { background: #fee500; }
+.kakao-steps li.done { opacity: 0.85; }
+.kakao-steps li.done span { background: #1a120e; color: #fff; }
+.kakao-link-msg {
+  margin: 0 0 12px;
+  font-size: 15px;
+  line-height: 1.45;
+  font-weight: 600;
+}
+#btn-kakao-overlay-ok {
+  width: 100%;
+}
 .share-status {
   margin: 10px 0 0;
   font-size: 13px;

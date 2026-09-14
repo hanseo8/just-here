@@ -16,7 +16,7 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/static/icons/icon-192.png" type="image/png" />
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="/static/styles.css?v=20260914-taste1" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260914-kakao-step1" />
 </head>
 <body>
   <div id="app">
@@ -152,8 +152,20 @@
       </div>
     </section>
   </div>
+  <div id="kakao-link-overlay" class="kakao-link-overlay hidden" aria-live="polite">
+    <div class="kakao-link-card">
+      <p class="kakao-link-eyebrow">도감 저장</p>
+      <ol class="kakao-steps">
+        <li id="kakao-step-1"><span>1</span>카카오 동의</li>
+        <li id="kakao-step-2"><span>2</span>계정 연결</li>
+        <li id="kakao-step-3"><span>3</span>완료</li>
+      </ol>
+      <p id="kakao-link-msg" class="kakao-link-msg">잠시만 기다려 주세요…</p>
+      <button type="button" id="btn-kakao-overlay-ok" class="btn primary hidden">확인</button>
+    </div>
+  </div>
   <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
-  <script src="/static/auth.js?v=20260914-taste1"></script>
-  <script src="/static/app.js?v=20260914-taste1"></script>
+  <script src="/static/auth.js?v=20260914-kakao-step1"></script>
+  <script src="/static/app.js?v=20260914-kakao-step1"></script>
 </body>
 </html>

@@ -448,34 +448,74 @@ function kakaoRedirectUri() {
   return window.location.origin;
 }
 
+function showKakaoOverlay(step, msg, { showOk = false } = {}) {
+  const overlay = $("kakao-link-overlay");
+  if (!overlay) return;
+  overlay.classList.remove("hidden");
+  [1, 2, 3].forEach((n) => {
+    const el = $(`kakao-step-${n}`);
+    if (!el) return;
+    el.classList.remove("on", "done");
+    if (n < step) el.classList.add("done");
+    if (n === step) el.classList.add("on");
+  });
+  const m = $("kakao-link-msg");
+  if (m) m.textContent = msg || "";
+  const ok = $("btn-kakao-overlay-ok");
+  if (ok) ok.classList.toggle("hidden", !showOk);
+}
+
+function hideKakaoOverlay() {
+  const overlay = $("kakao-link-overlay");
+  if (overlay) overlay.classList.add("hidden");
+}
+
 function saveKakaoResume() {
+  const payload = JSON.stringify({
+    done: state.lastDone,
+    lastReceipt: state.lastReceipt,
+    tasteChoices: state.tasteChoices,
+    sessionId: state.sessionId,
+    lat: state.lat,
+    lng: state.lng,
+    intent: state.intent,
+    weather: state.weather,
+    locationReady: state.locationReady,
+    redirectUri: kakaoRedirectUri(),
+  });
   try {
-    sessionStorage.setItem(
-      "jh_kakao_resume",
-      JSON.stringify({
-        done: state.lastDone,
-        lastReceipt: state.lastReceipt,
-        tasteChoices: state.tasteChoices,
-        sessionId: state.sessionId,
-        lat: state.lat,
-        lng: state.lng,
-        intent: state.intent,
-        weather: state.weather,
-        locationReady: state.locationReady,
-      })
-    );
+    sessionStorage.setItem("jh_kakao_resume", payload);
+    localStorage.setItem("jh_kakao_resume", payload);
+    sessionStorage.setItem("jh_kakao_redirect", kakaoRedirectUri());
+    localStorage.setItem("jh_kakao_redirect", kakaoRedirectUri());
   } catch (_) {}
 }
 
 function consumeKakaoResume() {
   try {
-    const raw = sessionStorage.getItem("jh_kakao_resume");
+    const raw =
+      sessionStorage.getItem("jh_kakao_resume") ||
+      localStorage.getItem("jh_kakao_resume");
     sessionStorage.removeItem("jh_kakao_resume");
+    localStorage.removeItem("jh_kakao_resume");
     if (!raw) return null;
     return JSON.parse(raw);
   } catch (_) {
     return null;
   }
+}
+
+function getSavedKakaoRedirect() {
+  return (
+    sessionStorage.getItem("jh_kakao_redirect") ||
+    localStorage.getItem("jh_kakao_redirect") ||
+    kakaoRedirectUri()
+  );
+}
+
+function clearKakaoRedirect() {
+  sessionStorage.removeItem("jh_kakao_redirect");
+  localStorage.removeItem("jh_kakao_redirect");
 }
 
 function restoreFromResume(resume) {
@@ -497,27 +537,64 @@ function restoreFromResume(resume) {
 }
 
 async function completeKakaoCodeLink(code) {
-  const redirectUri = sessionStorage.getItem("jh_kakao_redirect") || kakaoRedirectUri();
-  const linked = await window.JustHereAuth.linkKakaoCode(api, code, redirectUri);
-  state.uid = linked.uid;
-  state.authType = "kakao";
-  sessionStorage.removeItem("jh_kakao_redirect");
-  const resume = consumeKakaoResume();
-  const restored = restoreFromResume(resume);
-  setAuthStatus("카카오 연동 완료! 칭호 도감이 안전하게 저장됐어요.");
-  updateKakaoLinkButton();
-  // URL에서 code 제거
-  const clean = new URL(window.location.href);
-  clean.searchParams.delete("code");
-  clean.searchParams.delete("state");
-  clean.searchParams.delete("error");
-  clean.searchParams.delete("error_description");
-  window.history.replaceState({}, "", clean.pathname + clean.search + clean.hash);
-  if (!restored) {
-    // 완료 화면 스냅샷이 없으면 히어로에 성공만 표시
-    show("screen-onboard");
+  showKakaoOverlay(2, "카카오 계정을 도감에 연결하는 중이에요…");
+  const redirectUri = getSavedKakaoRedirect();
+  try {
+    const linked = await window.JustHereAuth.linkKakaoCode(api, code, redirectUri);
+    state.uid = linked.uid;
+    state.authType = "kakao";
+    clearKakaoRedirect();
+    const resume = consumeKakaoResume();
+    const restored = restoreFromResume(resume);
+    showKakaoOverlay(
+      3,
+      restored
+        ? "저장 완료! 영수증 화면으로 돌아갈게요."
+        : "저장 완료! 다음에 앱을 열면 카카오 계정으로 이어져요.",
+      { showOk: true }
+    );
+    setAuthStatus("카카오 연동 완료! 칭호 도감이 안전하게 저장됐어요.");
+    updateKakaoLinkButton();
+    const clean = new URL(window.location.href);
+    clean.searchParams.delete("code");
+    clean.searchParams.delete("state");
+    clean.searchParams.delete("error");
+    clean.searchParams.delete("error_description");
+    window.history.replaceState({}, "", clean.pathname + clean.search + clean.hash);
+
+    const finish = () => {
+      hideKakaoOverlay();
+      if (restored) return;
+      show("screen-onboard");
+      const hint = $("taste-reuse-hint");
+      if (hint) {
+        hint.textContent = "카카오 도감 저장 완료. 저장된 취향으로 바로 시작할 수 있어요.";
+        hint.classList.remove("hidden");
+      }
+    };
+    const ok = $("btn-kakao-overlay-ok");
+    if (ok) {
+      ok.onclick = finish;
+      // 자동으로 완료 화면 복구 시 짧게 보여주고 이동
+      if (restored) {
+        setTimeout(finish, 900);
+      }
+    } else {
+      finish();
+    }
+    return linked;
+  } catch (err) {
+    console.error(err);
+    showKakaoOverlay(
+      2,
+      "연결에 실패했어요. 다시 「카카오로 도감 저장」을 눌러 주세요.",
+      { showOk: true }
+    );
+    const ok = $("btn-kakao-overlay-ok");
+    if (ok) ok.onclick = () => hideKakaoOverlay();
+    setAuthStatus("카카오 연동 실패. 다시 시도해 주세요.");
+    throw err;
   }
-  return linked;
 }
 
 function kakaoLinkLabel(busy = false) {
@@ -549,6 +626,7 @@ async function linkKakaoAccount() {
     }
     sessionStorage.setItem("jh_kakao_redirect", kakaoRedirectUri());
     saveKakaoResume();
+    showKakaoOverlay(1, "카카오 동의 화면으로 이동해요…");
     // scope 생략: 콘솔 동의항목 설정을 따름 (미설정 scope 넣으면 KOE205)
     window.Kakao.Auth.authorize({
       redirectUri: kakaoRedirectUri(),
@@ -598,9 +676,14 @@ async function init() {
     const code = params.get("code");
     const kakaoErr = params.get("error");
     if (kakaoErr) {
+      showKakaoOverlay(1, "카카오 로그인이 취소되었거나 실패했어요.", {
+        showOk: true,
+      });
+      const ok = $("btn-kakao-overlay-ok");
+      if (ok) ok.onclick = () => hideKakaoOverlay();
       setAuthStatus("카카오 로그인이 취소되었거나 실패했어요.");
     } else if (code && window.JustHereAuth) {
-      setAuthStatus("카카오 계정 연결 중…");
+      showKakaoOverlay(1, "동의 완료. 계정 연결을 이어갈게요…");
       await completeKakaoCodeLink(code);
     }
   } catch (err) {
