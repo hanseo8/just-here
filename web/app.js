@@ -276,9 +276,7 @@ function renderTasteCategories() {
     btn.type = "button";
     btn.className = `taste-cat${selected.has(c.key) ? " on" : ""}`;
     btn.dataset.key = c.key;
-    btn.innerHTML =
-      `<span class="taste-cat-name">${c.label}</span>` +
-      `<span class="taste-cat-check" aria-hidden="true">·선택</span>`;
+    btn.innerHTML = `<span class="taste-cat-name">${c.label}</span>`;
     btn.onclick = () => toggleTasteCategory(c.key);
     box.appendChild(btn);
   });
@@ -334,6 +332,9 @@ async function finishTasteWithTone(tone) {
     TASTE_CATEGORIES.some((c) => c.key === k)
   );
   state.tasteChoices = tone ? [...cats, tone] : [...cats];
+  document.querySelectorAll(".taste-tone").forEach((btn) => {
+    btn.classList.toggle("is-on", !!tone && btn.dataset.tone === tone);
+  });
   await startSession();
 }
 

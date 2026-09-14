@@ -113,6 +113,35 @@ body.allow-scroll {
 .start-panel, .taste-stage {
   padding: 0 24px 40px;
 }
+.start-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.start-panel .hint,
+.start-panel .weather-status,
+.start-panel .loc-status,
+.start-panel .install-hint {
+  margin: 0;
+}
+.start-panel .btn {
+  margin: 0;
+}
+.start-panel #btn-retaste {
+  margin-top: 2px;
+}
+.start-panel #taste-reuse-hint {
+  margin: 2px 0 8px;
+}
+.start-panel .install-btn {
+  margin-top: 10px;
+}
+.taste-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
 .field {
   display: flex;
   flex-direction: column;
@@ -204,9 +233,10 @@ select {
 .taste-cats {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 18px;
+  gap: 12px 12px;
+  margin-bottom: 22px;
   justify-content: flex-start;
+  row-gap: 14px;
 }
 .taste-cat {
   position: relative;
@@ -214,25 +244,27 @@ select {
   background: var(--paper);
   color: var(--cream);
   border-radius: 999px;
-  min-height: 44px;
-  padding: 10px 18px;
+  min-height: 48px;
+  padding: 12px 20px;
+  padding-right: 20px;
   font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.01em;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 0;
   box-shadow: none;
   backdrop-filter: none;
-  transition: transform 0.14s ease, background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+  transition: transform 0.14s ease, background 0.14s ease, color 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
   -webkit-tap-highlight-color: transparent;
 }
 .taste-cat:nth-child(3n) {
-  transform: rotate(-0.6deg);
+  transform: rotate(-0.4deg);
 }
 .taste-cat:nth-child(5n) {
-  transform: rotate(0.7deg);
+  transform: rotate(0.5deg);
 }
 .taste-cat:active {
   transform: scale(0.96);
@@ -241,26 +273,32 @@ select {
   background: var(--cream);
   color: var(--ink);
   border-color: var(--cream);
-  transform: translateY(-1px) rotate(0deg);
+  transform: translateY(-2px) rotate(0deg);
+  box-shadow: 0 6px 0 rgba(20, 17, 15, 0.22);
+  padding-left: 18px;
+  padding-right: 18px;
 }
 .taste-cat-name {
   font-size: 15px;
   font-weight: 700;
 }
 .taste-cat-check {
-  display: none;
+  display: none !important;
 }
-.taste-cat.on .taste-cat-check {
-  display: inline;
-  font-size: 12px;
-  font-weight: 800;
-  opacity: 0.7;
+.taste-cat.on::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  margin-left: 8px;
+  border-radius: 50%;
+  background: var(--ink);
+  flex-shrink: 0;
 }
 .taste-progress {
   text-align: left;
   opacity: 0.7;
   font-size: 12px;
-  margin: 0 0 12px;
+  margin: 0 0 14px;
   font-weight: 600;
   letter-spacing: 0.04em;
 }
@@ -290,19 +328,21 @@ select {
 .taste-tone-pair {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin: 4px 0 14px;
+  gap: 14px;
+  margin: 8px 0 20px;
 }
 .taste-tone {
+  position: relative;
   border: 1.5px solid var(--line);
-  border-radius: 14px;
-  min-height: 110px;
-  padding: 18px 14px;
+  border-radius: 16px;
+  min-height: 128px;
+  padding: 20px 16px;
   background: var(--paper);
   color: var(--cream);
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-size: 22px;
+  font-family: "Black Han Sans", "IBM Plex Sans KR", sans-serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -310,16 +350,31 @@ select {
   justify-content: flex-end;
   gap: 0;
   box-shadow: none;
-  transition: transform 0.14s ease, background 0.14s ease, color 0.14s ease;
+  transition: transform 0.14s ease, background 0.14s ease, color 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
   -webkit-tap-highlight-color: transparent;
 }
 .taste-tone .tone-emoji { display: none; }
 .taste-tone:active { transform: scale(0.98); }
 .taste-tone:focus-visible,
 .taste-tone:hover {
+  background: rgba(244, 236, 228, 0.2);
+}
+.taste-tone.is-on {
   background: var(--cream);
   color: var(--ink);
   border-color: var(--cream);
+  box-shadow: 0 8px 0 rgba(20, 17, 15, 0.2);
+  transform: translateY(-2px);
+}
+.taste-tone.is-on::after {
+  content: "";
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ink);
 }
 #btn-taste-skip-tone {
   width: 100%;
@@ -327,10 +382,12 @@ select {
   margin: 0;
   display: block;
   border-radius: 12px;
-  background: transparent;
-  border: 1px dashed var(--line);
+  min-height: 52px;
+  background: rgba(20, 17, 15, 0.28);
+  border: 1.5px solid var(--line);
   color: var(--cream);
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .top {
