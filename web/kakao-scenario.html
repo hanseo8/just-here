@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>카카오 연동 시나리오 · 그냥여기</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      background: #fff;
+      color: #191919;
+    }
+    .page {
+      width: 794px;
+      min-height: 1000px;
+      margin: 0 auto;
+      padding: 48px 56px;
+      box-sizing: border-box;
+    }
+    h1 { font-size: 22px; margin: 0 0 8px; }
+    .sub { color: #666; font-size: 13px; margin-bottom: 28px; }
+    h2 { font-size: 16px; margin: 22px 0 10px; }
+    ol { padding-left: 1.2em; line-height: 1.7; font-size: 14px; }
+    .box {
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin: 10px 0;
+      background: #fafafa;
+      font-size: 13px;
+    }
+    .btn {
+      display: inline-block;
+      background: #fee500;
+      color: #191919;
+      font-weight: 800;
+      padding: 10px 14px;
+      border-radius: 10px;
+      margin-top: 8px;
+    }
+    .muted { color: #666; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>그냥여기 — 카카오 로그인(도감 저장) 시나리오</h1>
+    <p class="sub">서비스: https://www.justthis.co.kr · 용도: 카카오 디벨로퍼스 개인정보 동의항목/로그인 심사 참고</p>
+
+    <h2>1. 서비스 요약</h2>
+    <p class="box">
+      그냥여기는 근처 식당·메뉴를 스와이프로 고르는 웹앱입니다.
+      회원가입 창 없이 바로 이용(게스트)하며, 칭호 도감을 영구 저장할 때
+      선택적으로 카카오 로그인을 사용합니다.
+    </p>
+
+    <h2>2. 이용·연동 흐름</h2>
+    <ol>
+      <li>이용자가 https://www.justthis.co.kr 접속</li>
+      <li>위치·취향 선택 후 스와이프로 메뉴 매칭 (회원가입 없음)</li>
+      <li>매칭 완료 화면에서 「카카오로 도감 저장」 버튼 노출</li>
+      <li>버튼 탭 → 카카오 로그인 동의 화면</li>
+      <li>동의 항목: <strong>닉네임</strong> (선택/필수 범위는 콘솔 설정에 따름)</li>
+      <li>로그인 완료 후 게스트에 쌓인 취향·칭호를 카카오 계정에 연결</li>
+    </ol>
+
+    <h2>3. 화면 예시 (완료 화면 CTA)</h2>
+    <div class="box">
+      완료 화면 하단 버튼 예시<br />
+      <span class="btn">카카오로 도감 저장</span>
+      <p class="muted">수집 목적 문구(앱 내): 칭호 도감·취향을 계정에 안전하게 저장합니다.</p>
+    </div>
+
+    <h2>4. 수집 항목</h2>
+    <div class="box">
+      카카오: 회원번호, 닉네임<br />
+      서비스: 스와이프/취향/칭호, (동의 시) 위치<br />
+      이메일·전화번호 미수집
+    </div>
+
+    <h2>5. 개인정보 처리방침</h2>
+    <p class="box">https://www.justthis.co.kr/privacy</p>
+  </div>
+</body>
+</html>

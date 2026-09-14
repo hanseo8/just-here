@@ -506,6 +506,20 @@ if WEB_DIR.is_dir():
             headers={"Cache-Control": "no-cache"},
         )
 
+    @app.get("/privacy")
+    def privacy_page():
+        path = WEB_DIR / "privacy.html"
+        if not path.exists():
+            raise HTTPException(404, "privacy page missing")
+        return FileResponse(path)
+
+    @app.get("/kakao-scenario")
+    def kakao_scenario_page():
+        path = WEB_DIR / "kakao-scenario.html"
+        if not path.exists():
+            raise HTTPException(404, "scenario page missing")
+        return FileResponse(path)
+
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
 
