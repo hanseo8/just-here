@@ -2,7 +2,7 @@
 const CACHE = "just-here-shell-v3";
 const SHELL = [
   "/",
-  "/static/styles.css",
+  "/static/styles.css?v=20260914-done1",
   "/static/app.js?v=20260914-done1",
   "/static/auth.js?v=20260914-done1",
   "/manifest.webmanifest",
