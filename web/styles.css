@@ -25,7 +25,7 @@
   --r: 10px;
   --r-lg: 14px;
 
-  --shadow-card: 0 10px 28px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.35);
   --bar-h: 48px;
 }
 
@@ -457,27 +457,30 @@ body.allow-scroll {
 .detail-chip {
   display: inline-flex;
   align-items: center;
-  margin: 0 0 10px;
-  padding: 7px 11px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: var(--r-sm);
-  background: rgba(12, 10, 9, 0.72);
-  color: #fff;
+  margin: 0 0 8px;
+  padding: 4px 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.78);
   font: inherit;
   font-size: 12.5px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 .detail-chip:hover,
 .detail-chip:focus-visible {
-  background: rgba(12, 10, 9, 0.9);
-  border-color: rgba(255, 255, 255, 0.55);
+  color: #fff;
+  background: transparent;
+  border: none;
 }
 .detail-chip:active {
-  background: var(--accent);
-  border-color: var(--accent);
+  color: #fff;
+  background: transparent;
+  border: none;
 }
 .place {
   margin: 0;
@@ -736,7 +739,7 @@ body.allow-scroll {
   box-shadow: 0 0 0 2px var(--gold), 0 8px 22px rgba(0, 0, 0, 0.4);
 }
 .receipt-card.is-gold::after {
-  content: "GOLD";
+  content: "골드";
   position: absolute;
   top: 12px;
   right: 14px;
@@ -744,9 +747,9 @@ body.allow-scroll {
   border-radius: 3px;
   background: var(--gold);
   color: #2a1f00;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0;
 }
 .receipt-sticker {
   font-size: 48px;
@@ -908,25 +911,16 @@ body.allow-scroll {
 
 .story-reward {
   margin: 20px 0 0;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  background: var(--surface);
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
 }
 .story-reward.is-done {
-  border-color: rgba(217, 166, 46, 0.5);
-  background: #1f1a10;
+  border: none;
+  background: transparent;
 }
-.story-reward-badge {
-  display: inline-block;
-  margin: 0 0 8px;
-  padding: 3px 8px;
-  border-radius: 3px;
-  background: var(--gold);
-  color: #2a1f00;
-  font-size: 11px;
-  font-weight: 700;
-}
+.story-reward-badge { display: none; }
 .story-reward-copy {
   margin: 0;
   font-size: 13px;
@@ -935,15 +929,15 @@ body.allow-scroll {
 }
 .story-reward-copy strong { color: var(--text); font-weight: 600; }
 .btn.gold-unlock {
-  margin-top: 12px;
+  margin-top: 10px;
   min-height: 44px;
-  border: 1px solid var(--gold);
+  border: 1px solid var(--border-strong);
   background: transparent;
-  color: var(--gold);
+  color: var(--text);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
 }
-.btn.gold-unlock:hover { background: #201a10; }
+.btn.gold-unlock:hover { background: var(--surface-2); }
 .btn.gold-unlock:disabled {
   border-color: var(--border);
   color: var(--text-3);
@@ -959,31 +953,21 @@ body.allow-scroll {
   z-index: 50;
   display: grid;
   place-items: center;
-  background: rgba(12, 10, 9, 0.9);
+  background: rgba(12, 10, 9, 0.88);
   pointer-events: none;
 }
 .match-title {
   margin: 0;
   font-family: "Black Han Sans", "IBM Plex Sans KR", sans-serif;
-  font-size: 38px;
+  font-size: 28px;
   font-weight: 400;
-  color: var(--accent);
-  animation: match-pop 0.3s ease-out;
+  color: var(--text);
+  animation: match-pop 0.22s ease-out;
 }
 .match-sub {
-  margin: 6px 0 0;
-  font-size: 15px;
+  margin: 8px 0 0;
+  font-size: 14px;
   color: var(--text-2);
-}
-.confetti-layer { position: absolute; inset: 0; overflow: hidden; }
-.confetti-piece {
-  position: absolute;
-  top: 42%;
-  left: 50%;
-  width: 8px;
-  height: 12px;
-  border-radius: 1px;
-  animation: confetti-fly 0.9s ease-out forwards;
 }
 
 .kakao-link-overlay {
@@ -1109,12 +1093,8 @@ body:has(.duo-wrap) {
 .taste-card:hover { background: var(--surface-2); }
 
 @keyframes match-pop {
-  from { transform: scale(0.86); opacity: 0; }
+  from { transform: scale(0.96); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
-}
-@keyframes confetti-fly {
-  0% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
-  100% { transform: translate(var(--dx), -180px) rotate(var(--rot)); opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

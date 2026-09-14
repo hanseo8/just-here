@@ -1235,19 +1235,7 @@ function renderCard() {
 }
 
 function spawnConfetti() {
-  const layer = $("confetti-layer");
-  layer.innerHTML = "";
-  const colors = ["#ffd166", "#fff", "#ff6a3d", "#ff9f1c", "#d62828"];
-  for (let i = 0; i < 42; i++) {
-    const p = document.createElement("span");
-    p.className = "confetti-piece";
-    p.style.left = `${Math.random() * 100}%`;
-    p.style.background = colors[i % colors.length];
-    p.style.animationDelay = `${Math.random() * 0.25}s`;
-    p.style.setProperty("--dx", `${(Math.random() - 0.5) * 160}px`);
-    p.style.setProperty("--rot", `${Math.random() * 720 - 360}deg`);
-    layer.appendChild(p);
-  }
+  // 매칭 연출용 폭죽은 쓰지 않음 — 장식 모션은 제품 사용을 느리게 함
 }
 
 function openHandoff(handoff) {
@@ -1269,14 +1257,12 @@ function openHandoff(handoff) {
 function showMatchThenHandoff(data) {
   const flash = $("match-flash");
   $("match-sub").textContent = `${data.place_name} · ${data.menu_name}`;
-  spawnConfetti();
   flash.classList.remove("hidden");
 
-  // 배민/지도 자동 점프 없음 — 완료 화면에서 지도 버튼으로 열기
   window.setTimeout(() => {
     flash.classList.add("hidden");
     showDone(data);
-  }, 900);
+  }, 700);
 }
 
 async function swipe(action) {
@@ -1485,11 +1471,11 @@ function updateStoryReward() {
   if (state.goldUnlocked) {
     box.classList.add("is-done");
     btn.disabled = true;
-    btn.textContent = "골드 영수증 해금 완료";
+    btn.textContent = "골드 영수증 적용됨";
   } else {
     box.classList.remove("is-done");
     btn.disabled = false;
-    btn.textContent = "스토리 올렸어요 · 골드 받기";
+    btn.textContent = "스토리 올렸어요";
   }
 }
 
@@ -1498,8 +1484,7 @@ async function unlockStoryGold() {
   state.goldUnlocked = true;
   updateStoryReward();
   $("receipt")?.classList.add("is-gold");
-  spawnConfetti();
-  setShareStatus("골드 영수증이 열렸어요. 다음 영수증부터 금테가 붙어요.");
+  setShareStatus("골드 영수증이 적용됐어요. 다음 영수증에도 표시됩니다.");
   track("story_unlock", {});
   if (!state.uid) return;
   try {

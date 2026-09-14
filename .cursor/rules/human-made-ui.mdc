@@ -1,0 +1,51 @@
+---
+description: Human-made production UI — no AI-template aesthetics
+globs: web/**/*.{html,css,js}
+alwaysApply: false
+---
+
+# Human-made production UI
+
+Build interfaces that feel designed and maintained by a product team, not generated.
+
+## Order of quality
+
+1. Usability → 2. Clarity → 3. Product logic → 4. Accessibility → 5. Consistency → 6. Performance → 7. Visual polish
+
+Never reverse this order.
+
+## Never use (unless product-specific reason)
+
+- Purple/blue gradients, mesh blobs, glassmorphism, glow borders, gradient text
+- Pill-everything, card-everything, oversized heroes/headings
+- Excessive shadows, whitespace, entrance animations, sparkle/AI icons
+- Generic SaaS/marketing copy (“혁신”, “강력한”, “Get Started”, “Unlock…”)
+- Fake stats/testimonials, decorative badges, Dribbble-concept layouts
+
+## Before coding a screen
+
+Answer: who, why here, primary task, primary action, scan/hide info, empty/error/overload/mobile.
+
+Then set information hierarchy → interaction hierarchy → visual hierarchy.
+
+## Visual system (this product)
+
+- One accent (`--accent`), neutrals for surfaces/text/borders
+- Prefer borders + spacing over shadows; shadows only on elevated surfaces that need them
+- Radius by role (~6 / 10 / 14px), not identical everywhere
+- Typography restrained; keep existing IBM Plex / Black Han Sans usage
+- Primary / secondary / tertiary / destructive button hierarchy — specific action labels
+
+## Components
+
+Choose pattern by data (list, table, segmented control, drawer, inline action). Do not wrap everything in cards.
+
+## States required for meaningful UI
+
+Default, hover, focus, active, disabled, loading, empty, error, success, overflow, long content, mobile.
+
+Empty/error copy must say what is missing/wrong and what to do next.
+
+## Self-review before done
+
+Would a real user trust this daily? Anything look AI-generated? Too many cards/gradients/pills/decorative motion? Primary action obvious? Mobile intentional?

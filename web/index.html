@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=20260914-detailchip1" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260914-human1" />
 </head>
 <body>
   <div id="app">
@@ -114,14 +114,14 @@
           </div>
           <div class="card-scrim">
             <button type="button" id="btn-card-detail" class="detail-chip">
-              길게 눌러 상세
+              상세
             </button>
             <p class="place" id="card-place"></p>
             <p class="menu" id="card-menu"></p>
             <p class="eta" id="card-eta"></p>
             <p class="tag" id="card-tag"></p>
           </div>
-          <div id="gold-badge" class="gold-badge hidden">오늘의 100% 정답</div>
+          <div id="gold-badge" class="gold-badge hidden">오늘 추천</div>
           <div id="detail" class="detail hidden" role="dialog" aria-modal="true" aria-label="식당 상세"></div>
         </article>
       </div>
@@ -130,20 +130,19 @@
         <button type="button" id="btn-nope" class="act pass">패스</button>
         <button type="button" id="btn-go" class="act go">그냥 여기</button>
       </footer>
-      <p class="swipe-hint">좌우로 밀어도 패스 / 선택돼요</p>
+      <p class="swipe-hint">좌우로 밀면 패스 / 선택 · 상세는 「상세」또는 길게 누르기</p>
     </section>
 
     <!-- MATCH FLASH (즉시 딥링크 전 폭죽) -->
     <div id="match-flash" class="match-flash hidden" aria-hidden="true">
-      <div id="confetti-layer" class="confetti-layer"></div>
-      <p class="match-title">그냥여기!</p>
+      <p class="match-title">그냥여기</p>
       <p id="match-sub" class="match-sub"></p>
     </div>
 
     <!-- HANDOFF + 영수증 공유 -->
     <section id="screen-done" class="screen hidden">
       <div class="done-box">
-        <h2 id="done-title">그냥여기!</h2>
+        <h2 id="done-title">그냥여기</h2>
         <p id="done-sub"></p>
         <article id="receipt" class="receipt-card theme-bg_basic" role="status">
           <p class="receipt-label">나만의 식탐 영수증</p>
@@ -175,13 +174,12 @@
         <p id="auth-status" class="auth-status hidden"></p>
         <p id="title-badge" class="title-badge hidden"></p>
         <div id="story-reward" class="story-reward">
-          <p class="story-reward-badge">스토리 인증 보상</p>
           <p class="story-reward-copy">
-            영수증을 인스타 스토리에 올리고 <strong>@justhere</strong>를 태그해 주세요.
-            <br />감사의 표시로 <strong>골드 영수증</strong>을 열어 드려요.
+            인스타 스토리에 영수증을 올리고 <strong>@justhere</strong>를 태그하면
+            골드 영수증을 열어 드려요.
           </p>
           <button type="button" id="btn-story-unlock" class="btn gold-unlock">
-            스토리 올렸어요 · 골드 받기
+            스토리 올렸어요
           </button>
         </div>
       </div>
@@ -200,7 +198,7 @@
     </div>
   </div>
   <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
-  <script src="/static/auth.js?v=20260914-detailchip1"></script>
-  <script src="/static/app.js?v=20260914-detailchip1"></script>
+  <script src="/static/auth.js?v=20260914-human1"></script>
+  <script src="/static/app.js?v=20260914-human1"></script>
 </body>
 </html>
