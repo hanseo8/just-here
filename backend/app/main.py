@@ -76,6 +76,11 @@ class TasteSyncBody(BaseModel):
     taste: list[str] = Field(default_factory=list)
 
 
+class UnlockBody(BaseModel):
+    uid: str
+    key: Literal["story_gold"]
+
+
 class AnalyticsEventBody(BaseModel):
     event: str
     uid: str | None = None
@@ -276,6 +281,14 @@ def me_taste(body: TasteSyncBody):
     except KeyError:
         raise HTTPException(404, "user not found") from None
     return {"ok": True, "user": users.STORE.public_profile(body.uid)}
+
+
+@app.post("/v1/me/unlock")
+def me_unlock(body: UnlockBody):
+    """영수증 코스메틱 해금 (스토리 인증 보상 등)."""
+    users.STORE.ensure_uid(body.uid)
+    profile = users.STORE.add_unlock(body.uid, body.key)
+    return {"ok": True, "unlocks": profile.get("unlocks") or []}
 
 
 @app.get("/v1/context")

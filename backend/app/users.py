@@ -36,6 +36,7 @@ def _empty_user(uid: str, *, auth_type: str, device_id: str = "") -> dict[str, A
         "nickname": "고민제로",
         "earned_titles": [],
         "title_ids": [],
+        "unlocks": [],
         "preferences": {
             "hate_tags": {},
             "hate_categories": {},
@@ -139,6 +140,9 @@ class UserStore:
             title_ids = list(dict.fromkeys((target.get("title_ids") or []) + (guest.get("title_ids") or [])))
             target["earned_titles"] = titles
             target["title_ids"] = title_ids
+            target["unlocks"] = list(
+                dict.fromkeys((target.get("unlocks") or []) + (guest.get("unlocks") or []))
+            )
 
             tp = target.setdefault("preferences", {})
             gp = guest.get("preferences") or {}
@@ -214,6 +218,19 @@ class UserStore:
             self._save()
             return deepcopy(u)
 
+    def add_unlock(self, uid: str, key: str) -> dict[str, Any]:
+        """영수증 테마 등 코스메틱 해금."""
+        with _LOCK:
+            u = self._users.get(uid)
+            if not u:
+                raise KeyError("user_not_found")
+            unlocks = u.setdefault("unlocks", [])
+            if key and key not in unlocks:
+                unlocks.append(key)
+            u["updated_at"] = _now()
+            self._save()
+            return deepcopy(u)
+
     def set_nickname(self, uid: str, nickname: str) -> dict[str, Any]:
         with _LOCK:
             u = self._users.get(uid)
@@ -236,6 +253,7 @@ class UserStore:
             "nickname": u.get("nickname"),
             "earned_titles": u.get("earned_titles") or [],
             "title_ids": u.get("title_ids") or [],
+            "unlocks": u.get("unlocks") or [],
             "preferences": u.get("preferences") or {},
             "swipe_count": len(u.get("swipe_logs") or []),
             "device_bound": bool(u.get("device_ids")),

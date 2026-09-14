@@ -574,7 +574,7 @@ def build_handoff(session: Session, place: dict) -> dict:
             "auto_open": False,
         }
 
-    # 배달: 배민 연결 전까지 지도만
+    # 배달: 딥링크 대신 상호 복사 → 배달앱 검색
     return {
         "intent": "delivery",
         "provider": provider,
@@ -582,7 +582,12 @@ def build_handoff(session: Session, place: dict) -> dict:
         "cta": "지도에서 보기",
         "auto_open": False,
         "baemin_ready": False,
-        "note": "배달 앱 연결은 준비 중이에요. 먼저 위치를 확인해 보세요.",
+        "search_query": place["name"],
+        "delivery_apps": [
+            {"id": "baemin", "label": "배민", "url": "https://www.baemin.com/"},
+            {"id": "yogiyo", "label": "요기요", "url": "https://www.yogiyo.co.kr/mobile/"},
+            {"id": "coupangeats", "label": "쿠팡이츠", "url": "https://www.coupangeats.com/"},
+        ],
     }
 
 

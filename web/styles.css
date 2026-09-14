@@ -618,12 +618,69 @@ select {
   opacity: 0.9;
 }
 .story-reward {
-  margin: 0 auto 14px;
+  margin: 18px auto 4px;
   max-width: 340px;
   padding: 12px 14px;
   border-radius: 14px;
   background: rgba(0,0,0,0.18);
   text-align: left;
+}
+.story-reward.is-done {
+  background: rgba(240, 196, 25, 0.16);
+  border: 1px solid rgba(240, 196, 25, 0.5);
+}
+.btn.gold-unlock {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 10px;
+  background: linear-gradient(135deg, #f5d76e 0%, #e0a80d 100%);
+  color: #2a2200;
+  font-weight: 800;
+  font-size: 13px;
+}
+.btn.gold-unlock:disabled {
+  background: rgba(255,255,255,0.16);
+  color: rgba(255,255,255,0.7);
+  box-shadow: none;
+}
+.delivery-apps {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  max-width: 340px;
+  margin: 10px auto 0;
+}
+.delivery-apps a {
+  flex: 1;
+  padding: 10px 6px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.16);
+  color: var(--cream);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  text-align: center;
+}
+.done-subactions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  max-width: 340px;
+  margin: 14px auto 0;
+}
+.link-btn {
+  border: none;
+  background: none;
+  padding: 4px 2px;
+  color: var(--cream);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.82;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
 .story-reward-badge {
   display: inline-block;
@@ -812,7 +869,8 @@ select {
 }
 #screen-done .done-box .btn,
 #screen-done .done-box a.btn {
-  margin-top: 10px;
+  margin: 10px auto 0;
+  max-width: 340px;
 }
 .receipt-card {
   display: block;
@@ -846,6 +904,23 @@ select {
 .receipt-card.theme-bg_carb { background: linear-gradient(165deg, #FFB74D 0%, #EF6C00 100%); color: #2a1600; }
 .receipt-card.theme-bg_hangover { background: linear-gradient(165deg, #4DB6AC 0%, #00695C 100%); }
 .receipt-card.theme-bg_basic { background: linear-gradient(165deg, #FF5A00 0%, #E62E00 100%); }
+.receipt-card.is-gold {
+  position: relative;
+  box-shadow: 0 0 0 3px #f0c419, 0 18px 40px rgba(0, 0, 0, 0.38);
+}
+.receipt-card.is-gold::after {
+  content: "GOLD";
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f5d76e 0%, #e0a80d 100%);
+  color: #2a2200;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
 .receipt-sticker {
   font-size: 56px;
   line-height: 1;

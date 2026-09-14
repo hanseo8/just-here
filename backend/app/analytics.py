@@ -30,6 +30,8 @@ ALLOWED_EVENTS = {
     "kakao_share",
     "duo_create",
     "install_click",
+    "delivery_copy",
+    "story_unlock",
 }
 
 

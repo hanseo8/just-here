@@ -22,6 +22,7 @@ const state = {
   lastDone: null,
   savedTaste: [],
   forceRetaste: false,
+  goldUnlocked: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -832,6 +833,7 @@ async function init() {
         state.savedTaste = taste;
         state.tasteChoices = [...taste];
       }
+      state.goldUnlocked = (guest.user?.unlocks || []).includes("story_gold");
       // /v1/me로 한 번 더 동기화
       if (state.uid) {
         try {
@@ -842,6 +844,7 @@ async function init() {
             state.tasteChoices = [...t];
           }
           if (me.user?.auth_type) state.authType = me.user.auth_type;
+          state.goldUnlocked = (me.user?.unlocks || []).includes("story_gold");
         } catch (_) {}
       }
       updateTasteReuseHint();
@@ -905,6 +908,9 @@ async function init() {
   if (duoBtn) duoBtn.onclick = () => createDuoInvite();
   const duoDone = $("btn-duo-done");
   if (duoDone) duoDone.onclick = () => createDuoInvite();
+  const storyBtn = $("btn-story-unlock");
+  if (storyBtn) storyBtn.onclick = () => unlockStoryGold();
+  updateStoryReward();
   const reloadBtn = $("btn-reload-feed");
   if (reloadBtn) {
     reloadBtn.onclick = async () => {
@@ -1344,7 +1350,6 @@ function buildShareText(receipt) {
     `${title} · 그냥여기\n` +
     `${place}${menu ? ` / ${menu}` : ""}\n` +
     (reason ? `${reason}\n` : "") +
-    `인스타 스토리에 올리면 JUSTHERE10\n` +
     url
   );
 }
@@ -1384,6 +1389,75 @@ async function shareReceipt() {
   }
 }
 
+/** 배달 모드: 딥링크 대신 상호 복사 → 배달앱 검색 */
+function setupDeliveryHandoff(handoff) {
+  const btn = $("btn-delivery");
+  const apps = $("delivery-apps");
+  const mapLink = $("handoff-link");
+  if (!btn || !apps) return;
+
+  const isDelivery = handoff?.intent === "delivery";
+  btn.classList.toggle("hidden", !isDelivery);
+  apps.classList.add("hidden");
+  apps.innerHTML = "";
+  mapLink.className = isDelivery ? "btn ghost" : "btn primary";
+  if (!isDelivery) return;
+
+  const query = handoff.search_query || state.lastDone?.place_name || "";
+  btn.textContent = "배달앱에서 주문하기";
+  btn.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(query);
+      setShareStatus(`「${query}」 복사했어요. 배달앱에서 붙여넣어 검색하세요.`);
+    } catch (_) {
+      setShareStatus(`배달앱에서 「${query}」로 검색하세요.`);
+    }
+    track("delivery_copy", { place: query });
+    apps.innerHTML = (handoff.delivery_apps || [])
+      .map(
+        (a) =>
+          `<a href="${a.url}" target="_blank" rel="noopener">${escapeHtml(a.label)}</a>`
+      )
+      .join("");
+    apps.classList.toggle("hidden", !apps.innerHTML);
+  };
+}
+
+/** 스토리 인증 보상 — 골드 영수증 해금 */
+function updateStoryReward() {
+  const box = $("story-reward");
+  const btn = $("btn-story-unlock");
+  if (!box || !btn) return;
+  if (state.goldUnlocked) {
+    box.classList.add("is-done");
+    btn.disabled = true;
+    btn.textContent = "골드 영수증 해금 완료";
+  } else {
+    box.classList.remove("is-done");
+    btn.disabled = false;
+    btn.textContent = "스토리 올렸어요 · 골드 받기";
+  }
+}
+
+async function unlockStoryGold() {
+  if (state.goldUnlocked) return;
+  state.goldUnlocked = true;
+  updateStoryReward();
+  $("receipt")?.classList.add("is-gold");
+  spawnConfetti();
+  setShareStatus("골드 영수증이 열렸어요. 다음 영수증부터 금테가 붙어요.");
+  track("story_unlock", {});
+  if (!state.uid) return;
+  try {
+    await api("/v1/me/unlock", {
+      method: "POST",
+      body: JSON.stringify({ uid: state.uid, key: "story_gold" }),
+    });
+  } catch (err) {
+    console.warn("unlock sync failed", err);
+  }
+}
+
 function showDone(data) {
   state.lastDone = data;
   show("screen-done");
@@ -1405,7 +1479,7 @@ function showDone(data) {
     data.receipt?.theme ||
     "bg_basic";
   const card = $("receipt");
-  card.className = `receipt-card theme-${theme}`;
+  card.className = `receipt-card theme-${theme}${state.goldUnlocked ? " is-gold" : ""}`;
   const link = $("handoff-link");
   link.href = data.handoff.url;
   link.textContent = data.handoff.cta || "지도에서 보기";
@@ -1419,8 +1493,10 @@ function showDone(data) {
       note.classList.add("hidden");
     }
   }
+  setupDeliveryHandoff(data.handoff);
   setShareStatus("");
   updateKakaoLinkButton();
+  updateStoryReward();
   refreshTitleBadge();
   ensureReceipt(data)
     .then(() => setShareStatus("공유할 준비됐어요"))
