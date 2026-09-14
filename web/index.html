@@ -71,7 +71,9 @@
           <button type="button" id="btn-reload-feed" class="btn primary" style="margin-top:16px;max-width:240px">근처 다시 불러오기</button>
         </div>
         <article id="card" class="card hidden">
-          <div class="card-media" id="card-media"></div>
+          <div class="card-media" id="card-media">
+            <div id="map-badge" class="map-badge hidden"></div>
+          </div>
           <div class="card-scrim">
             <p class="place" id="card-place"></p>
             <p class="menu" id="card-menu"></p>
@@ -83,9 +85,12 @@
         </article>
       </div>
 
-      <footer class="bottom">
-        <button type="button" id="btn-nope" class="btn ghost">Nope</button>
-        <button type="button" id="btn-go" class="btn primary go"></button>
+      <footer class="bottom actions">
+        <button type="button" id="btn-nope" class="btn-action nope" aria-label="거절">✕</button>
+        <button type="button" id="btn-go" class="btn-action go-star" aria-label="그냥여기">
+          <span class="star" aria-hidden="true">★</span>
+          <span class="go-label">그냥여기</span>
+        </button>
       </footer>
       <p class="swipe-hint">← 거절 · 수락 → · 길게 누르면 상세</p>
     </section>
@@ -123,6 +128,6 @@
       </div>
     </section>
   </div>
-  <script src="/static/app.js?v=20260914-tasteimg"></script>
+  <script src="/static/app.js?v=20260914-cardui"></script>
 </body>
 </html>

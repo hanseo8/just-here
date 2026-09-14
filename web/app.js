@@ -505,6 +505,91 @@ function currentCard() {
   return state.cards[0] || null;
 }
 
+function mapStaticUrl(lat, lng) {
+  return (
+    "https://staticmap.openstreetmap.de/staticmap.php" +
+    `?center=${lat},${lng}&zoom=16&size=600x900&maptype=mapnik` +
+    `&markers=${lat},${lng},red-pushpin`
+  );
+}
+
+function clearMapChrome(media) {
+  media.classList.remove("is-map", "is-map-css");
+  const pin = media.querySelector(".map-pin");
+  if (pin) pin.remove();
+  const badge = $("map-badge");
+  if (badge) {
+    badge.classList.add("hidden");
+    badge.textContent = "";
+  }
+}
+
+function showMapFallback(card) {
+  const media = $("card-media");
+  const badge = $("map-badge");
+  clearMapChrome(media);
+  media.classList.add("is-map");
+  const lat = card.lat;
+  const lng = card.lng;
+  const distLabel =
+    card.eta_label ||
+    (card.distance_m != null ? `${card.distance_m}m` : "근처");
+
+  if (badge) {
+    badge.textContent = `지도 · ${distLabel}`;
+    badge.classList.remove("hidden");
+  }
+
+  if (lat == null || lng == null) {
+    media.classList.add("is-map-css");
+    media.style.backgroundImage = "";
+    const pin = document.createElement("div");
+    pin.className = "map-pin";
+    pin.textContent = "📍";
+    media.appendChild(pin);
+    return;
+  }
+
+  const url = mapStaticUrl(lat, lng);
+  const probe = new Image();
+  probe.onload = () => {
+    media.style.backgroundImage = `url('${url}')`;
+  };
+  probe.onerror = () => {
+    media.classList.add("is-map-css");
+    media.style.backgroundImage = "";
+    if (!media.querySelector(".map-pin")) {
+      const pin = document.createElement("div");
+      pin.className = "map-pin";
+      pin.textContent = "📍";
+      media.appendChild(pin);
+    }
+  };
+  probe.src = url;
+}
+
+function setCardMedia(card) {
+  const media = $("card-media");
+  clearMapChrome(media);
+  const url = (card.image_url || "").trim();
+  const looksFake =
+    !url ||
+    url.includes("picsum.photos") ||
+    card.has_photo === false;
+
+  if (looksFake) {
+    showMapFallback(card);
+    return;
+  }
+
+  const probe = new Image();
+  probe.onload = () => {
+    media.style.backgroundImage = `url('${url}')`;
+  };
+  probe.onerror = () => showMapFallback(card);
+  probe.src = url;
+}
+
 function renderCard() {
   const card = currentCard();
   const empty = $("empty");
@@ -526,7 +611,7 @@ function renderCard() {
   el.classList.remove("hidden");
   el.classList.toggle("gold", !!card.is_gold);
   $("gold-badge").classList.toggle("hidden", !card.is_gold);
-  $("card-media").style.backgroundImage = `url('${card.image_url}')`;
+  setCardMedia(card);
   $("card-place").textContent = card.place_name;
   $("card-menu").textContent = card.menu_name;
   $("card-eta").textContent = card.eta_label;
@@ -534,8 +619,10 @@ function renderCard() {
     ? "#취향맞춤"
     : card.hashtag || (card.source === "kakao" ? "#근처_실상호" : "#그냥여기");
   $("detail").classList.add("hidden");
-  $("btn-go").textContent =
-    state.intent === "visit" ? "그냥여기로 가기" : "그냥여기로 시켜";
+  const goLabel = $("btn-go")?.querySelector(".go-label");
+  if (goLabel) {
+    goLabel.textContent = "그냥여기";
+  }
   el.style.transform = "";
   el.style.opacity = "1";
 }

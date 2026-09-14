@@ -465,7 +465,8 @@ def build_cards(session: Session, limit: int = 20) -> tuple[list[dict], int, boo
                 "menu_id": p["menu_id"],
                 "place_name": p["name"],
                 "menu_name": p["menu_name"],
-                "image_url": p["image_url"],
+                "image_url": p.get("image_url") or "",
+                "has_photo": bool(p.get("has_photo", bool(p.get("image_url")))),
                 "distance_m": int(dist),
                 "eta_label": (
                     f"도보 {walk_minutes(dist)}분"

@@ -95,11 +95,6 @@ def _map_category(category_name: str) -> str:
     return "korean"
 
 
-def _placeholder_image(seed: str) -> str:
-    h = abs(hash(seed)) % 1000
-    return f"https://picsum.photos/seed/justhere{h}/800/1200"
-
-
 def _doc_to_place(doc: dict, i: int = 0, tag: str = "#근처_실상호") -> dict:
     name = doc.get("place_name") or "근처 식당"
     cat_name = doc.get("category_name") or "음식점"
@@ -113,7 +108,9 @@ def _doc_to_place(doc: dict, i: int = 0, tag: str = "#근처_실상호") -> dict
         "lng": float(doc["x"]),
         "menu_id": f"kakao_m_{pid}",
         "menu_name": short or "추천 메뉴",
-        "image_url": _placeholder_image(str(pid)),
+        # 카카오는 상호 사진 없음 → 프론트에서 거리 지도 폴백
+        "image_url": "",
+        "has_photo": False,
         "tags": [tag],
         "category": internal,
         "kakao_category": cat_name,
