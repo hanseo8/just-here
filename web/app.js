@@ -896,7 +896,8 @@ async function shareToKakaoTalk() {
   const place = receipt.place_name || state.lastDone?.place_name || "";
   const menu = receipt.menu_name || state.lastDone?.menu_name || "";
   const description = [place, menu].filter(Boolean).join(" · ") || "오늘 점심은 그냥여기";
-  const imageUrl = `${location.origin}/static/icons/icon-512.png`;
+  // 카톡 피드 썸네일: 앱 아이콘보다 음식 컷이 눌린다
+  const imageUrl = `${location.origin}/static/brand/og-home.png`;
   window.Kakao.Share.sendDefault({
     objectType: "feed",
     content: {
