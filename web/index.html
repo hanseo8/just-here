@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=20260914-product1" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260914-detailchip1" />
 </head>
 <body>
   <div id="app">
@@ -113,6 +113,9 @@
             <div id="map-badge" class="map-badge hidden"></div>
           </div>
           <div class="card-scrim">
+            <button type="button" id="btn-card-detail" class="detail-chip">
+              길게 눌러 상세
+            </button>
             <p class="place" id="card-place"></p>
             <p class="menu" id="card-menu"></p>
             <p class="eta" id="card-eta"></p>
@@ -127,7 +130,7 @@
         <button type="button" id="btn-nope" class="act pass">패스</button>
         <button type="button" id="btn-go" class="act go">그냥 여기</button>
       </footer>
-      <p class="swipe-hint">카드를 좌우로 밀어도 되고, 길게 누르면 상세가 열려요.</p>
+      <p class="swipe-hint">좌우로 밀어도 패스 / 선택돼요</p>
     </section>
 
     <!-- MATCH FLASH (즉시 딥링크 전 폭죽) -->
@@ -197,7 +200,7 @@
     </div>
   </div>
   <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
-  <script src="/static/auth.js?v=20260914-product1"></script>
-  <script src="/static/app.js?v=20260914-product1"></script>
+  <script src="/static/auth.js?v=20260914-detailchip1"></script>
+  <script src="/static/app.js?v=20260914-detailchip1"></script>
 </body>
 </html>

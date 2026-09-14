@@ -1665,9 +1665,19 @@ function setupLongPress() {
     renderDetailModal(card);
   };
 
+  const detailBtn = $("btn-card-detail");
+  if (detailBtn) {
+    detailBtn.onclick = (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      open();
+    };
+  }
+
   el.addEventListener(
     "touchstart",
-    () => {
+    (e) => {
+      if (e.target.closest && e.target.closest("#btn-card-detail")) return;
       moved = false;
       clear();
       timer = setTimeout(open, 450);
@@ -1685,7 +1695,8 @@ function setupLongPress() {
   el.addEventListener("touchend", () => {
     clear();
   });
-  el.addEventListener("mousedown", () => {
+  el.addEventListener("mousedown", (e) => {
+    if (e.target.closest && e.target.closest("#btn-card-detail")) return;
     moved = false;
     clear();
     timer = setTimeout(open, 450);
@@ -1693,10 +1704,10 @@ function setupLongPress() {
   el.addEventListener("mouseup", clear);
   el.addEventListener("mouseleave", clear);
   el.addEventListener("click", (e) => {
+    if (e.target.closest && e.target.closest("#btn-card-detail")) return;
     const d = $("detail");
     if (d && !d.classList.contains("hidden")) {
       if (e.target.closest && e.target.closest("#detail-close")) return;
-      // 상세가 열린 상태에서 카드 탭하면 닫기
       if (!moved) hideDetailModal();
     }
   });
