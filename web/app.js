@@ -1282,14 +1282,6 @@ function currentCard() {
   return state.cards[0] || null;
 }
 
-function mapStaticUrl(lat, lng) {
-  return (
-    "https://staticmap.openstreetmap.de/staticmap.php" +
-    `?center=${lat},${lng}&zoom=16&size=600x900&maptype=mapnik` +
-    `&markers=${lat},${lng},red-pushpin`
-  );
-}
-
 function clearMapChrome(media) {
   media.classList.remove("is-map", "is-map-css");
   const pin = media.querySelector(".map-pin");
@@ -1301,48 +1293,26 @@ function clearMapChrome(media) {
   }
 }
 
+/* 카카오 장소는 상호 사진이 없다. 외부 스태틱맵 제공자에 의존하면
+   응답을 기다리는 동안 카드가 빈 색면으로 남으므로, 바로 그려낸다. */
 function showMapFallback(card) {
   const media = $("card-media");
   const badge = $("map-badge");
   clearMapChrome(media);
-  media.classList.add("is-map");
-  const lat = card.lat;
-  const lng = card.lng;
-  const distLabel =
-    card.eta_label ||
-    (card.distance_m != null ? `${card.distance_m}m` : "근처");
+  media.classList.add("is-map", "is-map-css");
+  media.style.backgroundImage = "";
 
   if (badge) {
-    badge.textContent = `지도 · ${distLabel}`;
+    badge.textContent =
+      card.eta_label ||
+      (card.distance_m != null ? `${card.distance_m}m` : "근처");
     badge.classList.remove("hidden");
   }
 
-  if (lat == null || lng == null) {
-    media.classList.add("is-map-css");
-    media.style.backgroundImage = "";
-    const pin = document.createElement("div");
-    pin.className = "map-pin";
-    pin.textContent = "📍";
-    media.appendChild(pin);
-    return;
-  }
-
-  const url = mapStaticUrl(lat, lng);
-  const probe = new Image();
-  probe.onload = () => {
-    media.style.backgroundImage = `url('${url}')`;
-  };
-  probe.onerror = () => {
-    media.classList.add("is-map-css");
-    media.style.backgroundImage = "";
-    if (!media.querySelector(".map-pin")) {
-      const pin = document.createElement("div");
-      pin.className = "map-pin";
-      pin.textContent = "📍";
-      media.appendChild(pin);
-    }
-  };
-  probe.src = url;
+  const pin = document.createElement("div");
+  pin.className = "map-pin";
+  pin.textContent = "📍";
+  media.appendChild(pin);
 }
 
 function setCardMedia(card) {
