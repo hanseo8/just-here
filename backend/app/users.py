@@ -104,11 +104,26 @@ class UserStore:
             self._save()
             return deepcopy(u)
 
+    def ensure_uid(self, uid: str, *, auth_type: str = "anonymous") -> dict[str, Any]:
+        """콜백 시 게스트가 디스크에서 사라진 경우(재배포) 복구."""
+        uid = (uid or "").strip()
+        if not uid:
+            raise KeyError("guest_not_found")
+        with _LOCK:
+            if uid in self._users:
+                return deepcopy(self._users[uid])
+            u = _empty_user(uid, auth_type=auth_type)
+            self._users[uid] = u
+            self._save()
+            return deepcopy(u)
+
     def merge_guest_into(self, guest_uid: str, target_uid: str, *, auth_type: str) -> dict[str, Any]:
         with _LOCK:
             guest = self._users.get(guest_uid)
             if not guest:
-                raise KeyError("guest_not_found")
+                # 재배포로 유실된 게스트 스텁
+                guest = _empty_user(guest_uid, auth_type="anonymous")
+                self._users[guest_uid] = guest
             target = self._users.get(target_uid)
             if target is None:
                 target = _empty_user(target_uid, auth_type=auth_type)
@@ -259,33 +274,63 @@ def exchange_kakao_auth_code(code: str, redirect_uri: str) -> dict[str, Any]:
     if not rest_key:
         raise ValueError("missing_rest_key")
     code = (code or "").strip()
-    redirect_uri = (redirect_uri or "").strip()
+    redirect_uri = (redirect_uri or "").strip().rstrip("/")
     if not code or not redirect_uri:
         raise ValueError("missing_code_or_redirect")
-    payload = {
-        "grant_type": "authorization_code",
-        "client_id": rest_key,
-        "redirect_uri": redirect_uri,
-        "code": code,
-    }
-    # 콘솔에서 Client Secret ON이면 필수
+
     secret = (os.getenv("KAKAO_CLIENT_SECRET") or "").strip()
-    if secret:
-        payload["client_secret"] = secret
+    # www / apex, trailing slash 변형 시도
+    candidates = []
+    for u in (redirect_uri, redirect_uri + "/"):
+        if u not in candidates:
+            candidates.append(u)
+    if "://www." in redirect_uri:
+        alt = redirect_uri.replace("://www.", "://", 1)
+        candidates.extend([alt, alt + "/"])
+    elif "://" in redirect_uri:
+        # insert www.
+        scheme, rest = redirect_uri.split("://", 1)
+        alt = f"{scheme}://www.{rest}"
+        candidates.extend([alt, alt + "/"])
+
+    last_err = "token_exchange_failed"
     with httpx.Client(timeout=8.0) as client:
-        res = client.post(
-            "https://kauth.kakao.com/oauth/token",
-            data=payload,
-            headers={"Content-Type": "application/x-www-form-urlencoded;charset=utf-8"},
+        for uri in candidates:
+            payload = {
+                "grant_type": "authorization_code",
+                "client_id": rest_key,
+                "redirect_uri": uri,
+                "code": code,
+            }
+            if secret:
+                payload["client_secret"] = secret
+            res = client.post(
+                "https://kauth.kakao.com/oauth/token",
+                data=payload,
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded;charset=utf-8"
+                },
+            )
+            if res.status_code == 200:
+                token_data = res.json()
+                access = token_data.get("access_token")
+                if not access:
+                    raise ValueError("no_access_token")
+                profile = verify_kakao_access_token(access)
+                return {**profile, "access_token": access}
+            body = (res.text or "")[:240]
+            last_err = f"token_exchange:{res.status_code}:{body}"
+            # 코드는 1회용 — 첫 실패 후 다른 URI도 거의 실패하지만 mismatch면 재시도 의미 있음
+            if "KOE303" in body or "redirect" in body.lower() or res.status_code == 400:
+                continue
+            break
+
+    if "secret" in last_err.lower() or "KOE010" in last_err or "-401" in last_err:
+        raise ValueError(
+            "client_secret_required:"
+            "카카오 REST 키 Client Secret이 ON이면 Render에 KAKAO_CLIENT_SECRET을 넣거나 Secret을 OFF 하세요"
         )
-        if res.status_code != 200:
-            raise ValueError(f"token_exchange:{res.status_code}:{res.text[:200]}")
-        token_data = res.json()
-    access = token_data.get("access_token")
-    if not access:
-        raise ValueError("no_access_token")
-    profile = verify_kakao_access_token(access)
-    return {**profile, "access_token": access}
+    raise ValueError(last_err)
 
 
 def new_device_id() -> str:

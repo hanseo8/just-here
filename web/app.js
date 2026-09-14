@@ -585,11 +585,18 @@ async function completeKakaoCodeLink(code) {
     return linked;
   } catch (err) {
     console.error(err);
-    showKakaoOverlay(
-      2,
-      "연결에 실패했어요. 다시 「카카오로 도감 저장」을 눌러 주세요.",
-      { showOk: true }
-    );
+    const raw = String(err?.message || err || "");
+    let tip = "연결에 실패했어요. 다시 「카카오로 도감 저장」을 눌러 주세요.";
+    if (raw.includes("client_secret") || raw.includes("KOE010")) {
+      tip =
+        "카카오 REST 키 Client Secret 설정이 필요해요. 콘솔에서 Secret 코드를 복사해 Render의 KAKAO_CLIENT_SECRET에 넣거나, Secret을 OFF 하세요.";
+    } else if (raw.includes("redirect") || raw.includes("KOE303") || raw.includes("KOE006")) {
+      tip =
+        "Redirect URI가 달라요. 카카오 콘솔 JavaScript 키에 https://www.justthis.co.kr 와 https://justthis.co.kr 를 등록해 주세요.";
+    } else if (raw.includes("missing_rest_key")) {
+      tip = "서버에 KAKAO_REST_API_KEY가 없습니다. Render 환경변수를 확인해 주세요.";
+    }
+    showKakaoOverlay(2, tip, { showOk: true });
     const ok = $("btn-kakao-overlay-ok");
     if (ok) ok.onclick = () => hideKakaoOverlay();
     setAuthStatus("카카오 연동 실패. 다시 시도해 주세요.");

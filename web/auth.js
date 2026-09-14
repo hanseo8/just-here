@@ -65,6 +65,7 @@
   async function linkKakaoCode(api, code, redirectUri) {
     const guest_uid = getUid();
     if (!guest_uid) throw new Error("guest missing");
+    // 인가코드는 1회용 — 재시도하면 무조건 실패
     const data = await api("/v1/auth/kakao/code", {
       method: "POST",
       body: JSON.stringify({
@@ -72,6 +73,7 @@
         code,
         redirect_uri: redirectUri,
       }),
+      retries: 0,
     });
     setIdentity(data.uid, "kakao");
     return data;

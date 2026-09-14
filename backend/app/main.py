@@ -163,6 +163,7 @@ def meta():
             "mode": "guest_first",
             "firebase_ready": bool((os.getenv("FIREBASE_API_KEY") or "").strip()),
             "kakao_link": True,
+            "kakao_client_secret_set": bool((os.getenv("KAKAO_CLIENT_SECRET") or "").strip()),
         },
         "taste_pairs": sample_taste_pairs(4),
         "personas": titles.catalog(),
@@ -214,10 +215,15 @@ def auth_kakao_link(body: KakaoLinkBody):
 @app.post("/v1/auth/kakao/code")
 def auth_kakao_code(body: KakaoCodeBody):
     """2단계: SDK v2 authorize 인가코드 → 토큰 교환 후 병합."""
+    # 재배포로 guest가 비어도 병합 가능하도록 보장
+    try:
+        users.STORE.ensure_uid(body.guest_uid)
+    except KeyError:
+        raise HTTPException(400, "guest uid missing") from None
     try:
         kakao_user = users.exchange_kakao_auth_code(body.code, body.redirect_uri)
     except ValueError as e:
-        raise HTTPException(401, f"kakao code exchange failed: {e}") from e
+        raise HTTPException(401, detail={"error": "kakao_code_exchange", "message": str(e)}) from e
     return _finish_kakao_link(body.guest_uid, kakao_user)
 
 
