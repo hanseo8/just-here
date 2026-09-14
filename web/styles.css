@@ -724,6 +724,16 @@ select {
   font-size: 12px;
   opacity: 0.9;
 }
+.title-badge {
+  margin: 8px auto 0;
+  max-width: 340px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(0,0,0,0.18);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
 .kakao-link-overlay {
   position: fixed;
   inset: 0;

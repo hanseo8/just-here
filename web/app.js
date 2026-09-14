@@ -424,11 +424,10 @@ function setAuthStatus(text) {
 function updateKakaoLinkButton() {
   const btn = $("btn-kakao-link");
   if (!btn) return;
+  btn.classList.remove("hidden");
+  btn.innerHTML = kakaoLinkLabel(false);
   if (window.JustHereAuth?.isLinked()) {
-    btn.classList.add("hidden");
-    setAuthStatus("카카오 계정에 도감·취향이 저장돼 있어요.");
-  } else {
-    btn.classList.remove("hidden");
+    setAuthStatus("도감 저장됨 · 카톡으로 자랑해 보세요");
   }
 }
 
@@ -562,25 +561,36 @@ async function completeKakaoCodeLink(code) {
     clean.searchParams.delete("error_description");
     window.history.replaceState({}, "", clean.pathname + clean.search + clean.hash);
 
-    const finish = () => {
+    const finish = async () => {
       hideKakaoOverlay();
-      if (restored) return;
-      show("screen-onboard");
-      const hint = $("taste-reuse-hint");
-      if (hint) {
-        hint.textContent = "카카오 도감 저장 완료. 저장된 취향으로 바로 시작할 수 있어요.";
-        hint.classList.remove("hidden");
+      if (!restored) {
+        show("screen-onboard");
+        const hint = $("taste-reuse-hint");
+        if (hint) {
+          hint.textContent = "카카오 도감 저장 완료. 저장된 취향으로 바로 시작할 수 있어요.";
+          hint.classList.remove("hidden");
+        }
+      }
+      updateKakaoLinkButton();
+      refreshTitleBadge();
+      // 저장·공유 한 버튼 플로우: 연동 후 카톡 공유까지
+      let shareAfter = false;
+      try {
+        shareAfter = localStorage.getItem("jh_kakao_share_after") === "1";
+        localStorage.removeItem("jh_kakao_share_after");
+      } catch (_) {}
+      if (shareAfter && restored) {
+        setTimeout(() => shareToKakaoTalk().catch(console.error), 400);
       }
     };
     const ok = $("btn-kakao-overlay-ok");
     if (ok) {
-      ok.onclick = finish;
-      // 자동으로 완료 화면 복구 시 짧게 보여주고 이동
+      ok.onclick = () => finish();
       if (restored) {
-        setTimeout(finish, 900);
+        setTimeout(() => finish(), 900);
       }
     } else {
-      finish();
+      await finish();
     }
     return linked;
   } catch (err) {
@@ -605,9 +615,12 @@ async function completeKakaoCodeLink(code) {
 }
 
 function kakaoLinkLabel(busy = false) {
-  return busy
-    ? `<span class="kakao-ico" aria-hidden="true"></span>연결 중…`
-    : `<span class="kakao-ico" aria-hidden="true"></span>카카오로 도감 저장`;
+  if (busy) {
+    return `<span class="kakao-ico" aria-hidden="true"></span><span id="kakao-link-label">연결 중…</span>`;
+  }
+  const linked = window.JustHereAuth?.isLinked?.();
+  const text = linked ? "카카오톡으로 공유" : "카카오로 저장·공유";
+  return `<span class="kakao-ico" aria-hidden="true"></span><span id="kakao-link-label">${text}</span>`;
 }
 
 function setKakaoLinkBusy(busy) {
@@ -615,6 +628,75 @@ function setKakaoLinkBusy(busy) {
   if (!btn) return;
   btn.disabled = !!busy;
   btn.innerHTML = kakaoLinkLabel(busy);
+}
+
+async function refreshTitleBadge() {
+  const el = $("title-badge");
+  if (!el || !state.uid) return;
+  try {
+    const me = await api(`/v1/me?uid=${encodeURIComponent(state.uid)}`);
+    const titles = me.user?.earned_titles || [];
+    if (!titles.length) {
+      el.classList.add("hidden");
+      return;
+    }
+    const latest = titles.slice(-3).reverse().join(" · ");
+    el.textContent = `도감 ${titles.length}개 · ${latest}`;
+    el.classList.remove("hidden");
+  } catch (_) {
+    el.classList.add("hidden");
+  }
+}
+
+async function shareToKakaoTalk() {
+  const sdk = ensureKakaoSdk();
+  if (!sdk.ok) {
+    alert("카카오 SDK를 불러오지 못했어요. 새로고침 후 다시 시도해 주세요.");
+    return;
+  }
+  if (!window.Kakao?.Share?.sendDefault) {
+    alert("카카오톡 공유를 이 환경에서 열 수 없어요. 「링크로 공유」를 사용해 주세요.");
+    return;
+  }
+  if (state.lastDone) {
+    try {
+      await ensureReceipt(state.lastDone);
+    } catch (_) {}
+  }
+  const receipt = state.lastReceipt || {};
+  const url = receipt.share_url || `${location.origin}/`;
+  const title = receipt.title || state.lastDone?.receipt_title || "그냥여기 영수증";
+  const place = receipt.place_name || state.lastDone?.place_name || "";
+  const menu = receipt.menu_name || state.lastDone?.menu_name || "";
+  const description = [place, menu].filter(Boolean).join(" · ") || "오늘 점심은 그냥여기";
+  const imageUrl = `${location.origin}/static/icons/icon-512.png`;
+  window.Kakao.Share.sendDefault({
+    objectType: "feed",
+    content: {
+      title,
+      description,
+      imageUrl,
+      link: { mobileWebUrl: url, webUrl: url },
+    },
+    buttons: [
+      {
+        title: "영수증 보기",
+        link: { mobileWebUrl: url, webUrl: url },
+      },
+    ],
+  });
+  setShareStatus("카톡 공유창을 열었어요");
+}
+
+async function onKakaoCta() {
+  if (window.JustHereAuth?.isLinked()) {
+    await shareToKakaoTalk();
+    return;
+  }
+  try {
+    localStorage.setItem("jh_kakao_share_after", "1");
+  } catch (_) {}
+  await linkKakaoAccount();
 }
 
 async function linkKakaoAccount() {
@@ -631,10 +713,8 @@ async function linkKakaoAccount() {
       setKakaoLinkBusy(false);
       return;
     }
-    sessionStorage.setItem("jh_kakao_redirect", kakaoRedirectUri());
     saveKakaoResume();
     showKakaoOverlay(1, "카카오 동의 화면으로 이동해요…");
-    // scope 생략: 콘솔 동의항목 설정을 따름 (미설정 scope 넣으면 KOE205)
     window.Kakao.Auth.authorize({
       redirectUri: kakaoRedirectUri(),
     });
@@ -722,7 +802,7 @@ async function init() {
   $("btn-again").onclick = () => location.reload();
   $("btn-share").onclick = () => shareReceipt();
   const kakaoBtn = $("btn-kakao-link");
-  if (kakaoBtn) kakaoBtn.onclick = () => linkKakaoAccount();
+  if (kakaoBtn) kakaoBtn.onclick = () => onKakaoCta();
   const duoBtn = $("btn-duo");
   if (duoBtn) duoBtn.onclick = () => createDuoInvite();
   const duoDone = $("btn-duo-done");
@@ -1220,6 +1300,7 @@ function showDone(data) {
   }
   setShareStatus("");
   updateKakaoLinkButton();
+  refreshTitleBadge();
   ensureReceipt(data)
     .then(() => setShareStatus("공유할 준비됐어요"))
     .catch(() => setShareStatus("공유 링크를 아직 못 만들었어요"));

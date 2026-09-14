@@ -16,7 +16,7 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/static/icons/icon-192.png" type="image/png" />
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="/static/styles.css?v=20260914-kakao-step1" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260914-kakao-share1" />
 </head>
 <body>
   <div id="app">
@@ -139,13 +139,14 @@
         <p id="handoff-note" class="handoff-note hidden"></p>
         <a id="handoff-link" class="btn primary" target="_blank" rel="noopener">지도에서 보기</a>
         <div class="done-actions-row">
-          <button type="button" id="btn-share" class="btn share outline">공유하기</button>
+          <button type="button" id="btn-share" class="btn share outline">링크로 공유</button>
           <button type="button" id="btn-kakao-link" class="btn kakao-link">
             <span class="kakao-ico" aria-hidden="true"></span>
-            카카오로 도감 저장
+            <span id="kakao-link-label">카카오로 저장·공유</span>
           </button>
         </div>
         <p id="auth-status" class="auth-status hidden"></p>
+        <p id="title-badge" class="title-badge hidden"></p>
         <button type="button" id="btn-duo-done" class="btn ghost">둘이서 고르기</button>
         <p id="share-status" class="share-status hidden"></p>
         <button type="button" id="btn-again" class="btn ghost">다시 선택</button>
@@ -165,7 +166,7 @@
     </div>
   </div>
   <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
-  <script src="/static/auth.js?v=20260914-kakao-fix2"></script>
-  <script src="/static/app.js?v=20260914-kakao-fix2"></script>
+  <script src="/static/auth.js?v=20260914-kakao-share1"></script>
+  <script src="/static/app.js?v=20260914-kakao-share1"></script>
 </body>
 </html>
