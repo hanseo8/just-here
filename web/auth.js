@@ -62,6 +62,21 @@
     return data;
   }
 
+  async function linkKakaoCode(api, code, redirectUri) {
+    const guest_uid = getUid();
+    if (!guest_uid) throw new Error("guest missing");
+    const data = await api("/v1/auth/kakao/code", {
+      method: "POST",
+      body: JSON.stringify({
+        guest_uid,
+        code,
+        redirect_uri: redirectUri,
+      }),
+    });
+    setIdentity(data.uid, "kakao");
+    return data;
+  }
+
   function authType() {
     return localStorage.getItem(AUTH_TYPE_KEY) || "anonymous";
   }
@@ -75,6 +90,7 @@
     getUid,
     ensureGuest,
     linkKakao,
+    linkKakaoCode,
     authType,
     isLinked,
     setIdentity,

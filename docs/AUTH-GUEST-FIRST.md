@@ -82,7 +82,11 @@ FIREBASE_AUTH_DOMAIN=
 FIREBASE_PROJECT_ID=
 ```
 
-카카오 콘솔: 플랫폼 Web 도메인에 `https://www.justthis.co.kr`, `https://justthis.co.kr` 등록.
+카카오 콘솔 (개편 후):
+- [앱] > [플랫폼 키] > [JavaScript 키] > **JavaScript SDK 도메인** + **Redirect URI**
+- 둘 다: `https://www.justthis.co.kr`, `https://justthis.co.kr` (끝 `/` 없이, 앱 `location.origin`과 동일)
+- [제품 설정] > [카카오 로그인] 활성화 ON
+- 로그인 플로우: SDK v2 `Kakao.Auth.authorize` → `POST /v1/auth/kakao/code` (REST 키로 토큰 교환)
 
 ---
 

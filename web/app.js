@@ -400,6 +400,40 @@ function updateKakaoLinkButton() {
   }
 }
 
+function ensureKakaoSdk() {
+  const key = state.meta?.kakao_js_key;
+  if (!key) return { ok: false, reason: "no_key" };
+  if (!window.Kakao) return { ok: false, reason: "no_sdk" };
+  if (!window.Kakao.isInitialized?.()) {
+    window.Kakao.init(key);
+  }
+  if (!window.Kakao.Auth?.authorize) return { ok: false, reason: "no_authorize" };
+  return { ok: true };
+}
+
+function kakaoRedirectUri() {
+  // 카카오 콘솔 Redirect URI와 문자 단위로 일치해야 함 (끝 / 없이 origin)
+  return window.location.origin;
+}
+
+async function completeKakaoCodeLink(code) {
+  const redirectUri = sessionStorage.getItem("jh_kakao_redirect") || kakaoRedirectUri();
+  const linked = await window.JustHereAuth.linkKakaoCode(api, code, redirectUri);
+  state.uid = linked.uid;
+  state.authType = "kakao";
+  sessionStorage.removeItem("jh_kakao_redirect");
+  setAuthStatus("카카오 연동 완료! 칭호 도감이 안전하게 저장됐어요.");
+  updateKakaoLinkButton();
+  // URL에서 code 제거
+  const clean = new URL(window.location.href);
+  clean.searchParams.delete("code");
+  clean.searchParams.delete("state");
+  clean.searchParams.delete("error");
+  clean.searchParams.delete("error_description");
+  window.history.replaceState({}, "", clean.pathname + clean.search + clean.hash);
+  return linked;
+}
+
 async function linkKakaoAccount() {
   const btn = $("btn-kakao-link");
   try {
@@ -407,43 +441,25 @@ async function linkKakaoAccount() {
       btn.disabled = true;
       btn.textContent = "카카오 연결 중…";
     }
-    // Kakao JS SDK가 있으면 사용, 없으면 안내
-    if (window.Kakao && !window.Kakao.isInitialized?.()) {
-      const key = state.meta?.kakao_js_key;
-      if (key) window.Kakao.init(key);
-    }
-    if (window.Kakao?.Auth?.login) {
-      await new Promise((resolve, reject) => {
-        window.Kakao.Auth.login({
-          scope: "profile_nickname",
-          success: async (authObj) => {
-            try {
-              const linked = await window.JustHereAuth.linkKakao(
-                api,
-                authObj.access_token
-              );
-              state.uid = linked.uid;
-              state.authType = "kakao";
-              setAuthStatus("카카오 연동 완료! 칭호 도감이 안전하게 저장됐어요.");
-              updateKakaoLinkButton();
-              resolve(linked);
-            } catch (err) {
-              reject(err);
-            }
-          },
-          fail: reject,
-        });
-      });
+    const sdk = ensureKakaoSdk();
+    if (!sdk.ok) {
+      if (sdk.reason === "no_key") {
+        alert("서버에 카카오 JS 키가 아직 없습니다. Render Environment에 KAKAO_JS_KEY를 넣어 주세요.");
+      } else {
+        alert("카카오 SDK를 불러오지 못했어요. 네트워크를 확인한 뒤 새로고침해 주세요.");
+      }
+      setAuthStatus("게스트 식별 유지 중 — 카카오 연동 대기");
       return;
     }
-    alert(
-      "카카오 JS 키를 Render 환경변수 KAKAO_JS_KEY 에 넣으면 바로 연동됩니다.\n\n지금은 게스트(기기) 계정으로 취향·칭호가 누적되고 있어요."
-    );
-    setAuthStatus("게스트 식별 유지 중 — 카카오 JS 키 설정 후 영구 백업 가능");
+    // JS SDK v2: popup login 제거됨 → authorize 리다이렉트
+    sessionStorage.setItem("jh_kakao_redirect", kakaoRedirectUri());
+    window.Kakao.Auth.authorize({
+      redirectUri: kakaoRedirectUri(),
+      scope: "profile_nickname",
+    });
   } catch (err) {
     console.error(err);
     setAuthStatus("카카오 연동 실패. 잠시 후 다시 시도해 주세요.");
-  } finally {
     if (btn) {
       btn.disabled = false;
       btn.textContent = "카카오로 3초 만에 도감 저장";
@@ -461,6 +477,21 @@ async function init() {
     }
   } catch (err) {
     console.warn("guest auth skipped", err);
+  }
+  // 카카오 authorize 콜백 (?code=)
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    const kakaoErr = params.get("error");
+    if (kakaoErr) {
+      setAuthStatus("카카오 로그인이 취소되었거나 실패했어요.");
+    } else if (code && window.JustHereAuth) {
+      setAuthStatus("카카오 계정 연결 중…");
+      await completeKakaoCodeLink(code);
+    }
+  } catch (err) {
+    console.error(err);
+    setAuthStatus("카카오 연동 실패. 다시 시도해 주세요.");
   }
   $("btn-start").disabled = true;
   $("btn-start").onclick = onStartClick;

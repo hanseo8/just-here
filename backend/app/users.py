@@ -253,5 +253,35 @@ def verify_kakao_access_token(access_token: str) -> dict[str, Any]:
     return {"kakao_id": kid, "nickname": nick, "raw": data}
 
 
+def exchange_kakao_auth_code(code: str, redirect_uri: str) -> dict[str, Any]:
+    """인가 코드 → access_token (REST API 키 필요). SDK v2 authorize 플로우."""
+    rest_key = (os.getenv("KAKAO_REST_API_KEY") or "").strip()
+    if not rest_key:
+        raise ValueError("missing_rest_key")
+    code = (code or "").strip()
+    redirect_uri = (redirect_uri or "").strip()
+    if not code or not redirect_uri:
+        raise ValueError("missing_code_or_redirect")
+    with httpx.Client(timeout=8.0) as client:
+        res = client.post(
+            "https://kauth.kakao.com/oauth/token",
+            data={
+                "grant_type": "authorization_code",
+                "client_id": rest_key,
+                "redirect_uri": redirect_uri,
+                "code": code,
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded;charset=utf-8"},
+        )
+        if res.status_code != 200:
+            raise ValueError(f"token_exchange:{res.status_code}:{res.text[:200]}")
+        token_data = res.json()
+    access = token_data.get("access_token")
+    if not access:
+        raise ValueError("no_access_token")
+    profile = verify_kakao_access_token(access)
+    return {**profile, "access_token": access}
+
+
 def new_device_id() -> str:
     return uuid.uuid4().hex

@@ -64,6 +64,12 @@ class KakaoLinkBody(BaseModel):
     access_token: str
 
 
+class KakaoCodeBody(BaseModel):
+    guest_uid: str
+    code: str
+    redirect_uri: str
+
+
 class TasteSyncBody(BaseModel):
     uid: str
     taste: list[str] = Field(default_factory=list)
@@ -175,18 +181,10 @@ def auth_guest(body: GuestAuthBody):
     }
 
 
-@app.post("/v1/auth/kakao/link")
-def auth_kakao_link(body: KakaoLinkBody):
-    """2단계: 카카오 로그인 후 익명 데이터 병합."""
-    try:
-        kakao_user = users.verify_kakao_access_token(body.access_token)
-    except ValueError as e:
-        raise HTTPException(401, f"kakao auth failed: {e}") from e
+def _finish_kakao_link(guest_uid: str, kakao_user: dict) -> dict:
     kakao_uid = f"kakao_{kakao_user['kakao_id']}"
     try:
-        merged = users.STORE.merge_guest_into(
-            body.guest_uid, kakao_uid, auth_type="kakao"
-        )
+        users.STORE.merge_guest_into(guest_uid, kakao_uid, auth_type="kakao")
     except KeyError:
         raise HTTPException(404, "guest user not found") from None
     if kakao_user.get("nickname"):
@@ -198,9 +196,29 @@ def auth_kakao_link(body: KakaoLinkBody):
         "ok": True,
         "uid": kakao_uid,
         "auth_type": "kakao",
-        "linked_from": body.guest_uid,
+        "linked_from": guest_uid,
         "user": users.STORE.public_profile(kakao_uid),
     }
+
+
+@app.post("/v1/auth/kakao/link")
+def auth_kakao_link(body: KakaoLinkBody):
+    """2단계: 액세스 토큰으로 익명 데이터 병합 (레거시)."""
+    try:
+        kakao_user = users.verify_kakao_access_token(body.access_token)
+    except ValueError as e:
+        raise HTTPException(401, f"kakao auth failed: {e}") from e
+    return _finish_kakao_link(body.guest_uid, kakao_user)
+
+
+@app.post("/v1/auth/kakao/code")
+def auth_kakao_code(body: KakaoCodeBody):
+    """2단계: SDK v2 authorize 인가코드 → 토큰 교환 후 병합."""
+    try:
+        kakao_user = users.exchange_kakao_auth_code(body.code, body.redirect_uri)
+    except ValueError as e:
+        raise HTTPException(401, f"kakao code exchange failed: {e}") from e
+    return _finish_kakao_link(body.guest_uid, kakao_user)
 
 
 @app.get("/v1/me")
