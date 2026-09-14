@@ -234,14 +234,14 @@ async function applySmartIntent() {
 }
 
 const TASTE_CATEGORIES = [
-  { key: "korean", label: "한식" },
-  { key: "chinese", label: "중식" },
-  { key: "japanese", label: "일식" },
-  { key: "western", label: "양식" },
-  { key: "snack", label: "분식" },
-  { key: "mexican", label: "멕시칸" },
-  { key: "meat", label: "고기" },
-  { key: "asian", label: "아시안" },
+  { key: "korean", label: "든든한 한식", emoji: "🍚" },
+  { key: "chinese", label: "불향 중식", emoji: "🥡" },
+  { key: "japanese", label: "정갈한 일식", emoji: "🍣" },
+  { key: "western", label: "분위기 양식", emoji: "🍝" },
+  { key: "snack", label: "매콤한 분식", emoji: "🔥" },
+  { key: "mexican", label: "신나는 멕시칸", emoji: "🌮" },
+  { key: "meat", label: "불맛나는 고기", emoji: "🥩" },
+  { key: "asian", label: "가벼운 아시안", emoji: "🍜" },
 ];
 
 const TASTE_CAT_MIN = 2;
@@ -268,15 +268,18 @@ function renderTasteCategories() {
   const box = $("taste-cats");
   if (!box) return;
   box.innerHTML = "";
-  const selected = new Set(state.tasteChoices.filter((k) =>
-    TASTE_CATEGORIES.some((c) => c.key === k)
-  ));
+  const selected = new Set(
+    state.tasteChoices.filter((k) => TASTE_CATEGORIES.some((c) => c.key === k))
+  );
   TASTE_CATEGORIES.forEach((c) => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = `taste-cat${selected.has(c.key) ? " on" : ""}`;
-    btn.textContent = c.label;
     btn.dataset.key = c.key;
+    btn.innerHTML =
+      `<span class="taste-cat-emoji" aria-hidden="true">${c.emoji}</span>` +
+      `<span class="taste-cat-name">${c.label}</span>` +
+      `<span class="taste-cat-check" aria-hidden="true">✓</span>`;
     btn.onclick = () => toggleTasteCategory(c.key);
     box.appendChild(btn);
   });
@@ -291,6 +294,9 @@ function toggleTasteCategory(key) {
   if (i >= 0) cats.splice(i, 1);
   else if (cats.length < TASTE_CAT_MAX) cats.push(key);
   state.tasteChoices = cats;
+  try {
+    if (navigator.vibrate) navigator.vibrate(8);
+  } catch (_) {}
   renderTasteCategories();
 }
 
@@ -298,15 +304,19 @@ function syncTasteCatNext() {
   const cats = state.tasteChoices.filter((k) =>
     TASTE_CATEGORIES.some((c) => c.key === k)
   );
+  const n = cats.length;
   const hint = $("taste-cat-hint");
-  if (hint) hint.textContent = `${cats.length} / ${TASTE_CAT_MAX}`;
+  if (hint) hint.textContent = `${n} / ${TASTE_CAT_MAX}`;
   const next = $("btn-taste-next");
-  if (next) {
-    next.disabled = cats.length < TASTE_CAT_MIN;
-    next.textContent =
-      cats.length < TASTE_CAT_MIN
-        ? `${TASTE_CAT_MIN}개 이상 골라 주세요`
-        : "다음";
+  if (!next) return;
+  next.disabled = n < TASTE_CAT_MIN;
+  next.classList.toggle("ready", n >= TASTE_CAT_MIN);
+  if (n === 0) {
+    next.textContent = `일단 입맛 당기는 거 골라봐요 (${n}/${TASTE_CAT_MAX})`;
+  } else if (n < TASTE_CAT_MIN) {
+    next.textContent = `좋아요, 조금 더 골라볼까요? (${n}/${TASTE_CAT_MAX})`;
+  } else {
+    next.textContent = "이대로 메뉴 고르러 가기 →";
   }
 }
 

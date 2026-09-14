@@ -3,6 +3,9 @@
   --chili: #d62828;
   --ink: #1a120e;
   --cream: #fff6ef;
+  --glass: rgba(255, 255, 255, 0.78);
+  --glass-edge: rgba(255, 255, 255, 0.55);
+  --accent-pop: #ffe566;
 }
 
 * { box-sizing: border-box; }
@@ -10,27 +13,32 @@ html, body {
   margin: 0;
   height: 100%;
   font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-  background: linear-gradient(165deg, #ff8a4c 0%, #ff6a3d 45%, #c81d25 100%);
+  background:
+    radial-gradient(120% 90% at 12% -10%, rgba(255, 214, 170, 0.95) 0%, transparent 52%),
+    radial-gradient(90% 70% at 100% 8%, rgba(255, 120, 90, 0.55) 0%, transparent 48%),
+    radial-gradient(80% 60% at 50% 100%, rgba(160, 40, 50, 0.35) 0%, transparent 55%),
+    linear-gradient(168deg, #ffb084 0%, #ff7a4d 42%, #d63b3b 100%);
   color: var(--cream);
   overflow: hidden;
   touch-action: none;
 }
-html.allow-scroll,
-body.allow-scroll {
-  overflow-y: auto;
-  overflow-x: hidden;
-  touch-action: pan-y;
-  height: auto;
-  min-height: 100%;
-  -webkit-overflow-scrolling: touch;
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.28;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.9'/%3E%3C/svg%3E");
 }
-
 #app, .screen {
   height: 100%;
   width: 100%;
   max-width: 430px;
   margin: 0 auto;
   position: relative;
+  z-index: 1;
 }
 body.allow-scroll #app {
   height: auto;
@@ -41,28 +49,53 @@ body.allow-scroll .screen:not(.hidden) {
   min-height: 100%;
 }
 
+html.allow-scroll,
+body.allow-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
+  height: auto;
+  min-height: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
 .hidden { display: none !important; }
 
 .brand-hero {
-  padding: 18vh 28px 24px;
+  padding: 16vh 28px 20px;
   text-align: center;
 }
 .eyebrow {
-  letter-spacing: 0.2em;
-  opacity: 0.85;
-  font-size: 12px;
+  letter-spacing: 0.28em;
+  opacity: 0.72;
+  font-size: 11px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+.brand-hero h1 {
+  margin: 0;
+  font-size: clamp(40px, 11vw, 52px);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
 }
 .brand-hero.compact {
-  padding: 4vh 28px 8px;
+  padding: 5vh 28px 6px;
+}
+.brand-hero.compact .eyebrow {
+  letter-spacing: 0.22em;
+  font-size: 10px;
 }
 .brand-hero.compact h1 {
-  font-size: 32px;
-  margin: 4px 0;
+  font-size: 28px;
+  margin: 2px 0 0;
+  font-weight: 800;
+  letter-spacing: -0.03em;
 }
 .brand-hero.compact .sub {
   display: none;
 }
-.sub { font-size: 18px; opacity: 0.95; }
+.sub { font-size: 17px; opacity: 0.92; margin: 10px 0 0; line-height: 1.45; }
 
 .start-panel, .taste-stage {
   padding: 0 24px 40px;
@@ -139,33 +172,116 @@ select {
 .btn.go { flex: 1.4; }
 .btn.ghost { flex: 0.8; }
 
-.taste-prompt { text-align: center; font-size: 20px; font-weight: 700; margin: 0 0 6px; }
+.taste-prompt {
+  text-align: center;
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0 0 6px;
+  letter-spacing: -0.02em;
+}
 .taste-sub {
   text-align: center;
-  margin: 0 0 14px;
+  margin: 0 0 18px;
   font-size: 13px;
-  opacity: 0.85;
+  opacity: 0.82;
 }
 .taste-cats {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 .taste-cat {
-  border: 1.5px solid rgba(255,255,255,0.35);
-  background: rgba(0,0,0,0.18);
-  color: #fff;
+  position: relative;
+  border: 1px solid var(--glass-edge);
+  background: var(--glass);
+  color: var(--ink);
   border-radius: 16px;
-  min-height: 56px;
-  font-size: 16px;
+  min-height: 78px;
+  padding: 14px 12px 12px;
+  font-size: 15px;
   font-weight: 800;
   cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  text-align: left;
+  box-shadow: 0 8px 24px rgba(40, 12, 8, 0.12);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.taste-cat:active {
+  transform: scale(0.97) translateY(1px);
 }
 .taste-cat.on {
-  background: #fff;
-  color: var(--chili, #e85d04);
-  border-color: #fff;
+  background: var(--accent-pop);
+  border-color: rgba(26, 18, 14, 0.12);
+  color: var(--ink);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(40, 12, 8, 0.18);
+}
+.taste-cat-emoji {
+  font-size: 22px;
+  line-height: 1;
+}
+.taste-cat-name {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.taste-cat-check {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 900;
+  background: var(--ink);
+  color: #fff;
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.15s ease, transform 0.18s cubic-bezier(0.2, 1.3, 0.4, 1);
+}
+.taste-cat.on .taste-cat-check {
+  opacity: 1;
+  transform: scale(1);
+}
+.taste-progress {
+  text-align: center;
+  opacity: 0.75;
+  font-size: 12px;
+  margin: 0 0 10px;
+  font-weight: 600;
+}
+#btn-taste-next {
+  width: 100%;
+  max-width: none;
+  margin: 4px 0 0;
+  border-radius: 18px;
+  background: rgba(26, 18, 14, 0.55);
+  color: rgba(255, 255, 255, 0.88);
+  transition: transform 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+}
+#btn-taste-next:disabled {
+  opacity: 0.85;
+  cursor: not-allowed;
+}
+#btn-taste-next.ready {
+  background: var(--ink);
+  color: #fff;
+  animation: cta-pop 0.35s cubic-bezier(0.2, 1.25, 0.4, 1);
+}
+@keyframes cta-pop {
+  from { transform: translateY(8px); opacity: 0.6; }
+  to { transform: translateY(0); opacity: 1; }
 }
 .taste-tone-pair {
   display: grid;
@@ -174,23 +290,43 @@ select {
   margin: 8px 0 14px;
 }
 .taste-tone {
-  border: none;
+  border: 1px solid var(--glass-edge);
   border-radius: 18px;
-  min-height: 120px;
-  background: rgba(0,0,0,0.22);
-  color: #fff;
-  font-size: 18px;
+  min-height: 132px;
+  padding: 18px 14px;
+  background: var(--glass);
+  color: var(--ink);
+  font-size: 17px;
   font-weight: 800;
   cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 8px 24px rgba(40, 12, 8, 0.12);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: transform 0.18s ease, background 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
 }
-.taste-tone:active { transform: scale(0.98); }
-#btn-taste-next, #btn-taste-skip-tone {
+.taste-tone .tone-emoji { font-size: 28px; line-height: 1; }
+.taste-tone:active { transform: scale(0.97); }
+.taste-tone:hover,
+.taste-tone:focus-visible {
+  transform: translateY(-2px);
+  background: var(--accent-pop);
+}
+#btn-taste-skip-tone {
   width: 100%;
-  max-width: 320px;
-  margin: 8px auto 0;
+  max-width: none;
+  margin: 0;
   display: block;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.22);
+  color: #fff;
+  font-weight: 700;
 }
-.taste-progress { text-align: center; opacity: 0.85; }
 
 .top {
   padding: 16px 16px 8px;
