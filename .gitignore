@@ -37,3 +37,8 @@ Thumbs.db
 google-services.json
 GoogleService-Info.plist
 serviceAccount*.json
+
+# Guest-First user store (runtime)
+data/users.json
+data/*.tmp
+

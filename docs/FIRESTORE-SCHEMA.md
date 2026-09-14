@@ -17,27 +17,33 @@ Runtime MVP는 인메모리 / 이후 Postgres. 이 문서는 **취향·배달 �
 
 ### `users/{uid}`
 
+Guest-First 런타임 계약은 [AUTH-GUEST-FIRST.md](./AUTH-GUEST-FIRST.md) 참고.
+
 ```json
 {
-  "firebase_uid": "abc",
-  "created_at": "2026-09-13T12:00:00Z",
-  "default_intent": "visit",
-  "taste_vector": {
-    "jjamppong": 1.0,
-    "pork": 0.8
+  "uid": "kakao_987654321",
+  "auth_type": "kakao",
+  "anonymous_linked_from": "anon_id_12345abc",
+  "device_ids": ["web_local_uuid_or_idfv"],
+  "nickname": "고민제로",
+  "earned_titles": ["운명적 첫사랑", "미식계의 흥선대원군"],
+  "title_ids": ["first_love", "picky_king"],
+  "preferences": {
+    "hate_tags": { "오이": 2, "고수": 1 },
+    "hate_categories": { "noodle": 0.8 },
+    "taste": ["pork", "jjamppong"],
+    "preferred_spice_level": 2
   },
-  "rejection_tags": {
-    "#매운맛": 2.0,
-    "#면류": 1.0
-  },
-  "rejection_categories": {
-    "noodle": 1.6
-  },
-  "last_lat": 37.3925,
-  "last_lng": 126.6450,
-  "updated_at": "2026-09-13T12:05:00Z"
+  "swipe_logs": [
+    { "action": "nope", "menu_id": "m1", "tags": ["#오이"], "at": "…" }
+  ],
+  "firebase_uid": "optional_when_firebase_on",
+  "created_at": "2026-09-14T12:00:00Z",
+  "updated_at": "2026-09-14T12:05:00Z"
 }
 ```
+
+레거시 필드(`taste_vector`, `rejection_tags`)는 `preferences`로 이관.
 
 ### `places/{placeId}`
 

@@ -643,9 +643,15 @@ select {
   font-weight: 700;
 }
 .done-box .btn { margin-top: 10px; }
-.btn.share {
+.btn.kakao-link {
   background: #fee500;
   color: #191919;
+  margin-top: 10px;
+}
+.auth-status {
+  margin: 8px 0 0;
+  font-size: 12px;
+  opacity: 0.9;
 }
 .share-status {
   margin: 10px 0 0;

@@ -3,6 +3,8 @@ const state = {
   tasteIndex: 0,
   tasteChoices: [],
   sessionId: null,
+  uid: null,
+  authType: "anonymous",
   intent: "visit",
   weather: "clear",
   intentReason: "",
@@ -380,8 +382,86 @@ async function locateAndSyncWeather(force = true) {
   }
 }
 
+function setAuthStatus(text) {
+  const el = $("auth-status");
+  if (!el) return;
+  el.textContent = text || "";
+  el.classList.toggle("hidden", !text);
+}
+
+function updateKakaoLinkButton() {
+  const btn = $("btn-kakao-link");
+  if (!btn) return;
+  if (window.JustHereAuth?.isLinked()) {
+    btn.classList.add("hidden");
+    setAuthStatus("카카오 계정에 도감·취향이 저장돼 있어요.");
+  } else {
+    btn.classList.remove("hidden");
+  }
+}
+
+async function linkKakaoAccount() {
+  const btn = $("btn-kakao-link");
+  try {
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "카카오 연결 중…";
+    }
+    // Kakao JS SDK가 있으면 사용, 없으면 안내
+    if (window.Kakao && !window.Kakao.isInitialized?.()) {
+      const key = state.meta?.kakao_js_key;
+      if (key) window.Kakao.init(key);
+    }
+    if (window.Kakao?.Auth?.login) {
+      await new Promise((resolve, reject) => {
+        window.Kakao.Auth.login({
+          scope: "profile_nickname",
+          success: async (authObj) => {
+            try {
+              const linked = await window.JustHereAuth.linkKakao(
+                api,
+                authObj.access_token
+              );
+              state.uid = linked.uid;
+              state.authType = "kakao";
+              setAuthStatus("카카오 연동 완료! 칭호 도감이 안전하게 저장됐어요.");
+              updateKakaoLinkButton();
+              resolve(linked);
+            } catch (err) {
+              reject(err);
+            }
+          },
+          fail: reject,
+        });
+      });
+      return;
+    }
+    alert(
+      "카카오 JS 키를 Render 환경변수 KAKAO_JS_KEY 에 넣으면 바로 연동됩니다.\n\n지금은 게스트(기기) 계정으로 취향·칭호가 누적되고 있어요."
+    );
+    setAuthStatus("게스트 식별 유지 중 — 카카오 JS 키 설정 후 영구 백업 가능");
+  } catch (err) {
+    console.error(err);
+    setAuthStatus("카카오 연동 실패. 잠시 후 다시 시도해 주세요.");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "카카오로 3초 만에 도감 저장";
+    }
+  }
+}
+
 async function init() {
   state.meta = await api("/v1/meta");
+  try {
+    if (window.JustHereAuth) {
+      const guest = await window.JustHereAuth.ensureGuest(api);
+      state.uid = guest.uid;
+      state.authType = guest.auth_type || "anonymous";
+    }
+  } catch (err) {
+    console.warn("guest auth skipped", err);
+  }
   $("btn-start").disabled = true;
   $("btn-start").onclick = onStartClick;
   const locateBtn = $("btn-locate");
@@ -394,6 +474,8 @@ async function init() {
   $("btn-copy").onclick = () => copyShareLink();
   const igBtn = $("btn-share-ig");
   if (igBtn) igBtn.onclick = () => shareForInstagramStory();
+  const kakaoBtn = $("btn-kakao-link");
+  if (kakaoBtn) kakaoBtn.onclick = () => linkKakaoAccount();
   const duoBtn = $("btn-duo");
   if (duoBtn) duoBtn.onclick = () => createDuoInvite();
   const duoDone = $("btn-duo-done");
@@ -403,7 +485,6 @@ async function init() {
     reloadBtn.onclick = async () => {
       try {
         await ensureFreshLocation();
-        // 강제 재시드: session 재시작
         const data = await api("/v1/session", {
           method: "POST",
           body: JSON.stringify({
@@ -412,6 +493,7 @@ async function init() {
             intent: state.intent,
             weather: state.weather,
             taste: state.tasteChoices,
+            uid: state.uid || undefined,
           }),
         });
         applyFeed(data);
@@ -433,7 +515,6 @@ async function init() {
       state.intent = next;
       state.intentReason = "";
       setToggleUI(state.intent);
-      // 덱을 비우지 않음 — 카드 유지한 채 반경만 즉시 교체
       try {
         await refreshFeed();
         renderCard();
@@ -448,7 +529,6 @@ async function init() {
   setupSwipeGestures();
   setupLongPress();
   setupInstallPwa();
-  // 자동 GPS는 하지 않음 — 「위치 파악」 버튼으로 명시 실행
   const ws = $("weather-status");
   if (ws) ws.textContent = "위치 파악 후 날씨가 자동으로 연동됩니다.";
 }
@@ -503,6 +583,7 @@ async function startSession() {
       intent: state.intent,
       weather: state.weather,
       taste: state.tasteChoices,
+      uid: state.uid || undefined,
     }),
   });
   applyFeed(data);
@@ -730,6 +811,7 @@ async function swipe(action) {
         card_id: card.card_id,
         menu_id: card.menu_id,
         action,
+        uid: state.uid || undefined,
       }),
     });
     if (action === "lets_go") {
@@ -897,6 +979,7 @@ function showDone(data) {
     }
   }
   setShareStatus("");
+  updateKakaoLinkButton();
   ensureReceipt(data)
     .then(() => setShareStatus("친구에게 자랑할 준비 완료"))
     .catch(() => setShareStatus("공유 링크 생성 실패"));

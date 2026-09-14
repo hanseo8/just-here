@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
@@ -17,6 +18,7 @@ from . import engine
 from . import kakao
 from . import share
 from . import titles
+from . import users
 from . import weather as weather_api
 from .radius import KST, suggest_intent, suggest_intent_reason
 from .seed import CENTER_LAT, CENTER_LNG, sample_taste_pairs
@@ -40,6 +42,7 @@ class SwipeBody(BaseModel):
     card_id: str
     menu_id: str
     action: Literal["nope", "lets_go"]
+    uid: str | None = None
 
 
 class SessionStartBody(BaseModel):
@@ -47,6 +50,22 @@ class SessionStartBody(BaseModel):
     lng: float
     intent: Literal["visit", "delivery"] = "visit"
     weather: Literal["clear", "rain", "snow", "hot", "cold"] = "clear"
+    taste: list[str] = Field(default_factory=list)
+    uid: str | None = None
+
+
+class GuestAuthBody(BaseModel):
+    device_id: str
+    firebase_uid: str | None = None
+
+
+class KakaoLinkBody(BaseModel):
+    guest_uid: str
+    access_token: str
+
+
+class TasteSyncBody(BaseModel):
+    uid: str
     taste: list[str] = Field(default_factory=list)
 
 
@@ -111,6 +130,7 @@ def health():
         "ok": True,
         "service": "just-here-mvp",
         "kakao_enabled": kakao.kakao_configured(),
+        "auth": "guest_first",
     }
 
 
@@ -132,9 +152,72 @@ def meta():
             "national_light": "전국 라이트 (카카오/폴백)",
         },
         "kakao_enabled": kakao.kakao_configured(),
+        "kakao_js_key": (os.getenv("KAKAO_JS_KEY") or "").strip() or None,
+        "auth": {
+            "mode": "guest_first",
+            "firebase_ready": bool((os.getenv("FIREBASE_API_KEY") or "").strip()),
+            "kakao_link": True,
+        },
         "taste_pairs": sample_taste_pairs(4),
         "personas": titles.catalog(),
     }
+
+
+@app.post("/v1/auth/guest")
+def auth_guest(body: GuestAuthBody):
+    """1단계: 회원가입 없이 기기 기준 익명 uid 발급/재연결."""
+    profile = users.STORE.ensure_guest(body.device_id, firebase_uid=body.firebase_uid)
+    return {
+        "ok": True,
+        "uid": profile["uid"],
+        "auth_type": profile.get("auth_type"),
+        "user": users.STORE.public_profile(profile["uid"]),
+    }
+
+
+@app.post("/v1/auth/kakao/link")
+def auth_kakao_link(body: KakaoLinkBody):
+    """2단계: 카카오 로그인 후 익명 데이터 병합."""
+    try:
+        kakao_user = users.verify_kakao_access_token(body.access_token)
+    except ValueError as e:
+        raise HTTPException(401, f"kakao auth failed: {e}") from e
+    kakao_uid = f"kakao_{kakao_user['kakao_id']}"
+    try:
+        merged = users.STORE.merge_guest_into(
+            body.guest_uid, kakao_uid, auth_type="kakao"
+        )
+    except KeyError:
+        raise HTTPException(404, "guest user not found") from None
+    if kakao_user.get("nickname"):
+        try:
+            users.STORE.set_nickname(kakao_uid, kakao_user["nickname"])
+        except KeyError:
+            pass
+    return {
+        "ok": True,
+        "uid": kakao_uid,
+        "auth_type": "kakao",
+        "linked_from": body.guest_uid,
+        "user": users.STORE.public_profile(kakao_uid),
+    }
+
+
+@app.get("/v1/me")
+def me(uid: str = Query(...)):
+    profile = users.STORE.public_profile(uid)
+    if not profile:
+        raise HTTPException(404, "user not found")
+    return {"ok": True, "user": profile}
+
+
+@app.post("/v1/me/taste")
+def me_taste(body: TasteSyncBody):
+    try:
+        users.STORE.set_taste(body.uid, body.taste)
+    except KeyError:
+        raise HTTPException(404, "user not found") from None
+    return {"ok": True, "user": users.STORE.public_profile(body.uid)}
 
 
 @app.get("/v1/context")
@@ -177,6 +260,11 @@ def context(
 @app.post("/v1/session")
 def start_session(body: SessionStartBody):
     s = engine.create_session(body.lat, body.lng, body.intent, body.weather, body.taste)
+    if body.uid:
+        try:
+            users.STORE.set_taste(body.uid, body.taste)
+        except KeyError:
+            pass
     cards, radius, gold = engine.build_cards(s)
     return _feed_payload(s, cards, radius, gold)
 
@@ -326,6 +414,24 @@ def swipe(body: SwipeBody, request: Request):
     if not place:
         raise HTTPException(404, "menu not found")
 
+    if body.uid:
+        try:
+            users.STORE.append_swipe(
+                body.uid,
+                {
+                    "action": body.action,
+                    "menu_id": body.menu_id,
+                    "place_id": place.get("place_id"),
+                    "place_name": place.get("name"),
+                    "category": place.get("category"),
+                    "tags": place.get("tags") or [],
+                    "intent": s.intent,
+                    "weather": s.weather,
+                },
+            )
+        except KeyError:
+            pass
+
     if body.action == "nope":
         engine.apply_nope(s, place)
         cards, radius, gold = engine.build_cards(s)
@@ -334,6 +440,11 @@ def swipe(body: SwipeBody, request: Request):
     handoff = engine.apply_lets_go(s, place)
     persona = _build_persona(s, place)
     title = persona["title"]
+    if body.uid:
+        try:
+            users.STORE.earn_title(body.uid, title, persona.get("id") or "")
+        except KeyError:
+            pass
     receipt = share.create_receipt(
         title=title,
         place_name=place["name"],

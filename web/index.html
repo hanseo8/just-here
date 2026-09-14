@@ -141,6 +141,8 @@
         <a id="handoff-link" class="btn primary" target="_blank" rel="noopener">지도에서 보기</a>
         <button type="button" id="btn-share" class="btn share">영수증 자랑하기</button>
         <button type="button" id="btn-share-ig" class="btn ghost">인스타 스토리용 링크 복사</button>
+        <button type="button" id="btn-kakao-link" class="btn kakao-link">카카오로 3초 만에 도감 저장</button>
+        <p id="auth-status" class="auth-status hidden"></p>
         <button type="button" id="btn-duo-done" class="btn ghost">둘이서 고르기</button>
         <button type="button" id="btn-copy" class="btn ghost">링크 복사</button>
         <p id="share-status" class="share-status hidden"></p>
@@ -148,6 +150,8 @@
       </div>
     </section>
   </div>
-  <script src="/static/app.js?v=20260914-titles20"></script>
+  <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
+  <script src="/static/auth.js?v=20260914-guest1"></script>
+  <script src="/static/app.js?v=20260914-guest1"></script>
 </body>
 </html>

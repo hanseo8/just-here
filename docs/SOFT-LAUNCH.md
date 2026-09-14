@@ -28,6 +28,7 @@
 3. Render Environment:
    - `PUBLIC_BASE_URL=https://www.justthis.co.kr`
    - `KAKAO_REST_API_KEY` (카카오 근처검색용)
+   - `KAKAO_JS_KEY` (Guest→카카오 계정 병합, [AUTH-GUEST-FIRST.md](./AUTH-GUEST-FIRST.md))
 
 ---
 
