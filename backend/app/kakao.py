@@ -39,6 +39,18 @@ CATEGORY_SENSITIVITY = {
 
 # 취향 튜토리얼 키 → 키워드 검색어 + 내부 카테고리
 TASTE_QUERIES: dict[str, list[str]] = {
+    # 카테고리 부트스트랩
+    "korean": ["한식", "국밥"],
+    "chinese": ["중식", "짜장면"],
+    "japanese": ["일식", "라멘"],
+    "western": ["양식", "파스타"],
+    "snack": ["분식", "떡볶이"],
+    "mexican": ["멕시칸", "타코"],
+    "meat": ["고기구이", "삼겹살"],
+    "asian": ["아시안", "쌀국수"],
+    "spicy": ["매운음식", "떡볶이"],
+    "mild": ["국밥", "백반"],
+    # 레거시 메뉴 키
     "jjajang": ["짜장면", "중식"],
     "jjamppong": ["짬뽕", "중식"],
     "sundaeguk": ["순대국", "국밥"],
@@ -60,6 +72,16 @@ TASTE_QUERIES: dict[str, list[str]] = {
 }
 
 TASTE_CATEGORY: dict[str, str] = {
+    "korean": "korean",
+    "chinese": "chinese",
+    "japanese": "japanese",
+    "western": "western",
+    "snack": "korean",
+    "mexican": "western",
+    "meat": "meat",
+    "asian": "asian",
+    "spicy": "korean",
+    "mild": "korean",
     "jjajang": "chinese",
     "jjamppong": "chinese",
     "sundaeguk": "korean",

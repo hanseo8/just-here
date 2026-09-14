@@ -16,7 +16,7 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/static/icons/icon-192.png" type="image/png" />
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="/static/styles.css?v=20260914-done2" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260914-taste1" />
 </head>
 <body>
   <div id="app">
@@ -28,12 +28,22 @@
         <p class="sub">메뉴 고민은 사치, 지금 당장 그냥여기 어때?</p>
       </div>
       <div id="taste-stage" class="taste-stage hidden">
-        <p id="taste-prompt" class="taste-prompt"></p>
-        <div class="taste-pair">
-          <button type="button" class="taste-card" id="taste-left"></button>
-          <button type="button" class="taste-card" id="taste-right"></button>
+        <div id="taste-step-cat">
+          <p class="taste-prompt">요즘 끌리는 종류는?</p>
+          <p class="taste-sub">2~3개만 고르면 돼요</p>
+          <div id="taste-cats" class="taste-cats" role="group" aria-label="음식 종류"></div>
+          <p id="taste-cat-hint" class="taste-progress">0 / 3</p>
+          <button type="button" id="btn-taste-next" class="btn primary" disabled>다음</button>
         </div>
-        <p class="taste-progress" id="taste-progress"></p>
+        <div id="taste-step-tone" class="hidden">
+          <p class="taste-prompt">오늘은 어떤 느낌?</p>
+          <p class="taste-sub">하나만 고르거나 건너뛰어도 돼요</p>
+          <div class="taste-tone-pair">
+            <button type="button" class="taste-tone" data-tone="spicy">매콤한 거</button>
+            <button type="button" class="taste-tone" data-tone="mild">담백한 거</button>
+          </div>
+          <button type="button" id="btn-taste-skip-tone" class="btn ghost">상관없어요</button>
+        </div>
       </div>
       <div id="start-panel" class="start-panel">
         <p id="loc-status" class="loc-status">위치 권한을 허용한 뒤 「위치 파악」을 눌러 주세요.</p>
@@ -143,7 +153,7 @@
     </section>
   </div>
   <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
-  <script src="/static/auth.js?v=20260914-resume1"></script>
-  <script src="/static/app.js?v=20260914-resume1"></script>
+  <script src="/static/auth.js?v=20260914-taste1"></script>
+  <script src="/static/app.js?v=20260914-taste1"></script>
 </body>
 </html>

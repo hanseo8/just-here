@@ -233,69 +233,99 @@ async function applySmartIntent() {
   }
 }
 
-const TASTE_MENU_POOL = [
-  { key: "jjajang", label: "짜장면", category: "chinese", image: "https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=600&q=80" },
-  { key: "jjamppong", label: "짬뽕", category: "chinese", image: "/static/tastes/jjamppong.jpg" },
-  { key: "sundaeguk", label: "순대국", category: "korean", image: "/static/tastes/sundaeguk.jpg" },
-  { key: "gukbap", label: "국밥", category: "korean", image: "/static/tastes/gukbap.jpg" },
-  { key: "bibimbap", label: "비빔밥", category: "korean", image: "https://images.unsplash.com/photo-1553163147-622ab57be1c7?w=600&q=80" },
-  { key: "tteokbokki", label: "떡볶이", category: "korean", image: "https://images.unsplash.com/photo-1635363638580-c2809d049eee?w=600&q=80" },
-  { key: "kalguksu", label: "칼국수", category: "noodle", image: "/static/tastes/kalguksu.jpg" },
-  { key: "naengmyeon", label: "냉면", category: "noodle", image: "https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?w=600&q=80" },
-  { key: "ramen", label: "라멘", category: "japanese", image: "https://images.unsplash.com/photo-1617093727343-374698b1b08d?w=600&q=80" },
-  { key: "sushi", label: "초밥", category: "japanese", image: "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?w=600&q=80" },
-  { key: "donkatsu", label: "돈가스", category: "japanese", image: "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=600&q=80" },
-  { key: "udon", label: "우동", category: "japanese", image: "/static/tastes/udon.jpg" },
-  { key: "pork", label: "삼겹살", category: "meat", image: "/static/tastes/pork.jpg" },
-  { key: "galbi", label: "갈비", category: "meat", image: "/static/tastes/galbi.jpg" },
-  { key: "chicken", label: "치킨", category: "meat", image: "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=600&q=80" },
-  { key: "pizza", label: "피자", category: "western", image: "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&q=80" },
-  { key: "pasta", label: "파스타", category: "western", image: "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=600&q=80" },
-  { key: "burger", label: "햄버거", category: "western", image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&q=80" },
+const TASTE_CATEGORIES = [
+  { key: "korean", label: "한식" },
+  { key: "chinese", label: "중식" },
+  { key: "japanese", label: "일식" },
+  { key: "western", label: "양식" },
+  { key: "snack", label: "분식" },
+  { key: "mexican", label: "멕시칸" },
+  { key: "meat", label: "고기" },
+  { key: "asian", label: "아시안" },
 ];
 
-function shuffle(arr) {
-  const a = arr.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
+const TASTE_CAT_MIN = 2;
+const TASTE_CAT_MAX = 3;
+
+function openTasteFlow() {
+  $("start-panel").classList.add("hidden");
+  $("taste-stage").classList.remove("hidden");
+  const hero = document.querySelector(".brand-hero");
+  if (hero) hero.classList.add("compact");
+  $("taste-step-cat").classList.remove("hidden");
+  $("taste-step-tone").classList.add("hidden");
+  state.tasteIndex = 0;
+  state.tasteChoices = [];
+  state.forceRetaste = false;
+  renderTasteCategories();
+  try {
+    $("taste-stage").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (_) {}
+  applySmartIntent();
 }
 
-/** 시작마다 카테고리가 다른 A vs B 4쌍 랜덤 */
-function sampleTastePairs(n = 4) {
-  const pool = shuffle(TASTE_MENU_POOL);
-  const used = new Set();
-  const pairs = [];
-  const pick = (avoidCat) => {
-    for (const m of pool) {
-      if (used.has(m.key)) continue;
-      if (avoidCat && m.category === avoidCat) continue;
-      return m;
-    }
-    return pool.find((m) => !used.has(m.key)) || null;
-  };
-  for (let i = 0; i < n; i++) {
-    const left = pick(null);
-    if (!left) break;
-    used.add(left.key);
-    const right = pick(left.category);
-    if (!right) {
-      used.delete(left.key);
-      break;
-    }
-    used.add(right.key);
-    const a = Math.random() < 0.5 ? left : right;
-    const b = a === left ? right : left;
-    pairs.push({
-      id: `t${i + 1}`,
-      prompt: "지금 더 끌리는 음식은?",
-      left: { key: a.key, label: a.label, image: a.image },
-      right: { key: b.key, label: b.label, image: b.image },
-    });
+function renderTasteCategories() {
+  const box = $("taste-cats");
+  if (!box) return;
+  box.innerHTML = "";
+  const selected = new Set(state.tasteChoices.filter((k) =>
+    TASTE_CATEGORIES.some((c) => c.key === k)
+  ));
+  TASTE_CATEGORIES.forEach((c) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `taste-cat${selected.has(c.key) ? " on" : ""}`;
+    btn.textContent = c.label;
+    btn.dataset.key = c.key;
+    btn.onclick = () => toggleTasteCategory(c.key);
+    box.appendChild(btn);
+  });
+  syncTasteCatNext();
+}
+
+function toggleTasteCategory(key) {
+  const cats = state.tasteChoices.filter((k) =>
+    TASTE_CATEGORIES.some((c) => c.key === k)
+  );
+  const i = cats.indexOf(key);
+  if (i >= 0) cats.splice(i, 1);
+  else if (cats.length < TASTE_CAT_MAX) cats.push(key);
+  state.tasteChoices = cats;
+  renderTasteCategories();
+}
+
+function syncTasteCatNext() {
+  const cats = state.tasteChoices.filter((k) =>
+    TASTE_CATEGORIES.some((c) => c.key === k)
+  );
+  const hint = $("taste-cat-hint");
+  if (hint) hint.textContent = `${cats.length} / ${TASTE_CAT_MAX}`;
+  const next = $("btn-taste-next");
+  if (next) {
+    next.disabled = cats.length < TASTE_CAT_MIN;
+    next.textContent =
+      cats.length < TASTE_CAT_MIN
+        ? `${TASTE_CAT_MIN}개 이상 골라 주세요`
+        : "다음";
   }
-  return pairs;
+}
+
+function goTasteToneStep() {
+  const cats = state.tasteChoices.filter((k) =>
+    TASTE_CATEGORIES.some((c) => c.key === k)
+  );
+  if (cats.length < TASTE_CAT_MIN) return;
+  state.tasteChoices = cats;
+  $("taste-step-cat").classList.add("hidden");
+  $("taste-step-tone").classList.remove("hidden");
+}
+
+async function finishTasteWithTone(tone) {
+  const cats = state.tasteChoices.filter((k) =>
+    TASTE_CATEGORIES.some((c) => c.key === k)
+  );
+  state.tasteChoices = tone ? [...cats, tone] : [...cats];
+  await startSession();
 }
 
 async function onStartClick() {
@@ -321,10 +351,10 @@ async function onStartClick() {
       useFallbackLocation("위치 확인이 지연됐어요");
     }
 
-    // 저장된 취향이 있으면 4연전 스킵 (다시 고르기만 예외)
+    // 저장된 취향이 있으면 스킵 (다시 고르기만 예외)
     const reuse =
       !state.forceRetaste &&
-      (state.savedTaste?.length >= 2 || state.tasteChoices?.length >= 2);
+      (state.savedTaste?.length >= 1 || state.tasteChoices?.length >= 1);
     if (reuse) {
       if (!state.tasteChoices?.length) {
         state.tasteChoices = [...state.savedTaste];
@@ -335,22 +365,9 @@ async function onStartClick() {
       return;
     }
 
-    // 취향 페어는 클라이언트에서 매번 랜덤 (서버 캐시/구버전과 무관)
-    state.meta = { ...(state.meta || {}), taste_pairs: sampleTastePairs(4) };
-    $("start-panel").classList.add("hidden");
-    $("taste-stage").classList.remove("hidden");
-    const hero = document.querySelector(".brand-hero");
-    if (hero) hero.classList.add("compact");
     btn.disabled = false;
     btn.textContent = "시작하기";
-    state.tasteIndex = 0;
-    state.tasteChoices = [];
-    state.forceRetaste = false;
-    renderTaste();
-    try {
-      $("taste-stage").scrollIntoView({ behavior: "smooth", block: "start" });
-    } catch (_) {}
-    applySmartIntent();
+    openTasteFlow();
   } catch (err) {
     console.error(err);
     btn.disabled = false;
@@ -597,9 +614,16 @@ async function init() {
     retasteBtn.onclick = () => {
       state.forceRetaste = true;
       state.tasteChoices = [];
-      onStartClick();
+      openTasteFlow();
     };
   }
+  const tasteNext = $("btn-taste-next");
+  if (tasteNext) tasteNext.onclick = () => goTasteToneStep();
+  document.querySelectorAll(".taste-tone").forEach((btn) => {
+    btn.onclick = () => finishTasteWithTone(btn.dataset.tone || "");
+  });
+  const skipTone = $("btn-taste-skip-tone");
+  if (skipTone) skipTone.onclick = () => finishTasteWithTone("");
   const locateBtn = $("btn-locate");
   if (locateBtn) locateBtn.onclick = () => locateAndSyncWeather(true);
   $("btn-retry-loc").onclick = () => locateAndSyncWeather(true);
@@ -680,35 +704,10 @@ async function ensureFreshLocation() {
   return { latitude: state.lat, longitude: state.lng };
 }
 
-function renderTaste() {
-  const pairs = state.meta.taste_pairs;
-  if (state.tasteIndex >= pairs.length) {
-    startSession();
-    return;
-  }
-  const p = pairs[state.tasteIndex];
-  $("taste-prompt").textContent = p.prompt;
-  $("taste-progress").textContent = `${state.tasteIndex + 1} / ${pairs.length}`;
-  const left = $("taste-left");
-  const right = $("taste-right");
-  left.style.backgroundImage = `linear-gradient(rgba(0,0,0,.25),rgba(0,0,0,.35)), url('${p.left.image}')`;
-  right.style.backgroundImage = `linear-gradient(rgba(0,0,0,.25),rgba(0,0,0,.35)), url('${p.right.image}')`;
-  left.textContent = p.left.label;
-  right.textContent = p.right.label;
-  left.onclick = () => pickTaste(p.left.key);
-  right.onclick = () => pickTaste(p.right.key);
-}
-
-function pickTaste(key) {
-  state.tasteChoices.push(key);
-  state.tasteIndex += 1;
-  renderTaste();
-}
-
 function updateTasteReuseHint() {
   const hint = $("taste-reuse-hint");
   const retaste = $("btn-retaste");
-  const has = (state.savedTaste?.length || 0) >= 2;
+  const has = (state.savedTaste?.length || 0) >= 1;
   if (hint) hint.classList.toggle("hidden", !has);
   if (retaste) retaste.classList.toggle("hidden", !has);
   if (has && $("btn-start") && !state.forceRetaste) {

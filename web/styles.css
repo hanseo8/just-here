@@ -139,24 +139,56 @@ select {
 .btn.go { flex: 1.4; }
 .btn.ghost { flex: 0.8; }
 
-.taste-prompt { text-align: center; font-size: 20px; font-weight: 700; }
-.taste-pair {
+.taste-prompt { text-align: center; font-size: 20px; font-weight: 700; margin: 0 0 6px; }
+.taste-sub {
+  text-align: center;
+  margin: 0 0 14px;
+  font-size: 13px;
+  opacity: 0.85;
+}
+.taste-cats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.taste-cat {
+  border: 1.5px solid rgba(255,255,255,0.35);
+  background: rgba(0,0,0,0.18);
+  color: #fff;
+  border-radius: 16px;
+  min-height: 56px;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.taste-cat.on {
+  background: #fff;
+  color: var(--chili, #e85d04);
+  border-color: #fff;
+}
+.taste-tone-pair {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-  min-height: 42vh;
+  margin: 8px 0 14px;
 }
-.taste-card {
+.taste-tone {
   border: none;
-  border-radius: 20px;
-  background-size: cover;
-  background-position: center;
+  border-radius: 18px;
+  min-height: 120px;
+  background: rgba(0,0,0,0.22);
   color: #fff;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 800;
-  text-shadow: 0 2px 8px rgba(0,0,0,0.5);
   cursor: pointer;
-  min-height: 42vh;
+}
+.taste-tone:active { transform: scale(0.98); }
+#btn-taste-next, #btn-taste-skip-tone {
+  width: 100%;
+  max-width: 320px;
+  margin: 8px auto 0;
+  display: block;
 }
 .taste-progress { text-align: center; opacity: 0.85; }
 

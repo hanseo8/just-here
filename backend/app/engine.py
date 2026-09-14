@@ -280,6 +280,14 @@ def _taste_boost(place: dict, taste: list[str]) -> float:
     cat = place.get("category", "")
     boost = 0.0
     mapping = {
+        "korean": ("korean",),
+        "chinese": ("chinese",),
+        "japanese": ("japanese",),
+        "western": ("western",),
+        "snack": ("korean", "noodle"),
+        "mexican": ("western",),
+        "meat": ("meat",),
+        "asian": ("asian", "japanese", "chinese"),
         "jjajang": ("chinese",),
         "jjamppong": ("chinese", "noodle"),
         "sundaeguk": ("korean",),
@@ -299,7 +307,17 @@ def _taste_boost(place: dict, taste: list[str]) -> float:
         "pasta": ("western",),
         "burger": ("western",),
     }
+    blob = f"{place.get('menu_name', '')} {place.get('name', '')} {' '.join(place.get('tags') or [])}"
     for t in taste:
+        if t == cat:
+            boost += 1.6
+            continue
+        if t == "spicy" and any(x in blob for x in ("매운", "짬뽕", "떡볶", "불닭", "마라")):
+            boost += 0.9
+            continue
+        if t == "mild" and any(x in blob for x in ("국밥", "백반", "설렁", "죽", "담백")):
+            boost += 0.7
+            continue
         cats = mapping.get(t, ())
         if cat in cats:
             boost += 1.2
