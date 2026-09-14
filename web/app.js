@@ -136,12 +136,32 @@ function setLocStatus(text, ok = false) {
   if (!el) return;
   el.textContent = text;
   el.classList.toggle("ok", ok);
-  el.classList.toggle("err", !ok && text.includes("실패"));
+  el.classList.toggle("err", !ok && /실패|못|권한이 없어/.test(text));
+  syncStartState();
+}
+
+/** 시작 버튼은 위치가 준비됐을 때만 열린다 */
+function syncStartState() {
+  const btn = $("btn-start");
+  const hint = $("start-hint");
+  if (!btn) return;
+  const ready = !!state.locationReady;
+  btn.disabled = !ready;
+  if (!hint) return;
+  if (!ready) {
+    hint.textContent = "위치를 확인하면 시작할 수 있어요.";
+  } else if (state.savedTaste?.length && !state.forceRetaste) {
+    hint.textContent = "저장된 취향으로 바로 매칭해요.";
+  } else {
+    hint.textContent = "취향을 아직 안 골랐으면 시작할 때 물어볼게요.";
+  }
 }
 
 function setToggleUI(intent) {
   document.querySelectorAll(".tog").forEach((b) => {
-    b.classList.toggle("on", b.dataset.intent === intent);
+    const on = b.dataset.intent === intent;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
   });
   const reason = $("intent-reason");
   if (!reason) return;
@@ -313,11 +333,16 @@ const TASTE_CATEGORIES = [
 const TASTE_CAT_MIN = 2;
 const TASTE_CAT_MAX = 3;
 
+function closeTasteFlow() {
+  $("taste-stage")?.classList.add("hidden");
+  $("onboard-main")?.classList.remove("hidden");
+  $("onboard-cta")?.classList.remove("hidden");
+}
+
 function openTasteFlow() {
-  $("start-panel").classList.add("hidden");
+  $("onboard-main")?.classList.add("hidden");
+  $("onboard-cta")?.classList.add("hidden");
   $("taste-stage").classList.remove("hidden");
-  const hero = document.querySelector(".brand-hero");
-  if (hero) hero.classList.add("compact");
   $("taste-step-cat").classList.remove("hidden");
   $("taste-step-tone").classList.add("hidden");
   state.tasteIndex = 0;
@@ -409,7 +434,7 @@ async function onStartClick() {
   const btn = $("btn-start");
   try {
     btn.disabled = true;
-    btn.textContent = "시작 중…";
+    btn.textContent = "불러오는 중…";
 
     if (!state.locationReady || state.lat == null || state.lng == null) {
       btn.textContent = "위치 확인 중…";
@@ -448,59 +473,58 @@ async function onStartClick() {
   } catch (err) {
     console.error(err);
     btn.disabled = false;
-    btn.textContent = "시작하기";
-    setLocStatus(
-      !state.locationReady
-        ? "딱 맞는 맛집을 위해 현재 위치가 필요해요. 「위치 다시 가져오기」를 눌러 주세요."
-        : "시작에 실패했어요. 다시 눌러 주세요.",
-      false
-    );
+    btn.textContent = "다시 시도";
+    const hint = $("start-hint");
+    if (hint) {
+      hint.textContent = !state.locationReady
+        ? "위치를 아직 못 잡았어요. 위 「확인」을 다시 눌러 주세요."
+        : "가게를 불러오지 못했어요. 잠시 후 다시 눌러 주세요.";
+    }
   }
 }
 
 async function locateAndSyncWeather(force = true) {
   const btn = $("btn-locate");
-  const retry = $("btn-retry-loc");
   if (btn) {
     btn.disabled = true;
-    btn.textContent = "위치 파악 중…";
+    btn.setAttribute("aria-busy", "true");
+    btn.textContent = "확인 중";
   }
   if (isInAppBrowser()) {
     setLocStatus(
-      "카톡 안에서 열면 위치가 안 될 수 있어요. 오른쪽 메뉴 → 인터넷으로 열기를 눌러 주세요."
+      "카톡 안에서는 위치가 막힐 수 있어요. 오른쪽 위 메뉴 → 다른 브라우저로 열기."
     );
   } else {
-    setLocStatus("현재 위치를 확인합니다…");
+    setLocStatus("현재 위치를 확인하는 중…");
   }
   try {
     await requestLocation(force);
-    if (retry) retry.classList.remove("hidden");
     if (state.usingFallbackLoc) {
       setLocStatus(
         isInAppBrowser()
-          ? "인앱에선 위치가 막혀 송도 기준으로 시작해요. Chrome/Safari로 열면 양평 위치가 잡혀요."
-          : "위치 권한이 없어 송도 기준으로 맞춰 뒀어요. 브라우저 주소창 왼쪽에서 위치 허용을 켜 주세요.",
+          ? "인앱에서는 위치를 못 받아 송도 기준이에요. 다른 브라우저로 열면 현재 위치가 잡혀요."
+          : "위치 권한이 없어 송도 기준으로 맞춰 뒀어요. 주소창 왼쪽에서 위치를 허용해 주세요.",
         false
       );
     } else {
       setLocStatus(
-        `위치 파악 완료 · ${state.lat.toFixed(5)}, ${state.lng.toFixed(5)}`,
+        `현재 위치 · ${state.lat.toFixed(4)}, ${state.lng.toFixed(4)}`,
         true
       );
     }
     await applySmartIntent();
     if (!state.usingFallbackLoc) startWatchingLocation();
-    if ($("btn-start")) $("btn-start").disabled = false;
   } catch (err) {
     console.error(err);
     useFallbackLocation("위치를 가져오지 못했어요");
     await applySmartIntent().catch(() => {});
-    if ($("btn-start")) $("btn-start").disabled = false;
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.textContent = "위치 파악";
+      btn.removeAttribute("aria-busy");
+      btn.textContent = state.locationReady ? "다시" : "확인";
     }
+    syncStartState();
   }
 }
 
@@ -656,10 +680,11 @@ async function completeKakaoCodeLink(code) {
       hideKakaoOverlay();
       if (!restored) {
         show("screen-onboard");
-        const hint = $("taste-reuse-hint");
+        closeTasteFlow();
+        updateTasteReuseHint();
+        const hint = $("start-hint");
         if (hint) {
-          hint.textContent = "카카오 도감 저장 완료. 저장된 취향으로 바로 시작할 수 있어요.";
-          hint.classList.remove("hidden");
+          hint.textContent = "카카오 계정에 저장했어요. 저장된 취향으로 바로 시작할 수 있어요.";
         }
       }
       updateKakaoLinkButton();
@@ -880,6 +905,7 @@ async function init() {
   }
   $("btn-start").disabled = true;
   $("btn-start").onclick = onStartClick;
+  syncStartState();
   const retasteBtn = $("btn-retaste");
   if (retasteBtn) {
     retasteBtn.onclick = () => {
@@ -897,7 +923,6 @@ async function init() {
   if (skipTone) skipTone.onclick = () => finishTasteWithTone("");
   const locateBtn = $("btn-locate");
   if (locateBtn) locateBtn.onclick = () => locateAndSyncWeather(true);
-  $("btn-retry-loc").onclick = () => locateAndSyncWeather(true);
   $("btn-nope").onclick = () => swipe("nope");
   $("btn-go").onclick = () => swipe("lets_go");
   $("btn-again").onclick = () => location.reload();
@@ -932,7 +957,16 @@ async function init() {
         renderCard();
       } catch (err) {
         console.error(err);
+        const msg = $("empty-msg");
+        if (msg) msg.textContent = "다시 불러오지 못했어요. 잠시 후 시도해 주세요.";
       }
+    };
+  }
+
+  const emptySwap = $("btn-empty-intent");
+  if (emptySwap) {
+    emptySwap.onclick = () => {
+      document.querySelector(".tog:not(.on)")?.click();
     };
   }
 
@@ -978,15 +1012,32 @@ async function ensureFreshLocation() {
   return { latitude: state.lat, longitude: state.lng };
 }
 
+const TASTE_TONE_LABEL = { spicy: "매콤", mild: "담백" };
+
+function tasteLabels(keys) {
+  return (keys || [])
+    .map(
+      (k) =>
+        TASTE_CATEGORIES.find((c) => c.key === k)?.label ||
+        TASTE_TONE_LABEL[k] ||
+        ""
+    )
+    .filter(Boolean);
+}
+
+/** 취향 행 요약 — 저장값이 있으면 그대로 보여주고 「변경」으로 바꾼다 */
 function updateTasteReuseHint() {
-  const hint = $("taste-reuse-hint");
+  const summary = $("taste-summary");
   const retaste = $("btn-retaste");
-  const has = (state.savedTaste?.length || 0) >= 1;
-  if (hint) hint.classList.toggle("hidden", !has);
-  if (retaste) retaste.classList.toggle("hidden", !has);
-  if (has && $("btn-start") && !state.forceRetaste) {
-    $("btn-start").textContent = "저장된 취향으로 시작";
+  const saved = state.savedTaste || [];
+  if (summary) {
+    const labels = tasteLabels(saved);
+    summary.textContent = labels.length
+      ? labels.join(" · ")
+      : "아직 고르지 않았어요";
   }
+  if (retaste) retaste.textContent = saved.length ? "변경" : "고르기";
+  syncStartState();
 }
 
 async function startSession() {
@@ -1039,18 +1090,18 @@ function applyFeed(data) {
   state.radius = data.effective_radius_m;
   if (data.intent) state.intent = data.intent;
   $("feed-copy").textContent = data.copy || "오늘 점심은 그냥여기 어때?";
-  if ($("tier-label")) $("tier-label").textContent = data.tier_label || data.tier || "—";
-  $("radius-label").textContent = `내 위치 · 반경 ${state.radius}m`;
+  $("radius-label").textContent = `${state.radius}m`;
   $("slots-label").textContent = `${state.perfect}/5`;
   if ($("source-label")) {
     const srcMap = {
       hub_seed: "송도 큐레이션",
       hub_seed_anchored: "송도 · 내위치",
-      "hub+kakao": "송도 + 주변 실상호",
+      "hub+kakao": "송도 + 주변",
       kakao: "주변 실상호",
-      seed_fallback: "라이트 폴백",
+      seed_fallback: "라이트",
     };
-    $("source-label").textContent = srcMap[data.inventory_source] || data.inventory_source || "";
+    $("source-label").textContent =
+      srcMap[data.inventory_source] || data.inventory_source || "—";
   }
 }
 
@@ -1152,11 +1203,14 @@ function renderCard() {
     empty.classList.remove("hidden");
     const msg = $("empty-msg");
     if (msg) {
-      msg.textContent =
-        "근처에 보여줄 곳이 없어요. 아래 버튼으로 다시 불러오거나, 방문/배달을 바꿔 보세요.";
-    } else {
-      empty.textContent =
-        "근처에 보여줄 곳이 없어요. 다시 불러오기를 눌러 주세요.";
+      msg.textContent = state.usingFallbackLoc
+        ? `송도 기준 ${state.radius}m 안에서 조건에 맞는 가게를 못 찾았어요. 위치를 다시 잡으면 결과가 달라져요.`
+        : `${state.radius}m 안에서 조건에 맞는 가게를 못 찾았어요.`;
+    }
+    const swapBtn = $("btn-empty-intent");
+    if (swapBtn) {
+      swapBtn.textContent =
+        state.intent === "delivery" ? "방문으로 바꿔 보기" : "배달로 바꿔 보기";
     }
     return;
   }
@@ -1669,7 +1723,6 @@ function setupInstallPwa() {
   window.addEventListener("appinstalled", () => {
     deferred = null;
     hideBtn();
-    setLocStatus("홈 화면에 추가됐어요. 앱처럼 실행하면 됩니다.", true);
   });
 
   // iOS / 이미 설치됨: 안내만

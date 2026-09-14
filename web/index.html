@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#120c0c" />
+  <meta name="theme-color" content="#14120f" />
   <meta name="description" content="메뉴 고민은 사치, 지금 당장 그냥여기 어때? 근처 맛집 원픽 큐레이션." />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -19,75 +19,94 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=20260914-aurora1" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260914-product1" />
 </head>
 <body>
   <div id="app">
     <!-- ONBOARDING -->
     <section id="screen-onboard" class="screen">
-      <div class="brand-hero">
-        <p class="eyebrow">JUST HERE</p>
-        <h1>그냥여기</h1>
-        <p class="sub">메뉴 고민은 사치, 지금 당장 그냥여기 어때?</p>
+      <header class="app-bar">
+        <span class="wordmark">그냥여기</span>
+        <button type="button" id="btn-install" class="bar-link hidden">홈 화면에 추가</button>
+      </header>
+
+      <div id="onboard-main">
+        <div class="onboard">
+          <h1 class="screen-title">오늘 뭐 먹지?</h1>
+          <p class="screen-desc">지금 있는 곳 근처에서 갈 만한 데를 한 장씩 보여줄게요.</p>
+
+          <dl class="setup">
+            <div class="setup-row">
+              <dt>위치</dt>
+              <dd id="loc-status" aria-live="polite">권한을 허용하면 현재 위치로 맞춰요</dd>
+              <button type="button" id="btn-locate" class="row-btn">확인</button>
+            </div>
+            <div class="setup-row">
+              <dt>날씨</dt>
+              <dd id="weather-status">위치를 확인하면 자동으로 반영돼요</dd>
+            </div>
+            <div class="setup-row">
+              <dt>취향</dt>
+              <dd id="taste-summary">아직 고르지 않았어요</dd>
+              <button type="button" id="btn-retaste" class="row-btn">고르기</button>
+            </div>
+          </dl>
+        </div>
       </div>
+
       <div id="taste-stage" class="taste-stage hidden">
         <div id="taste-step-cat">
           <p class="taste-prompt">뭐가 땡겨?</p>
-          <p class="taste-sub">2~3개만. 많이 고를수록 범위가 넓어져요.</p>
+          <p class="taste-sub">2~3개만 고르면 돼요. 많이 고를수록 범위가 넓어져요.</p>
           <div id="taste-cats" class="taste-cats" role="group" aria-label="음식 종류"></div>
-          <p id="taste-cat-hint" class="taste-progress">0 / 3</p>
+          <p id="taste-cat-hint" class="taste-progress" aria-live="polite">0 / 3</p>
           <button type="button" id="btn-taste-next" class="btn primary" disabled>다음</button>
         </div>
         <div id="taste-step-tone" class="hidden">
-          <p class="taste-prompt">매운 쪽?<br />담백한 쪽?</p>
-          <p class="taste-sub">패스해도 됩니다.</p>
+          <p class="taste-prompt">매운 쪽? 담백한 쪽?</p>
+          <p class="taste-sub">안 고르고 넘어가도 돼요.</p>
           <div class="taste-tone-pair">
             <button type="button" class="taste-tone" data-tone="spicy">매콤</button>
             <button type="button" class="taste-tone" data-tone="mild">담백</button>
           </div>
-          <button type="button" id="btn-taste-skip-tone" class="btn ghost">패스</button>
+          <button type="button" id="btn-taste-skip-tone" class="btn ghost">건너뛰기</button>
         </div>
       </div>
-      <div id="start-panel" class="start-panel">
-        <p id="loc-status" class="loc-status">위치 권한을 허용한 뒤 「위치 파악」을 눌러 주세요.</p>
-        <button type="button" id="btn-locate" class="btn primary">위치 파악</button>
-        <button type="button" id="btn-retry-loc" class="btn ghost hidden">다시 파악하기</button>
-        <p id="weather-status" class="weather-status">위치 파악 후 날씨가 자동으로 연동됩니다.</p>
-        <p class="hint">위치 파악 시 <strong>현재 위치 + 실시간 날씨</strong>가 매칭에 바로 반영됩니다.</p>
+
+      <div id="onboard-cta" class="onboard-cta">
         <button type="button" id="btn-start" class="btn primary" disabled>시작하기</button>
-        <div class="taste-actions">
-          <button type="button" id="btn-retaste" class="btn ghost hidden">취향 다시 고르기</button>
-          <p id="taste-reuse-hint" class="hint hidden">저장된 취향으로 바로 매칭해요. 바꾸고 싶으면 「취향 다시 고르기」.</p>
-        </div>
-        <button type="button" id="btn-install" class="btn ghost install-btn hidden">홈 화면에 추가 (앱처럼 쓰기)</button>
-        <p class="install-hint">앱스토어 없이 <strong>https://justthis.co.kr</strong> 로 바로 쓸 수 있어요. iPhone은 공유 → 홈 화면에 추가.</p>
+        <p id="start-hint" class="cta-hint">위치를 확인하면 시작할 수 있어요.</p>
       </div>
     </section>
 
     <!-- FEED -->
     <section id="screen-feed" class="screen hidden">
-      <header class="top">
-        <p class="copy" id="feed-copy">오늘 점심은 그냥여기 어때?</p>
-        <p id="intent-reason" class="intent-reason hidden"></p>
-        <div class="toggle" role="tablist">
-          <button type="button" class="tog on" data-intent="visit">방문</button>
-          <button type="button" class="tog" data-intent="delivery">배달</button>
+      <header class="feed-bar">
+        <div class="seg" role="tablist" aria-label="이동 방식">
+          <button type="button" class="tog on" data-intent="visit" role="tab" aria-selected="true">방문</button>
+          <button type="button" class="tog" data-intent="delivery" role="tab" aria-selected="false">배달</button>
         </div>
-        <div class="meta-row">
-          <span id="tier-label">티어 —</span>
-          <span id="slots-label">5/5</span>
-        </div>
-        <div class="meta-row">
-          <span id="radius-label">반경 —</span>
-          <span id="source-label"></span>
-        </div>
-        <button type="button" id="btn-duo" class="btn-duo">둘이서 고르기</button>
+        <button type="button" id="btn-duo" class="bar-link">둘이서 고르기</button>
       </header>
+
+      <div class="feed-context">
+        <p class="copy" id="feed-copy">오늘 점심은 그냥여기 어때?</p>
+        <p id="intent-reason" class="reason hidden"></p>
+        <ul class="stat-row">
+          <li><span class="k">반경</span><span class="v" id="radius-label">—</span></li>
+          <li><span class="k">남은 카드</span><span class="v" id="slots-label">5/5</span></li>
+          <li><span class="k">출처</span><span class="v" id="source-label">—</span></li>
+        </ul>
+      </div>
 
       <div id="card-stage" class="card-stage">
         <div id="empty" class="empty hidden">
-          <p id="empty-msg">근처에 지금 갈 곳이 없어요.</p>
-          <button type="button" id="btn-reload-feed" class="btn primary" style="margin-top:16px;max-width:240px">근처 다시 불러오기</button>
+          <p class="empty-title">지금 보여줄 곳이 없어요</p>
+          <p id="empty-msg" class="empty-msg">이 반경 안에서 조건에 맞는 가게를 못 찾았어요.</p>
+          <div class="empty-actions">
+            <button type="button" id="btn-reload-feed" class="btn primary">다시 불러오기</button>
+            <button type="button" id="btn-empty-intent" class="btn ghost">배달로 바꿔 보기</button>
+          </div>
         </div>
         <article id="card" class="card hidden">
           <div class="card-media" id="card-media">
@@ -105,13 +124,10 @@
       </div>
 
       <footer class="bottom actions">
-        <button type="button" id="btn-nope" class="btn-action nope" aria-label="거절">✕</button>
-        <button type="button" id="btn-go" class="btn-action go-star" aria-label="그냥여기">
-          <span class="star" aria-hidden="true">★</span>
-          <span class="go-label">그냥여기</span>
-        </button>
+        <button type="button" id="btn-nope" class="act pass">패스</button>
+        <button type="button" id="btn-go" class="act go">그냥 여기</button>
       </footer>
-      <p class="swipe-hint">← 거절 · 수락 → · 길게 누르면 상세</p>
+      <p class="swipe-hint">카드를 좌우로 밀어도 되고, 길게 누르면 상세가 열려요.</p>
     </section>
 
     <!-- MATCH FLASH (즉시 딥링크 전 폭죽) -->
@@ -181,7 +197,7 @@
     </div>
   </div>
   <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
-  <script src="/static/auth.js?v=20260914-aurora1"></script>
-  <script src="/static/app.js?v=20260914-aurora1"></script>
+  <script src="/static/auth.js?v=20260914-product1"></script>
+  <script src="/static/app.js?v=20260914-product1"></script>
 </body>
 </html>
