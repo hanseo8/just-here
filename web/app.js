@@ -19,6 +19,9 @@ const state = {
   swiping: false,
   modeSwitching: false,
   lastReceipt: null,
+  lastDone: null,
+  savedTaste: [],
+  forceRetaste: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -318,6 +321,20 @@ async function onStartClick() {
       useFallbackLocation("위치 확인이 지연됐어요");
     }
 
+    // 저장된 취향이 있으면 4연전 스킵 (다시 고르기만 예외)
+    const reuse =
+      !state.forceRetaste &&
+      (state.savedTaste?.length >= 2 || state.tasteChoices?.length >= 2);
+    if (reuse) {
+      if (!state.tasteChoices?.length) {
+        state.tasteChoices = [...state.savedTaste];
+      }
+      btn.disabled = false;
+      btn.textContent = "시작하기";
+      await startSession();
+      return;
+    }
+
     // 취향 페어는 클라이언트에서 매번 랜덤 (서버 캐시/구버전과 무관)
     state.meta = { ...(state.meta || {}), taste_pairs: sampleTastePairs(4) };
     $("start-panel").classList.add("hidden");
@@ -328,6 +345,7 @@ async function onStartClick() {
     btn.textContent = "시작하기";
     state.tasteIndex = 0;
     state.tasteChoices = [];
+    state.forceRetaste = false;
     renderTaste();
     try {
       $("taste-stage").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -413,12 +431,62 @@ function kakaoRedirectUri() {
   return window.location.origin;
 }
 
+function saveKakaoResume() {
+  try {
+    sessionStorage.setItem(
+      "jh_kakao_resume",
+      JSON.stringify({
+        done: state.lastDone,
+        lastReceipt: state.lastReceipt,
+        tasteChoices: state.tasteChoices,
+        sessionId: state.sessionId,
+        lat: state.lat,
+        lng: state.lng,
+        intent: state.intent,
+        weather: state.weather,
+        locationReady: state.locationReady,
+      })
+    );
+  } catch (_) {}
+}
+
+function consumeKakaoResume() {
+  try {
+    const raw = sessionStorage.getItem("jh_kakao_resume");
+    sessionStorage.removeItem("jh_kakao_resume");
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (_) {
+    return null;
+  }
+}
+
+function restoreFromResume(resume) {
+  if (!resume) return false;
+  if (resume.tasteChoices) state.tasteChoices = resume.tasteChoices;
+  if (resume.sessionId) state.sessionId = resume.sessionId;
+  if (resume.lat != null) state.lat = resume.lat;
+  if (resume.lng != null) state.lng = resume.lng;
+  if (resume.intent) state.intent = resume.intent;
+  if (resume.weather) state.weather = resume.weather;
+  if (resume.locationReady) state.locationReady = true;
+  if (resume.lastReceipt) state.lastReceipt = resume.lastReceipt;
+  if (resume.done) {
+    state.lastDone = resume.done;
+    showDone(resume.done);
+    return true;
+  }
+  return false;
+}
+
 async function completeKakaoCodeLink(code) {
   const redirectUri = sessionStorage.getItem("jh_kakao_redirect") || kakaoRedirectUri();
   const linked = await window.JustHereAuth.linkKakaoCode(api, code, redirectUri);
   state.uid = linked.uid;
   state.authType = "kakao";
   sessionStorage.removeItem("jh_kakao_redirect");
+  const resume = consumeKakaoResume();
+  const restored = restoreFromResume(resume);
   setAuthStatus("카카오 연동 완료! 칭호 도감이 안전하게 저장됐어요.");
   updateKakaoLinkButton();
   // URL에서 code 제거
@@ -428,6 +496,10 @@ async function completeKakaoCodeLink(code) {
   clean.searchParams.delete("error");
   clean.searchParams.delete("error_description");
   window.history.replaceState({}, "", clean.pathname + clean.search + clean.hash);
+  if (!restored) {
+    // 완료 화면 스냅샷이 없으면 히어로에 성공만 표시
+    show("screen-onboard");
+  }
   return linked;
 }
 
@@ -459,6 +531,7 @@ async function linkKakaoAccount() {
       return;
     }
     sessionStorage.setItem("jh_kakao_redirect", kakaoRedirectUri());
+    saveKakaoResume();
     // scope 생략: 콘솔 동의항목 설정을 따름 (미설정 scope 넣으면 KOE205)
     window.Kakao.Auth.authorize({
       redirectUri: kakaoRedirectUri(),
@@ -477,6 +550,27 @@ async function init() {
       const guest = await window.JustHereAuth.ensureGuest(api);
       state.uid = guest.uid;
       state.authType = guest.auth_type || "anonymous";
+      const taste =
+        guest.user?.preferences?.taste ||
+        guest.preferences?.taste ||
+        [];
+      if (Array.isArray(taste) && taste.length) {
+        state.savedTaste = taste;
+        state.tasteChoices = [...taste];
+      }
+      // /v1/me로 한 번 더 동기화
+      if (state.uid) {
+        try {
+          const me = await api(`/v1/me?uid=${encodeURIComponent(state.uid)}`);
+          const t = me.user?.preferences?.taste || [];
+          if (Array.isArray(t) && t.length) {
+            state.savedTaste = t;
+            state.tasteChoices = [...t];
+          }
+          if (me.user?.auth_type) state.authType = me.user.auth_type;
+        } catch (_) {}
+      }
+      updateTasteReuseHint();
     }
   } catch (err) {
     console.warn("guest auth skipped", err);
@@ -498,6 +592,14 @@ async function init() {
   }
   $("btn-start").disabled = true;
   $("btn-start").onclick = onStartClick;
+  const retasteBtn = $("btn-retaste");
+  if (retasteBtn) {
+    retasteBtn.onclick = () => {
+      state.forceRetaste = true;
+      state.tasteChoices = [];
+      onStartClick();
+    };
+  }
   const locateBtn = $("btn-locate");
   if (locateBtn) locateBtn.onclick = () => locateAndSyncWeather(true);
   $("btn-retry-loc").onclick = () => locateAndSyncWeather(true);
@@ -603,6 +705,17 @@ function pickTaste(key) {
   renderTaste();
 }
 
+function updateTasteReuseHint() {
+  const hint = $("taste-reuse-hint");
+  const retaste = $("btn-retaste");
+  const has = (state.savedTaste?.length || 0) >= 2;
+  if (hint) hint.classList.toggle("hidden", !has);
+  if (retaste) retaste.classList.toggle("hidden", !has);
+  if (has && $("btn-start") && !state.forceRetaste) {
+    $("btn-start").textContent = "저장된 취향으로 시작";
+  }
+}
+
 async function startSession() {
   await ensureFreshLocation();
   const data = await api("/v1/session", {
@@ -616,6 +729,10 @@ async function startSession() {
       uid: state.uid || undefined,
     }),
   });
+  if (state.tasteChoices?.length) {
+    state.savedTaste = [...state.tasteChoices];
+    updateTasteReuseHint();
+  }
   applyFeed(data);
   show("screen-feed");
   setToggleUI(state.intent);
@@ -978,6 +1095,7 @@ async function shareReceipt() {
 }
 
 function showDone(data) {
+  state.lastDone = data;
   show("screen-done");
   $("done-sub").textContent = `${data.place_name} · ${data.menu_name}`;
   const persona = data.persona || {};

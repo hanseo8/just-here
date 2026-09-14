@@ -262,15 +262,20 @@ def exchange_kakao_auth_code(code: str, redirect_uri: str) -> dict[str, Any]:
     redirect_uri = (redirect_uri or "").strip()
     if not code or not redirect_uri:
         raise ValueError("missing_code_or_redirect")
+    payload = {
+        "grant_type": "authorization_code",
+        "client_id": rest_key,
+        "redirect_uri": redirect_uri,
+        "code": code,
+    }
+    # 콘솔에서 Client Secret ON이면 필수
+    secret = (os.getenv("KAKAO_CLIENT_SECRET") or "").strip()
+    if secret:
+        payload["client_secret"] = secret
     with httpx.Client(timeout=8.0) as client:
         res = client.post(
             "https://kauth.kakao.com/oauth/token",
-            data={
-                "grant_type": "authorization_code",
-                "client_id": rest_key,
-                "redirect_uri": redirect_uri,
-                "code": code,
-            },
+            data=payload,
             headers={"Content-Type": "application/x-www-form-urlencoded;charset=utf-8"},
         )
         if res.status_code != 200:
