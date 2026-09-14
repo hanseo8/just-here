@@ -93,6 +93,13 @@ body.allow-scroll {
   letter-spacing: -0.02em;
   line-height: 1.05;
 }
+.brand-hero.compact {
+  padding: 5vh 28px 8px;
+}
+.brand-hero.compact .eyebrow {
+  letter-spacing: 0.22em;
+  font-size: 10px;
+}
 .brand-hero.compact h1 {
   font-size: 30px;
   margin: 2px 0 0;
