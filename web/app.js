@@ -234,14 +234,14 @@ async function applySmartIntent() {
 }
 
 const TASTE_CATEGORIES = [
-  { key: "korean", label: "든든한 한식", emoji: "🍚" },
-  { key: "chinese", label: "불향 중식", emoji: "🥡" },
-  { key: "japanese", label: "정갈한 일식", emoji: "🍣" },
-  { key: "western", label: "분위기 양식", emoji: "🍝" },
-  { key: "snack", label: "매콤한 분식", emoji: "🔥" },
-  { key: "mexican", label: "신나는 멕시칸", emoji: "🌮" },
-  { key: "meat", label: "불맛나는 고기", emoji: "🥩" },
-  { key: "asian", label: "가벼운 아시안", emoji: "🍜" },
+  { key: "korean", label: "한식" },
+  { key: "chinese", label: "중식" },
+  { key: "japanese", label: "일식" },
+  { key: "western", label: "양식" },
+  { key: "snack", label: "분식" },
+  { key: "meat", label: "고기" },
+  { key: "asian", label: "아시안" },
+  { key: "mexican", label: "멕시칸" },
 ];
 
 const TASTE_CAT_MIN = 2;
@@ -277,9 +277,8 @@ function renderTasteCategories() {
     btn.className = `taste-cat${selected.has(c.key) ? " on" : ""}`;
     btn.dataset.key = c.key;
     btn.innerHTML =
-      `<span class="taste-cat-emoji" aria-hidden="true">${c.emoji}</span>` +
       `<span class="taste-cat-name">${c.label}</span>` +
-      `<span class="taste-cat-check" aria-hidden="true">✓</span>`;
+      `<span class="taste-cat-check" aria-hidden="true">·선택</span>`;
     btn.onclick = () => toggleTasteCategory(c.key);
     box.appendChild(btn);
   });
@@ -312,11 +311,11 @@ function syncTasteCatNext() {
   next.disabled = n < TASTE_CAT_MIN;
   next.classList.toggle("ready", n >= TASTE_CAT_MIN);
   if (n === 0) {
-    next.textContent = `일단 입맛 당기는 거 골라봐요 (${n}/${TASTE_CAT_MAX})`;
+    next.textContent = `원하는 종류를 눌러보세요 (${n}/${TASTE_CAT_MAX})`;
   } else if (n < TASTE_CAT_MIN) {
-    next.textContent = `좋아요, 조금 더 골라볼까요? (${n}/${TASTE_CAT_MAX})`;
+    next.textContent = `하나 더 고르면 시작해요 (${n}/${TASTE_CAT_MAX})`;
   } else {
-    next.textContent = "이대로 메뉴 고르러 가기 →";
+    next.textContent = "선택 완료 · 시작";
   }
 }
 

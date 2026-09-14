@@ -1,23 +1,20 @@
 :root {
-  --orange: #ff6a3d;
-  --chili: #d62828;
-  --ink: #1a120e;
-  --cream: #fff6ef;
-  --glass: rgba(255, 255, 255, 0.78);
-  --glass-edge: rgba(255, 255, 255, 0.55);
-  --accent-pop: #ffe566;
+  --orange: #e85d2c;
+  --chili: #b91c1c;
+  --ink: #14110f;
+  --cream: #f4ece4;
+  --paper: rgba(244, 236, 228, 0.14);
+  --line: rgba(244, 236, 228, 0.42);
 }
 
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
   height: 100%;
-  font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  font-family: "IBM Plex Sans KR", "Pretendard", "Apple SD Gothic Neo", sans-serif;
   background:
-    radial-gradient(120% 90% at 12% -10%, rgba(255, 214, 170, 0.95) 0%, transparent 52%),
-    radial-gradient(90% 70% at 100% 8%, rgba(255, 120, 90, 0.55) 0%, transparent 48%),
-    radial-gradient(80% 60% at 50% 100%, rgba(160, 40, 50, 0.35) 0%, transparent 55%),
-    linear-gradient(168deg, #ffb084 0%, #ff7a4d 42%, #d63b3b 100%);
+    radial-gradient(90% 70% at 80% 0%, rgba(255, 160, 90, 0.35) 0%, transparent 55%),
+    linear-gradient(180deg, #c2410c 0%, #9a3412 48%, #7f1d1d 100%);
   color: var(--cream);
   overflow: hidden;
   touch-action: none;
@@ -28,9 +25,25 @@ body::before {
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.28;
-  mix-blend-mode: soft-light;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.9'/%3E%3C/svg%3E");
+  opacity: 0.45;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    linear-gradient(90deg, rgba(20,17,15,0.12) 0%, transparent 18%, transparent 82%, rgba(20,17,15,0.14) 100%),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 3px,
+      rgba(20, 17, 15, 0.03) 3px,
+      rgba(20, 17, 15, 0.03) 4px
+    );
 }
 #app, .screen {
   height: 100%;
@@ -74,23 +87,16 @@ body.allow-scroll {
 }
 .brand-hero h1 {
   margin: 0;
-  font-size: clamp(40px, 11vw, 52px);
-  font-weight: 900;
-  letter-spacing: -0.04em;
+  font-family: "Black Han Sans", "IBM Plex Sans KR", sans-serif;
+  font-size: clamp(42px, 12vw, 56px);
+  font-weight: 400;
+  letter-spacing: -0.02em;
   line-height: 1.05;
 }
-.brand-hero.compact {
-  padding: 5vh 28px 6px;
-}
-.brand-hero.compact .eyebrow {
-  letter-spacing: 0.22em;
-  font-size: 10px;
-}
 .brand-hero.compact h1 {
-  font-size: 28px;
+  font-size: 30px;
   margin: 2px 0 0;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
 }
 .brand-hero.compact .sub {
   display: none;
@@ -173,159 +179,151 @@ select {
 .btn.ghost { flex: 0.8; }
 
 .taste-prompt {
-  text-align: center;
-  font-size: 22px;
-  font-weight: 800;
-  margin: 0 0 6px;
-  letter-spacing: -0.02em;
+  text-align: left;
+  font-family: "Black Han Sans", "IBM Plex Sans KR", sans-serif;
+  font-size: 28px;
+  font-weight: 400;
+  margin: 8px 0 6px;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
 }
 .taste-sub {
-  text-align: center;
-  margin: 0 0 18px;
+  text-align: left;
+  margin: 0 0 20px;
   font-size: 13px;
-  opacity: 0.82;
+  opacity: 0.78;
+  font-weight: 500;
 }
 .taste-cats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+  justify-content: flex-start;
 }
 .taste-cat {
   position: relative;
-  border: 1px solid var(--glass-edge);
-  background: var(--glass);
-  color: var(--ink);
-  border-radius: 16px;
-  min-height: 78px;
-  padding: 14px 12px 12px;
+  border: 1.5px solid var(--line);
+  background: var(--paper);
+  color: var(--cream);
+  border-radius: 999px;
+  min-height: 44px;
+  padding: 10px 18px;
   font-size: 15px;
-  font-weight: 800;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 4px;
-  text-align: left;
-  box-shadow: 0 8px 24px rgba(40, 12, 8, 0.12);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: none;
+  backdrop-filter: none;
+  transition: transform 0.14s ease, background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
   -webkit-tap-highlight-color: transparent;
 }
+.taste-cat:nth-child(3n) {
+  transform: rotate(-0.6deg);
+}
+.taste-cat:nth-child(5n) {
+  transform: rotate(0.7deg);
+}
 .taste-cat:active {
-  transform: scale(0.97) translateY(1px);
+  transform: scale(0.96);
 }
 .taste-cat.on {
-  background: var(--accent-pop);
-  border-color: rgba(26, 18, 14, 0.12);
+  background: var(--cream);
   color: var(--ink);
-  transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(40, 12, 8, 0.18);
-}
-.taste-cat-emoji {
-  font-size: 22px;
-  line-height: 1;
+  border-color: var(--cream);
+  transform: translateY(-1px) rotate(0deg);
 }
 .taste-cat-name {
-  font-size: 14px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  font-size: 15px;
+  font-weight: 700;
 }
 .taste-cat-check {
-  position: absolute;
-  top: 8px;
-  right: 10px;
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  font-size: 12px;
-  font-weight: 900;
-  background: var(--ink);
-  color: #fff;
-  opacity: 0;
-  transform: scale(0.6);
-  transition: opacity 0.15s ease, transform 0.18s cubic-bezier(0.2, 1.3, 0.4, 1);
+  display: none;
 }
 .taste-cat.on .taste-cat-check {
-  opacity: 1;
-  transform: scale(1);
+  display: inline;
+  font-size: 12px;
+  font-weight: 800;
+  opacity: 0.7;
 }
 .taste-progress {
-  text-align: center;
-  opacity: 0.75;
+  text-align: left;
+  opacity: 0.7;
   font-size: 12px;
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   font-weight: 600;
+  letter-spacing: 0.04em;
 }
 #btn-taste-next {
   width: 100%;
   max-width: none;
   margin: 4px 0 0;
-  border-radius: 18px;
-  background: rgba(26, 18, 14, 0.55);
-  color: rgba(255, 255, 255, 0.88);
-  transition: transform 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+  border-radius: 12px;
+  background: rgba(20, 17, 15, 0.45);
+  color: rgba(244, 236, 228, 0.85);
+  font-weight: 700;
+  transition: transform 0.18s ease, background 0.18s ease;
 }
 #btn-taste-next:disabled {
-  opacity: 0.85;
+  opacity: 1;
   cursor: not-allowed;
 }
 #btn-taste-next.ready {
-  background: var(--ink);
-  color: #fff;
-  animation: cta-pop 0.35s cubic-bezier(0.2, 1.25, 0.4, 1);
+  background: var(--cream);
+  color: var(--ink);
+  animation: cta-rise 0.28s ease-out;
 }
-@keyframes cta-pop {
-  from { transform: translateY(8px); opacity: 0.6; }
+@keyframes cta-rise {
+  from { transform: translateY(6px); opacity: 0.7; }
   to { transform: translateY(0); opacity: 1; }
 }
 .taste-tone-pair {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin: 8px 0 14px;
+  gap: 10px;
+  margin: 4px 0 14px;
 }
 .taste-tone {
-  border: 1px solid var(--glass-edge);
-  border-radius: 18px;
-  min-height: 132px;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  min-height: 110px;
   padding: 18px 14px;
-  background: var(--glass);
-  color: var(--ink);
-  font-size: 17px;
+  background: var(--paper);
+  color: var(--cream);
+  font-size: 18px;
   font-weight: 800;
+  letter-spacing: -0.02em;
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  box-shadow: 0 8px 24px rgba(40, 12, 8, 0.12);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  transition: transform 0.18s ease, background 0.18s ease;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 0;
+  box-shadow: none;
+  transition: transform 0.14s ease, background 0.14s ease, color 0.14s ease;
   -webkit-tap-highlight-color: transparent;
 }
-.taste-tone .tone-emoji { font-size: 28px; line-height: 1; }
-.taste-tone:active { transform: scale(0.97); }
-.taste-tone:hover,
-.taste-tone:focus-visible {
-  transform: translateY(-2px);
-  background: var(--accent-pop);
+.taste-tone .tone-emoji { display: none; }
+.taste-tone:active { transform: scale(0.98); }
+.taste-tone:focus-visible,
+.taste-tone:hover {
+  background: var(--cream);
+  color: var(--ink);
+  border-color: var(--cream);
 }
 #btn-taste-skip-tone {
   width: 100%;
   max-width: none;
   margin: 0;
   display: block;
-  border-radius: 18px;
-  background: rgba(255,255,255,0.22);
-  color: #fff;
-  font-weight: 700;
+  border-radius: 12px;
+  background: transparent;
+  border: 1px dashed var(--line);
+  color: var(--cream);
+  font-weight: 600;
 }
 
 .top {
