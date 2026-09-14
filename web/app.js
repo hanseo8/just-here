@@ -33,8 +33,9 @@ const GEO_OPTS = {
 };
 
 const GEO_OPTS_FORCE = {
-  enableHighAccuracy: true,
-  timeout: 12000,
+  // 강제 새로고침도 highAccuracy는 피함 — 카톡/일부 안드로이드에서 콜백이 안 옴
+  enableHighAccuracy: false,
+  timeout: 10000,
   maximumAge: 0,
 };
 
@@ -42,6 +43,11 @@ const GEO_OPTS_FORCE = {
 const FALLBACK_LAT = 37.3925;
 const FALLBACK_LNG = 126.645;
 const FALLBACK_LABEL = "송도 센트럴파크 근처(임시)";
+
+function isInAppBrowser() {
+  const ua = navigator.userAgent || "";
+  return /KAKAOTALK|Instagram|FBAN|FBAV|Line\//i.test(ua);
+}
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -155,7 +161,7 @@ function applyPosition(coords) {
 }
 
 function requestLocation(force = false) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     if (!navigator.geolocation) {
       useFallbackLocation("이 브라우저는 위치를 지원하지 않아요");
       resolve({ latitude: FALLBACK_LAT, longitude: FALLBACK_LNG });
@@ -163,23 +169,50 @@ function requestLocation(force = false) {
     }
     setLocStatus("현재 위치 확인 중…");
     const opts = force ? GEO_OPTS_FORCE : GEO_OPTS;
+    let settled = false;
+    const finish = (coords) => {
+      if (settled) return;
+      settled = true;
+      resolve(coords);
+    };
+    // 일부 웹뷰는 timeout 옵션을 무시하고 영구 대기 → 하드 타임아웃
+    const hardMs = (opts.timeout || 8000) + 1500;
+    const hardTimer = setTimeout(() => {
+      if (settled) return;
+      if (state.locationReady && state.lat != null) {
+        finish({ latitude: state.lat, longitude: state.lng });
+        return;
+      }
+      const reason = isInAppBrowser()
+        ? "인앱 브라우저에서 위치가 막혀 있어요"
+        : "위치 확인이 너무 오래 걸려요";
+      useFallbackLocation(reason);
+      finish({ latitude: FALLBACK_LAT, longitude: FALLBACK_LNG });
+    }, hardMs);
+
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        clearTimeout(hardTimer);
         applyPosition(pos.coords);
-        resolve(pos.coords);
+        finish(pos.coords);
       },
       (err) => {
+        clearTimeout(hardTimer);
         if (state.locationReady && state.lat != null && state.lng != null) {
           console.warn("geo refresh failed, using cached", err);
-          resolve({ latitude: state.lat, longitude: state.lng });
+          finish({ latitude: state.lat, longitude: state.lng });
           return;
         }
-        const reason =
-          err.code === 1
-            ? "위치 권한이 없어요"
-            : "위치를 가져오지 못했어요";
+        let reason = "위치를 가져오지 못했어요";
+        if (err.code === 1) {
+          reason = isInAppBrowser()
+            ? "카톡/인앱에선 위치 권한이 막히는 경우가 많아요"
+            : "위치 권한이 없어요";
+        } else if (err.code === 3) {
+          reason = "위치 확인 시간이 초과됐어요";
+        }
         useFallbackLocation(reason);
-        resolve({ latitude: FALLBACK_LAT, longitude: FALLBACK_LNG });
+        finish({ latitude: FALLBACK_LAT, longitude: FALLBACK_LNG });
       },
       opts
     );
@@ -398,18 +431,31 @@ async function locateAndSyncWeather(force = true) {
     btn.disabled = true;
     btn.textContent = "위치 파악 중…";
   }
-  setLocStatus("현재 위치를 확인합니다…");
+  if (isInAppBrowser()) {
+    setLocStatus(
+      "카톡 안에서 열면 위치가 안 될 수 있어요. 오른쪽 메뉴 → 인터넷으로 열기를 눌러 주세요."
+    );
+  } else {
+    setLocStatus("현재 위치를 확인합니다…");
+  }
   try {
     await requestLocation(force);
     if (retry) retry.classList.remove("hidden");
-    setLocStatus(
-      state.usingFallbackLoc
-        ? "위치 권한이 없어 송도 기준으로 맞춰 뒀어요. 가능하면 권한을 허용해 주세요."
-        : `위치 파악 완료 · ${state.lat.toFixed(5)}, ${state.lng.toFixed(5)}`,
-      !state.usingFallbackLoc
-    );
+    if (state.usingFallbackLoc) {
+      setLocStatus(
+        isInAppBrowser()
+          ? "인앱에선 위치가 막혀 송도 기준으로 시작해요. Chrome/Safari로 열면 양평 위치가 잡혀요."
+          : "위치 권한이 없어 송도 기준으로 맞춰 뒀어요. 브라우저 주소창 왼쪽에서 위치 허용을 켜 주세요.",
+        false
+      );
+    } else {
+      setLocStatus(
+        `위치 파악 완료 · ${state.lat.toFixed(5)}, ${state.lng.toFixed(5)}`,
+        true
+      );
+    }
     await applySmartIntent();
-    startWatchingLocation();
+    if (!state.usingFallbackLoc) startWatchingLocation();
     if ($("btn-start")) $("btn-start").disabled = false;
   } catch (err) {
     console.error(err);
