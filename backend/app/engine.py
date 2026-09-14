@@ -9,6 +9,7 @@ from urllib.parse import quote
 
 from . import kakao
 from .geo import HUB_ID, resolve_tier, tier_copy, tier_label
+from .place_meta import enrich_place_fields
 from .radius import (
     card_radius_m,
     delivery_eta_minutes,
@@ -458,6 +459,7 @@ def build_cards(session: Session, limit: int = 20) -> tuple[list[dict], int, boo
     cards = []
     for i, (sc, p, dist, allow_r) in enumerate(candidates[:limit]):
         tags = p.get("tags") or ["#그냥여기"]
+        meta = enrich_place_fields(p)
         cards.append(
             {
                 "card_id": str(uuid.uuid4()),
@@ -474,11 +476,17 @@ def build_cards(session: Session, limit: int = 20) -> tuple[list[dict], int, boo
                     else f"배달 약 {delivery_eta_minutes(dist)}분"
                 ),
                 "hashtag": tags[0],
-                "delivery_sensitivity": p.get("delivery_sensitivity", 0.5),
+                "delivery_sensitivity": meta["delivery_sensitivity"],
+                "sensitivity_level": meta["sensitivity_level"],
+                "sensitivity_percent": meta["sensitivity_percent"],
+                "sensitivity_tip": meta["sensitivity_tip"],
                 "card_radius_m": allow_r,
-                "rating": p.get("rating", 4.0),
-                "hours": p.get("hours", ""),
-                "review": p.get("review", ""),
+                "rating": meta["rating"],
+                "hours": meta["hours"],
+                "address": meta["address"],
+                "price_krw": meta["price_krw"],
+                "price_band": meta["price_band"],
+                "review": meta["review"],
                 "is_gold": bool(show_gold and i == 0),
                 "taste_match": bool(p.get("taste_match")),
                 "lat": p["lat"],

@@ -36,9 +36,10 @@
         <p class="taste-progress" id="taste-progress"></p>
       </div>
       <div id="start-panel" class="start-panel">
-        <p id="loc-status" class="loc-status">현재 위치를 확인합니다…</p>
-        <button type="button" id="btn-retry-loc" class="btn ghost">위치 다시 가져오기</button>
-        <p id="weather-status" class="weather-status">날씨 확인 중…</p>
+        <p id="loc-status" class="loc-status">위치 권한을 허용한 뒤 「위치 파악」을 눌러 주세요.</p>
+        <button type="button" id="btn-locate" class="btn primary">위치 파악</button>
+        <button type="button" id="btn-retry-loc" class="btn ghost hidden">다시 파악하기</button>
+        <p id="weather-status" class="weather-status">위치 파악 후 날씨가 자동으로 연동됩니다.</p>
         <details class="dev-weather">
           <summary>날씨 수동 테스트</summary>
           <label class="field">날씨 덮어쓰기
@@ -52,7 +53,7 @@
             </select>
           </label>
         </details>
-        <p class="hint">딱 맞는 맛집을 위해 <strong>실시간 현재 위치</strong>가 필요합니다. 위치 없이 시작할 수 없습니다.</p>
+        <p class="hint">위치 파악 시 <strong>현재 위치 + 실시간 날씨</strong>가 매칭에 바로 반영됩니다.</p>
         <button type="button" id="btn-start" class="btn primary" disabled>시작하기</button>
         <button type="button" id="btn-install" class="btn ghost install-btn hidden">홈 화면에 추가 (앱처럼 쓰기)</button>
         <p class="install-hint">앱스토어 없이 <strong>https://justthis.co.kr</strong> 로 바로 쓸 수 있어요. iPhone은 공유 → 홈 화면에 추가.</p>
@@ -95,7 +96,7 @@
             <p class="tag" id="card-tag"></p>
           </div>
           <div id="gold-badge" class="gold-badge hidden">오늘의 100% 정답</div>
-          <div id="detail" class="detail hidden"></div>
+          <div id="detail" class="detail hidden" role="dialog" aria-modal="true" aria-label="식당 상세"></div>
         </article>
       </div>
 
@@ -129,12 +130,17 @@
           <div class="receipt-divider"></div>
           <p class="receipt-row"><span>식당</span><strong id="receipt-place"></strong></p>
           <p class="receipt-row"><span>메뉴</span><strong id="receipt-menu"></strong></p>
-          <p class="receipt-row reason"><span>매칭</span><strong id="receipt-reason"></strong></p>
+          <p class="receipt-row reason"><span>AI 코멘트</span><strong id="receipt-reason"></strong></p>
           <p class="receipt-wm">JUST HERE · 그냥여기</p>
         </article>
+        <div id="story-reward" class="story-reward">
+          <p class="story-reward-badge">스토리 리워드</p>
+          <p class="story-reward-copy">인스타그램 스토리에 영수증을 공유하면<br /><strong>할인 쿠폰 JUSTHERE10</strong>을 드려요.</p>
+        </div>
         <p id="handoff-note" class="handoff-note hidden"></p>
         <a id="handoff-link" class="btn primary" target="_blank" rel="noopener">지도에서 보기</a>
         <button type="button" id="btn-share" class="btn share">영수증 자랑하기</button>
+        <button type="button" id="btn-share-ig" class="btn ghost">인스타 스토리용 링크 복사</button>
         <button type="button" id="btn-duo-done" class="btn ghost">둘이서 고르기</button>
         <button type="button" id="btn-copy" class="btn ghost">링크 복사</button>
         <p id="share-status" class="share-status hidden"></p>
@@ -142,6 +148,6 @@
       </div>
     </section>
   </div>
-  <script src="/static/app.js?v=20260914-pwa1"></script>
+  <script src="/static/app.js?v=20260914-ux2"></script>
 </body>
 </html>

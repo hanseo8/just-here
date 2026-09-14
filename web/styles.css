@@ -312,12 +312,116 @@ select {
 .detail {
   position: absolute;
   inset: 0;
-  background: rgba(20,10,5,0.82);
-  padding: 28px 22px;
+  z-index: 5;
+  background: rgba(18, 10, 6, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 22px 20px 20px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
+  gap: 10px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.detail.hidden { display: none !important; }
+.detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.detail-head strong {
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+.detail-close {
+  border: none;
+  background: rgba(255,255,255,0.16);
+  color: #fff;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 20px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.detail-grid {
+  display: grid;
   gap: 8px;
+}
+.detail-row {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.detail-row .k {
+  opacity: 0.7;
+  font-weight: 700;
+}
+.detail-row .v {
+  font-weight: 600;
+}
+.sens-box {
+  margin-top: 4px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.08);
+}
+.sens-box .sens-title {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+.sens-gauge {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.18);
+  overflow: hidden;
+}
+.sens-gauge > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ffd166, #ff6a3d 55%, #d62828);
+}
+.sens-tip {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  opacity: 0.9;
+}
+.story-reward {
+  margin: 0 auto 14px;
+  max-width: 340px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(0,0,0,0.22);
+  text-align: left;
+}
+.story-reward-badge {
+  display: inline-block;
+  margin: 0 0 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fee500;
+  color: #191919;
+  font-size: 11px;
+  font-weight: 900;
+}
+.story-reward-copy {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  opacity: 0.95;
+}
+#btn-locate {
+  margin-bottom: 10px;
 }
 .empty {
   height: 100%;

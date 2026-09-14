@@ -347,16 +347,53 @@ async function onStartClick() {
   }
 }
 
+async function locateAndSyncWeather(force = true) {
+  const btn = $("btn-locate");
+  const retry = $("btn-retry-loc");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "위치 파악 중…";
+  }
+  setLocStatus("현재 위치를 확인합니다…");
+  try {
+    await requestLocation(force);
+    if (retry) retry.classList.remove("hidden");
+    setLocStatus(
+      state.usingFallbackLoc
+        ? "위치 권한이 없어 송도 기준으로 맞춰 뒀어요. 가능하면 권한을 허용해 주세요."
+        : `위치 파악 완료 · ${state.lat.toFixed(5)}, ${state.lng.toFixed(5)}`,
+      !state.usingFallbackLoc
+    );
+    await applySmartIntent();
+    startWatchingLocation();
+    if ($("btn-start")) $("btn-start").disabled = false;
+  } catch (err) {
+    console.error(err);
+    useFallbackLocation("위치를 가져오지 못했어요");
+    await applySmartIntent().catch(() => {});
+    if ($("btn-start")) $("btn-start").disabled = false;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "위치 파악";
+    }
+  }
+}
+
 async function init() {
   state.meta = await api("/v1/meta");
   $("btn-start").disabled = true;
   $("btn-start").onclick = onStartClick;
-  $("btn-retry-loc").onclick = () => requestLocation(true).catch(() => {});
+  const locateBtn = $("btn-locate");
+  if (locateBtn) locateBtn.onclick = () => locateAndSyncWeather(true);
+  $("btn-retry-loc").onclick = () => locateAndSyncWeather(true);
   $("btn-nope").onclick = () => swipe("nope");
   $("btn-go").onclick = () => swipe("lets_go");
   $("btn-again").onclick = () => location.reload();
   $("btn-share").onclick = () => shareReceipt();
   $("btn-copy").onclick = () => copyShareLink();
+  const igBtn = $("btn-share-ig");
+  if (igBtn) igBtn.onclick = () => shareForInstagramStory();
   const duoBtn = $("btn-duo");
   if (duoBtn) duoBtn.onclick = () => createDuoInvite();
   const duoDone = $("btn-duo-done");
@@ -411,9 +448,9 @@ async function init() {
   setupSwipeGestures();
   setupLongPress();
   setupInstallPwa();
-  await requestLocation().catch(() => {});
-  startWatchingLocation();
-  await applySmartIntent().catch(console.error);
+  // 자동 GPS는 하지 않음 — 「위치 파악」 버튼으로 명시 실행
+  const ws = $("weather-status");
+  if (ws) ws.textContent = "위치 파악 후 날씨가 자동으로 연동됩니다.";
 }
 
 async function ensureFreshLocation() {
@@ -872,6 +909,7 @@ function setupSwipeGestures() {
   let active = false;
 
   const onStart = (x) => {
+    if ($("detail") && !$("detail").classList.contains("hidden")) return;
     active = true;
     startX = x;
     dx = 0;
@@ -905,42 +943,133 @@ function setupSwipeGestures() {
   window.addEventListener("mouseup", onEnd);
 }
 
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function renderDetailModal(card) {
+  const d = $("detail");
+  if (!d || !card) return;
+  const pct = card.sensitivity_percent != null
+    ? card.sensitivity_percent
+    : Math.round(Number(card.delivery_sensitivity || 0) * 100);
+  const level = card.sensitivity_level || "보통";
+  const tip =
+    card.sensitivity_tip ||
+    "배달 중 맛·형태가 얼마나 변하는지 보여주는 지표예요.";
+  const rating =
+    card.rating != null ? Number(card.rating).toFixed(1) : "—";
+  d.innerHTML = `
+    <div class="detail-head">
+      <strong>${escapeHtml(card.place_name)}</strong>
+      <button type="button" class="detail-close" id="detail-close" aria-label="닫기">✕</button>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-row"><span class="k">영업시간</span><span class="v">${escapeHtml(card.hours || "확인 중")}</span></div>
+      <div class="detail-row"><span class="k">실시간 평점</span><span class="v">★ ${escapeHtml(rating)}</span></div>
+      <div class="detail-row"><span class="k">주소</span><span class="v">${escapeHtml(card.address || card.review || "주소 확인 중")}</span></div>
+      <div class="detail-row"><span class="k">예상 가격</span><span class="v">${escapeHtml(card.price_band || "확인 중")} / 1인</span></div>
+    </div>
+    <div class="sens-box">
+      <div class="sens-title">
+        <span>배달 민감도</span>
+        <span>${escapeHtml(level)} · ${pct}%</span>
+      </div>
+      <div class="sens-gauge" aria-hidden="true"><span style="width:${pct}%"></span></div>
+      <p class="sens-tip">${escapeHtml(tip)}</p>
+    </div>
+  `;
+  d.classList.remove("hidden");
+  const close = $("detail-close");
+  if (close) close.onclick = (e) => {
+    e.stopPropagation();
+    hideDetailModal();
+  };
+}
+
+function hideDetailModal() {
+  const d = $("detail");
+  if (d) d.classList.add("hidden");
+}
+
 function setupLongPress() {
   const el = $("card");
   let timer = null;
-  const showDetail = () => {
+  let moved = false;
+  const clear = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+  };
+  const open = () => {
     const card = currentCard();
     if (!card) return;
-    const d = $("detail");
-    d.innerHTML = `
-      <strong>${card.place_name}</strong>
-      <span>영업 ${card.hours}</span>
-      <span>평점 ${card.rating}</span>
-      <span>${card.review}</span>
-      <span>배달민감도 ${card.delivery_sensitivity}</span>
-    `;
-    d.classList.remove("hidden");
+    renderDetailModal(card);
   };
-  const hide = () => $("detail").classList.add("hidden");
 
   el.addEventListener(
     "touchstart",
     () => {
-      timer = setTimeout(showDetail, 450);
+      moved = false;
+      clear();
+      timer = setTimeout(open, 450);
+    },
+    { passive: true }
+  );
+  el.addEventListener(
+    "touchmove",
+    () => {
+      moved = true;
+      clear();
     },
     { passive: true }
   );
   el.addEventListener("touchend", () => {
-    clearTimeout(timer);
-    hide();
+    clear();
   });
   el.addEventListener("mousedown", () => {
-    timer = setTimeout(showDetail, 450);
+    moved = false;
+    clear();
+    timer = setTimeout(open, 450);
   });
-  el.addEventListener("mouseup", () => {
-    clearTimeout(timer);
-    hide();
+  el.addEventListener("mouseup", clear);
+  el.addEventListener("mouseleave", clear);
+  el.addEventListener("click", (e) => {
+    const d = $("detail");
+    if (d && !d.classList.contains("hidden")) {
+      if (e.target.closest && e.target.closest("#detail-close")) return;
+      // 상세가 열린 상태에서 카드 탭하면 닫기
+      if (!moved) hideDetailModal();
+    }
   });
+}
+
+async function shareForInstagramStory() {
+  try {
+    const receipt = state.lastReceipt;
+    if (!receipt?.share_url) {
+      setShareStatus("공유할 영수증이 없어요.");
+      return;
+    }
+    const text =
+      `🧾 ${receipt.title || "식탐 영수증"} · 그냥여기\n` +
+      `🍽 ${receipt.place_name || ""} / ${receipt.menu_name || ""}\n` +
+      `🤖 ${receipt.match_reason || receipt.sub_text || ""}\n` +
+      `🎁 스토리 공유 리워드: JUSTHERE10\n` +
+      `${receipt.share_url}`;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (_) {
+      prompt("인스타 스토리에 붙여넣을 텍스트", text);
+    }
+    setShareStatus("복사 완료! 인스타 스토리에 붙여넣으면 JUSTHERE10 할인 리워드");
+  } catch (err) {
+    console.error(err);
+    setShareStatus("스토리용 링크 생성 실패");
+  }
 }
 
 function setupInstallPwa() {
