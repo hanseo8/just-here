@@ -81,7 +81,7 @@ def share_text(r: Receipt, share_url: str) -> str:
         lines.append(f"AI 코멘트: {r.match_reason}")
     lines.extend(
         [
-            "🎁 인스타 스토리 공유 리워드: JUSTHERE10",
+            "스토리에 올리고 @official.just.this 태그하면 골드 영수증이 열려요",
             "",
             "메뉴 고민은 사치, 너도 그냥여기 어때?",
             share_url,
