@@ -16,7 +16,7 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/static/icons/icon-192.png" type="image/png" />
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="/static/styles.css?v=20260914-done1" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260914-done2" />
 </head>
 <body>
   <div id="app">
@@ -40,19 +40,6 @@
         <button type="button" id="btn-locate" class="btn primary">위치 파악</button>
         <button type="button" id="btn-retry-loc" class="btn ghost hidden">다시 파악하기</button>
         <p id="weather-status" class="weather-status">위치 파악 후 날씨가 자동으로 연동됩니다.</p>
-        <details class="dev-weather">
-          <summary>날씨 수동 테스트</summary>
-          <label class="field">날씨 덮어쓰기
-            <select id="weather">
-              <option value="">자동 (실날씨)</option>
-              <option value="clear">맑음</option>
-              <option value="rain">비</option>
-              <option value="snow">눈</option>
-              <option value="hot">더움</option>
-              <option value="cold">추움</option>
-            </select>
-          </label>
-        </details>
         <p class="hint">위치 파악 시 <strong>현재 위치 + 실시간 날씨</strong>가 매칭에 바로 반영됩니다.</p>
         <button type="button" id="btn-start" class="btn primary" disabled>시작하기</button>
         <button type="button" id="btn-install" class="btn ghost install-btn hidden">홈 화면에 추가 (앱처럼 쓰기)</button>
@@ -154,7 +141,7 @@
     </section>
   </div>
   <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
-  <script src="/static/auth.js?v=20260914-done1"></script>
-  <script src="/static/app.js?v=20260914-done1"></script>
+  <script src="/static/auth.js?v=20260914-done2"></script>
+  <script src="/static/app.js?v=20260914-done2"></script>
 </body>
 </html>

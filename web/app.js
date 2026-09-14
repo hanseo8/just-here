@@ -193,10 +193,8 @@ function startWatchingLocation() {
 }
 
 async function applySmartIntent() {
-  const override = $("weather")?.value || "";
   try {
     const q = new URLSearchParams();
-    if (override) q.set("weather", override);
     if (state.lat != null && state.lng != null) {
       q.set("lat", String(state.lat));
       q.set("lng", String(state.lng));
@@ -215,12 +213,11 @@ async function applySmartIntent() {
         hot: "더움",
         cold: "추움",
       }[state.weather] || state.weather;
-      const src = ctx.weather_meta?.source === "open-meteo" ? "실날씨" : "설정";
       const temp =
         ctx.weather_meta?.temp_c != null
           ? ` · ${Math.round(ctx.weather_meta.temp_c)}°C`
           : "";
-      ws.textContent = `날씨 ${label}${temp} (${src}) → ${
+      ws.textContent = `지금 날씨 ${label}${temp} · ${
         state.intent === "delivery" ? "배달" : "방문"
       } 추천`;
     }
@@ -538,7 +535,6 @@ async function init() {
       }
     };
   }
-  $("weather").onchange = () => applySmartIntent().catch(console.error);
 
   document.querySelectorAll(".tog").forEach((btn) => {
     btn.onclick = async () => {

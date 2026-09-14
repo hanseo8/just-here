@@ -96,15 +96,6 @@ select {
   margin: 0 0 12px;
   opacity: 0.9;
 }
-.dev-weather {
-  margin-bottom: 14px;
-  font-size: 13px;
-  opacity: 0.85;
-}
-.dev-weather summary {
-  cursor: pointer;
-  margin-bottom: 8px;
-}
 #btn-retry-loc { margin-bottom: 14px; }
 #btn-start:disabled {
   opacity: 0.45;
