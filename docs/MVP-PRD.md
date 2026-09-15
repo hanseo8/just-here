@@ -193,7 +193,7 @@ Let’s Go → 네이버지도(방문) | 배민(배달) 딥링크
 | PUT | `/v1/me/taste-tutorial` | 3장 → 벡터 |
 | GET | `/v1/feed` | `lat,lng,intent,session_id` → cards + `effective_radius_m` + weather |
 | POST | `/v1/swipe` | `nope` \| `lets_go` |
-| POST | `/v1/match/{id}/handoff` | `provider`: `naver_map` \| `baemin` |
+| POST | `/v1/match/{id}/handoff` | `provider`: `kakao_map` \| `naver_map` \| `brand_direct` |
 | POST | `/v1/share/receipt` | |
 | POST/GET | `/v1/duo/...` | |
 | (jobs) | Kakao Local sync / Naver enrich | 비동기 워커 |
@@ -208,7 +208,17 @@ Let’s Go → 네이버지도(방문) | 배민(배달) 딥링크
   }
 }
 ```
-또는 `"provider": "baemin"`.
+배달은 브랜드 자사 주문 페이지로 나간다 (`docs/DELIVERY-HANDOFF.md`):
+```json
+{
+  "handoff": {
+    "intent": "delivery",
+    "url": "https://www.kyochon.com/order",
+    "provider": "brand_direct",
+    "cta": "교촌치킨 바로 주문"
+  }
+}
+```
 
 ---
 

@@ -156,7 +156,7 @@ async function main() {
         kind: document.getElementById('card-menu')?.textContent.trim(),
         hero: document.getElementById('card-hero-num')?.textContent.trim(),
         cap: document.getElementById('card-hero-cap')?.textContent.trim(),
-        dist: document.getElementById('card-dist')?.textContent.trim(),
+        dist: document.getElementById('card-fact1-val')?.textContent.trim(),
         pin: !!document.querySelector('.map-pin'),
         photoOn: document.getElementById('card')?.classList.contains('has-photo'),
         photoDisplay: photo ? getComputedStyle(photo).display : 'missing',
@@ -182,23 +182,67 @@ async function main() {
     await sleep(1800);
   }
 
+  // 배달은 프랜차이즈 브랜드 카드 — 거리·ETA가 아니라 예산과 주문 채널을 보여준다
   await ev(`document.querySelector('.tog[data-intent="delivery"]')?.click(); true`);
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 25; i++) {
     await sleep(400);
-    const cap = await ev(`document.getElementById('card-hero-cap')?.textContent.trim()`);
-    if (cap && cap.includes("배달")) break;
+    const k = await ev(`document.getElementById('card-fact2-key')?.textContent.trim()`);
+    if (k === "주문") break;
   }
   const delivery = await ev(`(() => JSON.stringify({
     place: document.getElementById('card-place')?.textContent.trim(),
+    menu: document.getElementById('card-menu')?.textContent.trim(),
     hero: document.getElementById('card-hero-num')?.textContent.trim(),
     cap: document.getElementById('card-hero-cap')?.textContent.trim(),
+    f1k: document.getElementById('card-fact1-key')?.textContent.trim(),
+    f1v: document.getElementById('card-fact1-val')?.textContent.trim(),
+    f2k: document.getElementById('card-fact2-key')?.textContent.trim(),
+    f2v: document.getElementById('card-fact2-val')?.textContent.trim(),
+    radius: document.getElementById('radius-label')?.textContent.trim(),
   }))()`);
   const d = JSON.parse(delivery);
-  const deliveryOk = /^\d+분$/.test(d.hero) && /배달/.test(d.cap);
+  const deliveryOk =
+    d.place &&
+    d.f1k === "종류" &&
+    d.f2k === "주문" &&
+    d.f2v &&
+    d.cap === "1인 예상" &&
+    d.radius === "전국";
   if (!deliveryOk) bad++;
-  console.log(`${deliveryOk ? "OK  " : "실패"} 배달 전환: ${d.place} · ${d.hero} ${d.cap}`);
+  console.log(
+    `${deliveryOk ? "OK  " : "실패"} 배달 카드: ${d.place} · ${d.menu} · ${d.hero}(${d.cap}) · ${d.f1v} · ${d.f2v} · 범위 ${d.radius}`
+  );
   const r2 = await send("Page.captureScreenshot", { format: "png" });
   fs.writeFileSync(path.join(OUT, "card-delivery.png"), Buffer.from(r2.result.data, "base64"));
+
+  // 마지막 한 걸음 — 주문 버튼이 브랜드 자사 주문 페이지로 나가야 한다
+  await ev(`document.getElementById('btn-go')?.click(); true`);
+  for (let i = 0; i < 30; i++) {
+    await sleep(500);
+    if (await ev(`!document.getElementById('screen-done')?.classList.contains('hidden')`))
+      break;
+  }
+  const done = await ev(`(() => {
+    const a = document.getElementById('handoff-link');
+    const n = document.getElementById('handoff-note');
+    return JSON.stringify({
+      href: a?.getAttribute('href') || '',
+      label: a?.textContent.trim() || '',
+      note: n?.classList.contains('hidden') ? '' : n?.textContent.trim(),
+    });
+  })()`);
+  const h = JSON.parse(done);
+  const known = [
+    "kyochon.com","bbq.co.kr","nenechicken.com","pelicana.co.kr","kfckorea.com",
+    "dominos.co.kr","pizzahut.co.kr","pizzamaru.co.kr","banolimpizza.com",
+    "mrpizza.co.kr","burgerking.co.kr","lotteeatz.com","hsd.co.kr","paris.co.kr",
+  ];
+  const handoffOk = known.some((dm) => h.href.includes(dm)) && /주문/.test(h.label);
+  if (!handoffOk) bad++;
+  console.log(`${handoffOk ? "OK  " : "실패"} 배달 핸드오프: "${h.label}" → ${h.href}`);
+  if (h.note) console.log(`     안내: ${h.note}`);
+  const r3 = await send("Page.captureScreenshot", { format: "png" });
+  fs.writeFileSync(path.join(OUT, "done-delivery.png"), Buffer.from(r3.result.data, "base64"));
 
   const dead = outbound.filter((u) => u.includes("staticmap.openstreetmap"));
   console.log("");

@@ -7,12 +7,11 @@ import uuid
 from dataclasses import dataclass, field
 from urllib.parse import quote
 
-from . import kakao
+from . import brands, kakao
 from .geo import HUB_ID, resolve_tier, tier_copy, tier_label
 from .place_meta import enrich_place_fields
 from .radius import (
     card_radius_m,
-    delivery_eta_minutes,
     haversine_m,
     session_radius_m,
     walk_minutes,
@@ -76,22 +75,15 @@ def _national_fallback_anchored(user_lat: float, user_lng: float) -> list[dict]:
 
 
 def _places_in_radius(
-    places: list[dict], lat: float, lng: float, intent: str, weather: str
+    places: list[dict], lat: float, lng: float, weather: str
 ) -> list[dict]:
-    pool_r = session_radius_m(intent, weather)  # type: ignore[arg-type]
+    """방문 반경(700m) 안의 영업 중인 곳만."""
+    pool_r = session_radius_m("visit", weather)  # type: ignore[arg-type]
     hit = []
     for p in places:
         if not p.get("open_now", True):
             continue
-        if intent == "delivery" and not p.get("delivery_available", True):
-            continue
-        dist = haversine_m(lat, lng, p["lat"], p["lng"])
-        allow_r = card_radius_m(
-            intent,  # type: ignore[arg-type]
-            weather,  # type: ignore[arg-type]
-            float(p.get("delivery_sensitivity", 0.5)),
-        )
-        if dist <= pool_r and dist <= allow_r:
+        if haversine_m(lat, lng, p["lat"], p["lng"]) <= pool_r:
             hit.append(p)
     return hit
 
@@ -149,21 +141,21 @@ def load_inventory(
       1) 앞쪽 — 허브 큐레이션(반경 안) 또는 없으면 비움
       2) 뒤쪽 — 카카오 실주변 (취향 카테고리 맞춤 → 일반 근처 순)
 
-    후보 풀은 항상 배달 상한 반경으로 받아 두고, 방문은 build_cards에서 700m 컷.
-    → 방문↔배달 토글 시 카카오 재조회 없이 즉시 전환.
+    이 재고는 방문 모드 전용이다. 배달은 프랜차이즈 카탈로그(brands.py)를 쓰므로
+    좌표 기반 재고가 필요 없다 — 그래서 풀 반경을 방문 상한(700m)으로 고정한다.
     """
     taste = taste or []
     tier = resolve_tier(lat, lng)
-    # intent 인자 유지(호환). 풀 반경은 배달 상한 고정.
+    # intent 인자 유지(호환). 방문 재고만 다루므로 반경은 방문 상한.
     _ = intent
-    pool_r = session_radius_m("delivery", weather)  # type: ignore[arg-type]
+    pool_r = session_radius_m("visit", weather)  # type: ignore[arg-type]
 
     primary: list[dict] = []
     source = "kakao"
 
     if tier == "hub_full":
         hub = _hub_places_absolute()
-        primary = _places_in_radius(hub, lat, lng, "delivery", weather)
+        primary = _places_in_radius(hub, lat, lng, weather)
         if primary:
             source = "hub+kakao"
         else:
@@ -196,17 +188,17 @@ def load_inventory(
 
 
 def apply_intent(session: Session, intent: str) -> None:
-    """모드만 바꿀 때 — 카카오 재조회 없이 반경 필터만 바꿈."""
+    """모드만 바꿀 때 — 덱 소스가 갈리므로 재조회가 필요 없다.
+
+    방문은 카카오 재고, 배달은 프랜차이즈 카탈로그를 쓴다. 둘 다 이미 손에
+    있으므로 토글은 네트워크 없이 즉시 끝난다.
+    """
     if intent == session.intent:
         return
     session.intent = intent
     session.seen_menu_ids.clear()
     session.consecutive_nopes = 0
     session.force_gold_once = False
-    # 예전(좁은) 풀만 가진 세션이 배달로 넓힐 때만 1회 재조회
-    need = session_radius_m("delivery", session.weather)  # type: ignore[arg-type]
-    if intent == "delivery" and session.pool_radius_m < need:
-        refresh_inventory(session)
 
 
 def create_session(
@@ -224,7 +216,7 @@ def create_session(
         taste=taste or [],
         places=places,
         inventory_source=source,
-        pool_radius_m=session_radius_m("delivery", weather),  # type: ignore[arg-type]
+        pool_radius_m=session_radius_m("visit", weather),  # type: ignore[arg-type]
     )
     SESSIONS[s.id] = s
     return s
@@ -251,7 +243,7 @@ def reanchor_session(session: Session, lat: float, lng: float) -> bool:
     session.hub_id = HUB_ID if tier == "hub_full" else None
     session.places = places
     session.inventory_source = source
-    session.pool_radius_m = session_radius_m("delivery", session.weather)  # type: ignore[arg-type]
+    session.pool_radius_m = session_radius_m("visit", session.weather)  # type: ignore[arg-type]
     session.seen_menu_ids.clear()
     session.consecutive_nopes = 0
     session.perfect_slots_left = 5
@@ -267,7 +259,7 @@ def refresh_inventory(session: Session) -> None:
     session.hub_id = HUB_ID if tier == "hub_full" else None
     session.places = places
     session.inventory_source = source
-    session.pool_radius_m = session_radius_m("delivery", session.weather)  # type: ignore[arg-type]
+    session.pool_radius_m = session_radius_m("visit", session.weather)  # type: ignore[arg-type]
     session.seen_menu_ids.clear()
     session.consecutive_nopes = 0
 
@@ -325,16 +317,25 @@ def _taste_boost(place: dict, taste: list[str]) -> float:
 
 
 def _score(place: dict, distance_m: float, session: Session) -> float:
+    """방문 카드 점수 — 가까울수록, 평점·취향이 맞을수록 높다."""
     score = 10.0 - distance_m / 100.0
     score += place.get("rating", 4.0)
     score += _taste_boost(place, session.taste)
     for tag in place.get("tags", []):
         score -= session.nope_tags.get(tag, 0.0)
     score -= session.nope_categories.get(place.get("category", ""), 0.0) * 0.8
-    if session.intent == "delivery" and place.get("delivery_sensitivity", 0) >= 0.8:
-        score -= distance_m / 200.0
     if place.get("source") == "hub_seed":
         score += 0.5
+    return score
+
+
+def _brand_score(place: dict, session: Session) -> float:
+    """배달 브랜드 점수 — 거리가 없으므로 평점·취향·거부 이력만 본다."""
+    score = float(place.get("rating", 4.0))
+    score += _taste_boost(place, session.taste)
+    for tag in place.get("tags", []):
+        score -= session.nope_tags.get(tag, 0.0)
+    score -= session.nope_categories.get(place.get("category", ""), 0.0) * 0.8
     return score
 
 
@@ -374,7 +375,7 @@ def apply_lets_go(session: Session, place: dict) -> dict:
     _track_category(session, place)
     if session.perfect_slots_left > 0:
         session.perfect_slots_left -= 1
-    return build_handoff(session, place)
+    return build_handoff(place)
 
 
 def decision_seconds(session: Session) -> float | None:
@@ -411,7 +412,94 @@ def _diversify_by_category(
 
 
 def build_cards(session: Session, limit: int = 20) -> tuple[list[dict], int, bool]:
-    pool_r = session_radius_m(session.intent, session.weather)  # type: ignore[arg-type]
+    """덱 소스는 모드가 결정한다 — 방문은 주변 실상호, 배달은 프랜차이즈."""
+    if session.intent == "delivery":
+        return build_brand_cards(session, limit)
+    return build_visit_cards(session, limit)
+
+
+def build_brand_cards(session: Session, limit: int = 20) -> tuple[list[dict], int, bool]:
+    """배달 덱 — 자사 주문 페이지가 확인된 프랜차이즈만.
+
+    거리·반경 개념이 없다. 프랜차이즈는 전국 배달이고, 우리가 약속하는 것은
+    "배달앱을 열지 않고 바로 주문 화면까지 간다"는 것뿐이다.
+    """
+    show_gold = session.force_gold_once
+    pool = brands.brand_places(session.taste)
+
+    avail = [p for p in pool if show_gold or p["menu_id"] not in session.seen_menu_ids]
+    if not avail:
+        # 브랜드를 다 넘겼으면 한 바퀴 리셋 — 빈 덱을 보여 주지 않는다
+        session.seen_menu_ids.clear()
+        session.consecutive_nopes = 0
+        if session.perfect_slots_left <= 0:
+            session.perfect_slots_left = 5
+        avail = pool
+
+    scored = [(_brand_score(p, session), p) for p in avail]
+    taste_first = sorted(
+        [x for x in scored if x[1].get("taste_match")], key=lambda x: x[0], reverse=True
+    )
+    rest = sorted(
+        [x for x in scored if not x[1].get("taste_match")], key=lambda x: x[0], reverse=True
+    )
+    ordered = _diversify_by_category(taste_first) + _diversify_by_category(rest)  # type: ignore[arg-type]
+
+    if show_gold:
+        session.force_gold_once = False
+        ordered = ordered[:1]
+
+    cards = []
+    for i, (sc, p) in enumerate(ordered[:limit]):
+        meta = enrich_place_fields(p)
+        cards.append(
+            {
+                "card_id": str(uuid.uuid4()),
+                "place_id": p["place_id"],
+                "menu_id": p["menu_id"],
+                "place_name": p["name"],
+                "menu_name": p["menu_name"],
+                "image_url": "",
+                "has_photo": False,
+                # 거리·ETA는 브랜드에 존재하지 않는 값 — 만들어 내지 않는다
+                "distance_m": None,
+                "eta_label": "",
+                "category": p["category"],
+                "kind": p["kind"],
+                "hashtag": (p.get("tags") or [""])[0],
+                "is_brand": True,
+                "brand_id": p["brand_id"],
+                "order_url": p["order_url"],
+                "order_channel": p["channel"],
+                "delivery_sensitivity": meta["delivery_sensitivity"],
+                "sensitivity_level": meta["sensitivity_level"],
+                "sensitivity_percent": meta["sensitivity_percent"],
+                "sensitivity_tip": meta["sensitivity_tip"],
+                "card_radius_m": None,
+                "rating": meta["rating"],
+                "hours": p["hours"],
+                "address": "",
+                "price_krw": meta["price_krw"],
+                "price_band": meta["price_band"],
+                "review": meta["review"],
+                "is_gold": bool(show_gold and i == 0),
+                "taste_match": bool(p.get("taste_match")),
+                "lat": None,
+                "lng": None,
+                "source": "brand",
+                "tier": session.tier,
+                "_score": round(sc, 2),
+            }
+        )
+
+    if cards:
+        mark_deck_shown(session)
+    # 배달은 반경이 없다 — 0으로 내려보내고 클라이언트가 "전국"으로 표기한다
+    return cards, 0, show_gold
+
+
+def build_visit_cards(session: Session, limit: int = 20) -> tuple[list[dict], int, bool]:
+    pool_r = session_radius_m("visit", session.weather)  # type: ignore[arg-type]
     show_gold = session.force_gold_once
     inventory = session.places or []
     primary: list[tuple[float, dict, float, int]] = []
@@ -420,11 +508,9 @@ def build_cards(session: Session, limit: int = 20) -> tuple[list[dict], int, boo
     for p in inventory:
         if not p.get("open_now", True):
             continue
-        if session.intent == "delivery" and not p.get("delivery_available", True):
-            continue
         dist = haversine_m(session.lat, session.lng, p["lat"], p["lng"])
         allow_r = card_radius_m(
-            session.intent,  # type: ignore[arg-type]
+            "visit",
             session.weather,  # type: ignore[arg-type]
             float(p.get("delivery_sensitivity", 0.5)),
         )
@@ -453,7 +539,7 @@ def build_cards(session: Session, limit: int = 20) -> tuple[list[dict], int, boo
         session.consecutive_nopes = 0
         if session.perfect_slots_left <= 0:
             session.perfect_slots_left = 5
-        return build_cards(session, limit)
+        return build_visit_cards(session, limit)
 
     if show_gold:
         session.force_gold_once = False
@@ -462,11 +548,9 @@ def build_cards(session: Session, limit: int = 20) -> tuple[list[dict], int, boo
             for p in inventory:
                 if not p.get("open_now", True):
                     continue
-                if session.intent == "delivery" and not p.get("delivery_available", True):
-                    continue
                 dist = haversine_m(session.lat, session.lng, p["lat"], p["lng"])
                 allow_r = card_radius_m(
-                    session.intent,  # type: ignore[arg-type]
+                    "visit",
                     session.weather,  # type: ignore[arg-type]
                     float(p.get("delivery_sensitivity", 0.5)),
                 )
@@ -488,7 +572,7 @@ def build_cards(session: Session, limit: int = 20) -> tuple[list[dict], int, boo
         session.tier = tier
         session.inventory_source = source
         if places:
-            return build_cards(session, limit)
+            return build_visit_cards(session, limit)
 
     cards = []
     for i, (sc, p, dist, allow_r) in enumerate(candidates[:limit]):
@@ -504,13 +588,11 @@ def build_cards(session: Session, limit: int = 20) -> tuple[list[dict], int, boo
                 "image_url": p.get("image_url") or "",
                 "has_photo": bool(p.get("has_photo", bool(p.get("image_url")))),
                 "distance_m": int(dist),
-                "eta_label": (
-                    f"도보 {walk_minutes(dist)}분"
-                    if session.intent == "visit"
-                    else f"배달 약 {delivery_eta_minutes(dist)}분"
-                ),
+                "eta_label": f"도보 {walk_minutes(dist)}분",
                 "category": p.get("category") or "",
+                "kind": "",
                 "hashtag": tags[0],
+                "is_brand": False,
                 "delivery_sensitivity": meta["delivery_sensitivity"],
                 "sensitivity_level": meta["sensitivity_level"],
                 "sensitivity_percent": meta["sensitivity_percent"],
@@ -542,7 +624,7 @@ def build_cards(session: Session, limit: int = 20) -> tuple[list[dict], int, boo
         session.places = _national_fallback_anchored(session.lat, session.lng)
         session.inventory_source = "seed_fallback"
         session.tier = session.tier or "national_light"
-        rescued, r2, g2 = build_cards(session, limit)
+        rescued, r2, g2 = build_visit_cards(session, limit)
         session._empty_rescue = False  # type: ignore[attr-defined]
         if rescued:
             return rescued, max(pool_r, r2), g2
@@ -550,49 +632,50 @@ def build_cards(session: Session, limit: int = 20) -> tuple[list[dict], int, boo
     return cards, pool_r, show_gold
 
 
-def build_handoff(session: Session, place: dict) -> dict:
-    """핸드오프 URL.
+def build_handoff(place: dict) -> dict:
+    """마지막 한 걸음 — 여기서 흐름이 끊기면 앱을 쓴 의미가 없다.
 
-    배민 딥링크는 아직 보류 — 방문/배달 모두 지도로 안내.
+    방문은 지도, 배달은 브랜드 자사 주문 페이지로 보낸다. 배달앱을 열어 다시
+    검색하게 만들지 않는다.
     """
-    name = quote(place["name"])
+    if place.get("order_url"):
+        channel = place.get("channel") or "공식 주문 페이지"
+        return {
+            "intent": "delivery",
+            "provider": "brand_direct",
+            "url": place["order_url"],
+            "cta": f"{place['name']} 바로 주문",
+            "auto_open": False,
+            "note": f"{channel}으로 바로 이동해요. 배달앱에서 다시 찾지 않아도 돼요.",
+        }
+
     if place.get("kakao_url"):
         url = place["kakao_url"]
         provider = "kakao_map"
     else:
+        name = quote(place["name"])
         url = (
             f"https://map.naver.com/v5/search/{name}"
             f"/place?c={place['lng']},{place['lat']},15,0,0,0,dh"
         )
         provider = "naver_map"
 
-    if session.intent == "visit":
-        return {
-            "intent": "visit",
-            "provider": provider,
-            "url": url,
-            "cta": "지도에서 보기",
-            "auto_open": False,
-        }
-
-    # 배달: 딥링크 대신 상호 복사 → 배달앱 검색
     return {
-        "intent": "delivery",
+        "intent": "visit",
         "provider": provider,
         "url": url,
         "cta": "지도에서 보기",
         "auto_open": False,
-        "baemin_ready": False,
-        "search_query": place["name"],
-        "delivery_apps": [
-            {"id": "baemin", "label": "배민", "url": "https://www.baemin.com/"},
-            {"id": "yogiyo", "label": "요기요", "url": "https://www.yogiyo.co.kr/mobile/"},
-            {"id": "coupangeats", "label": "쿠팡이츠", "url": "https://www.coupangeats.com/"},
-        ],
     }
 
 
 def find_place(session: Session, menu_id: str) -> dict | None:
+    if str(menu_id).startswith("brand:"):
+        brand = brands.find_brand_place(menu_id)
+        if not brand:
+            return None
+        # 페르소나 계산이 좌표를 요구한다 — 브랜드는 거리 개념이 없으므로 0으로 둔다
+        return {**brand, "lat": session.lat, "lng": session.lng}
     for p in session.places:
         if p["menu_id"] == menu_id:
             return p

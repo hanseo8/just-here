@@ -81,7 +81,11 @@ function showResult(room) {
   $("pick-menu").textContent = p.menu_name;
   $("pick-eta").textContent = p.eta_label || "";
   $("pick-reason").textContent = p.match_reason || "";
-  $("pick-map").href = p.map_url;
+  const cta = $("pick-map");
+  cta.href = p.map_url;
+  // 배달은 브랜드 자사 주문 페이지로 나간다 — 지도로 보내면 배달앱을 또 켜야 한다
+  cta.textContent =
+    room.intent === "delivery" ? `${p.place_name} 바로 주문` : "지도에서 보기";
   $("duo-sub").textContent = `${room.host_name} × ${room.guest_name || "친구"}의 원픽`;
 }
 

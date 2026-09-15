@@ -94,13 +94,15 @@ def _strip(cards: list[dict]) -> list[dict]:
 
 def _feed_payload(s: engine.Session, cards: list[dict], radius: int, gold: bool = False) -> dict:
     meta = engine.session_meta(s)
+    # 티어 카피는 "근처" 기준이라 배달(전국 프랜차이즈)에는 맞지 않는다
+    copy = "고르면 바로 주문 화면으로 넘어가요" if s.intent == "delivery" else meta["copy"]
     return {
         "session_id": s.id,
         "intent": s.intent,
         "weather": s.weather,
         "effective_radius_m": radius,
         "perfect_slots_left": s.perfect_slots_left,
-        "copy": meta["copy"],
+        "copy": copy,
         "tier": meta["tier"],
         "tier_label": meta["tier_label"],
         "hub_id": meta["hub_id"],
@@ -113,7 +115,7 @@ def _feed_payload(s: engine.Session, cards: list[dict], radius: int, gold: bool 
 
 
 def _build_persona(s: engine.Session, place: dict) -> dict:
-    from .radius import haversine_m, session_radius_m
+    from .radius import haversine_m
 
     dist = haversine_m(s.lat, s.lng, place["lat"], place["lng"])
     # enrich price for flexer/value titles
@@ -133,9 +135,6 @@ def _build_persona(s: engine.Session, place: dict) -> dict:
         herbivore_streak=int(getattr(s, "herbivore_streak", 0) or 0),
         taste=list(s.taste or []),
     )
-    if persona["id"] == "storm_survivor":
-        r = session_radius_m(s.intent, s.weather)  # type: ignore[arg-type]
-        persona["match_reason"] = f"오늘 비/눈이라 배달 {r}m 이내로 매칭 완료!"
     return persona
 
 
@@ -357,7 +356,7 @@ def feed(
         moved = engine.reanchor_session(s, lat, lng)
 
     if intent and intent != s.intent:
-        # 방문↔배달: 이미 배달 상한으로 받아 둔 풀을 반경만 다시 컷 (카카오 재조회 X)
+        # 방문은 카카오 재고, 배달은 프랜차이즈 카탈로그 — 둘 다 이미 있어 재조회 X
         engine.apply_intent(s, intent)
     if weather and weather != s.weather:
         s.weather = weather

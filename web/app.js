@@ -1263,7 +1263,10 @@ function applyFeed(data) {
   state.radius = data.effective_radius_m;
   if (data.intent) state.intent = data.intent;
   $("feed-copy").textContent = data.copy || "오늘 점심은 그냥여기 어때?";
-  $("radius-label").textContent = `${state.radius}m`;
+  // 배달은 프랜차이즈 전국 주문이라 반경이 없다
+  const brandMode = state.intent === "delivery";
+  $("radius-key").textContent = brandMode ? "범위" : "반경";
+  $("radius-label").textContent = brandMode ? "전국" : `${state.radius}m`;
   $("slots-label").textContent = `${state.perfect}/5`;
   if ($("source-label")) {
     const srcMap = {
@@ -1273,8 +1276,9 @@ function applyFeed(data) {
       kakao: "주변 실상호",
       seed_fallback: "라이트",
     };
-    $("source-label").textContent =
-      srcMap[data.inventory_source] || data.inventory_source || "—";
+    $("source-label").textContent = brandMode
+      ? "공식 주문"
+      : srcMap[data.inventory_source] || data.inventory_source || "—";
   }
 }
 
@@ -1313,41 +1317,47 @@ function walkMinutes(m) {
   return Math.max(1, Math.round(m / 80));
 }
 
-function deliveryMinutes(m) {
-  if (m == null) return null;
-  return Math.max(20, 15 + Math.round(m / 250));
+const CATEGORY_LABELS = {
+  korean: "한식",
+  chinese: "중식",
+  japanese: "일식",
+  western: "양식",
+  snack: "분식",
+  meat: "고기",
+  asian: "아시안",
+  mexican: "멕시칸",
+  cafe: "카페",
+  noodle: "면",
+};
+
+function categoryLabel(card) {
+  return card.kind || CATEGORY_LABELS[card.category] || "근처 가게";
 }
 
 function kindLabel(card) {
   const menu = String(card.menu_name || "").trim();
   if (menu && menu !== "추천 메뉴") return menu;
-  const labels = {
-    korean: "한식",
-    chinese: "중식",
-    japanese: "일식",
-    western: "양식",
-    snack: "분식",
-    meat: "고기",
-    asian: "아시안",
-    mexican: "멕시칸",
-    cafe: "카페",
-    noodle: "면",
-  };
-  return labels[card.category] || "근처 가게";
+  return categoryLabel(card);
 }
 
+/* 히어로는 한 줄에 들어가야 크게 읽힌다 — "1.5~2.5만원"은 넘치므로 짧게 만든다 */
+function shortPrice(krw) {
+  const n = Number(krw);
+  if (!n) return "—";
+  if (n < 10000) return `${Math.round(n / 1000)}천원`;
+  const man = n / 10000;
+  return n % 10000 === 0 ? `${man}만원대` : `${man.toFixed(1)}만원`;
+}
+
+/* 카드에서 가장 크게 보여줄 값.
+   방문은 도착까지 걸리는 시간, 배달은 지점이 없어 시간을 알 수 없으니 예산. */
 function heroMetric(card) {
-  const visit = state.intent === "visit";
-  const mins = visit
-    ? walkMinutes(card.distance_m)
-    : deliveryMinutes(card.distance_m);
-  if (mins == null) {
-    return { num: "—", cap: visit ? "걸어가면 도착" : "배달 도착 예상" };
+  if (card.is_brand) {
+    return { num: shortPrice(card.price_krw), cap: "1인 예상" };
   }
-  return {
-    num: `${mins}분`,
-    cap: visit ? "걸어가면 도착" : "배달 도착 예상",
-  };
+  const mins = walkMinutes(card.distance_m);
+  if (mins == null) return { num: "—", cap: "걸어가면 도착" };
+  return { num: `${mins}분`, cap: "걸어가면 도착" };
 }
 
 /** 서버 해시태그(#스트레스_풀리는_국물)를 읽기 쉬운 문장으로 */
@@ -1367,9 +1377,12 @@ function renderCard() {
     empty.classList.remove("hidden");
     const msg = $("empty-msg");
     if (msg) {
-      msg.textContent = state.usingFallbackLoc
-        ? `송도 기준 ${state.radius}m 안에서 조건에 맞는 가게를 못 찾았어요. 위치를 다시 잡으면 결과가 달라져요.`
-        : `${state.radius}m 안에서 조건에 맞는 가게를 못 찾았어요.`;
+      msg.textContent =
+        state.intent === "delivery"
+          ? "주문 가능한 브랜드를 다 보여드렸어요. 다시 불러오면 처음부터 보여드려요."
+          : state.usingFallbackLoc
+            ? `송도 기준 ${state.radius}m 안에서 조건에 맞는 가게를 못 찾았어요. 위치를 다시 잡으면 결과가 달라져요.`
+            : `${state.radius}m 안에서 조건에 맞는 가게를 못 찾았어요.`;
     }
     const swapBtn = $("btn-empty-intent");
     if (swapBtn) {
@@ -1393,14 +1406,30 @@ function renderCard() {
   $("card-hero-num").textContent = hero.num;
   $("card-hero-cap").textContent = hero.cap;
 
-  // 주소는 카카오가 준 실제 값일 때만 — 자리 채우기용 문구는 숨긴다
+  /* 방문은 주소, 배달은 이 브랜드를 왜 지금 고르는지.
+     둘 다 실제 값이 있을 때만 — 자리 채우기용 문구는 숨긴다 */
   const where = $("card-where");
-  const address = card.address && card.address !== "주소 확인 중" ? card.address : "";
-  where.textContent = address;
-  where.classList.toggle("hidden", !address);
+  const sub = card.is_brand
+    ? card.review || ""
+    : card.address && card.address !== "주소 확인 중"
+      ? card.address
+      : "";
+  where.textContent = sub;
+  where.classList.toggle("hidden", !sub);
 
-  $("card-dist").textContent = distanceLabel(card.distance_m);
-  $("card-price").textContent = card.price_band || "—";
+  /* 브랜드 카드에는 지점이 없어 거리가 존재하지 않는다.
+     빈 값을 보여주는 대신 판단에 쓸 수 있는 사실로 바꿔 넣는다. */
+  if (card.is_brand) {
+    $("card-fact1-key").textContent = "종류";
+    $("card-fact1-val").textContent = categoryLabel(card);
+    $("card-fact2-key").textContent = "주문";
+    $("card-fact2-val").textContent = card.order_channel || "공식 주문";
+  } else {
+    $("card-fact1-key").textContent = "거리";
+    $("card-fact1-val").textContent = distanceLabel(card.distance_m);
+    $("card-fact2-key").textContent = "1인 예상";
+    $("card-fact2-val").textContent = card.price_band || "—";
+  }
 
   // 배달일 때만: 이 메뉴가 배달을 견디는지에 대한 안내
   const note = $("card-note");
@@ -1632,40 +1661,6 @@ async function shareReceipt() {
   }
 }
 
-/** 배달 모드: 딥링크 대신 상호 복사 → 배달앱 검색 */
-function setupDeliveryHandoff(handoff) {
-  const btn = $("btn-delivery");
-  const apps = $("delivery-apps");
-  const mapLink = $("handoff-link");
-  if (!btn || !apps) return;
-
-  const isDelivery = handoff?.intent === "delivery";
-  btn.classList.toggle("hidden", !isDelivery);
-  apps.classList.add("hidden");
-  apps.innerHTML = "";
-  mapLink.className = isDelivery ? "btn ghost" : "btn primary";
-  if (!isDelivery) return;
-
-  const query = handoff.search_query || state.lastDone?.place_name || "";
-  btn.textContent = "배달앱에서 주문하기";
-  btn.onclick = async () => {
-    try {
-      await navigator.clipboard.writeText(query);
-      setShareStatus(`「${query}」 복사했어요. 배달앱에서 붙여넣어 검색하세요.`);
-    } catch (_) {
-      setShareStatus(`배달앱에서 「${query}」로 검색하세요.`);
-    }
-    track("delivery_copy", { place: query });
-    apps.innerHTML = (handoff.delivery_apps || [])
-      .map(
-        (a) =>
-          `<a href="${a.url}" target="_blank" rel="noopener">${escapeHtml(a.label)}</a>`
-      )
-      .join("");
-    apps.classList.toggle("hidden", !apps.innerHTML);
-  };
-}
-
 /** 스토리 인증 보상 — 골드 영수증 해금 */
 function updateStoryReward() {
   const box = $("story-reward");
@@ -1776,7 +1771,6 @@ function showDone(data) {
       note.classList.add("hidden");
     }
   }
-  setupDeliveryHandoff(data.handoff);
   setShareStatus("");
   updateKakaoLinkButton();
   updateStoryReward();
@@ -1851,16 +1845,32 @@ function renderDetailModal(card) {
   const tip =
     card.sensitivity_tip ||
     "배달 중 맛·형태가 얼마나 변하는지 보여주는 지표예요.";
+  /* 브랜드는 지점이 아니라 브랜드다 — 주소·거리를 채워 넣으면 거짓이 된다 */
+  const rows = card.is_brand
+    ? [
+        ["종류", categoryLabel(card)],
+        ["대표 메뉴", card.menu_name || "—"],
+        ["주문 채널", card.order_channel || "공식 주문"],
+        ["1인 예상", card.price_band || "확인 중"],
+      ]
+    : [
+        ["주소", card.address || "주소 확인 중"],
+        ["영업시간", card.hours || "확인 중"],
+        ["거리", `${distanceLabel(card.distance_m)} · ${card.eta_label || "—"}`],
+        ["1인 예상", card.price_band || "확인 중"],
+      ];
   d.innerHTML = `
     <div class="detail-head">
       <strong>${escapeHtml(card.place_name)}</strong>
       <button type="button" class="detail-close" id="detail-close" aria-label="닫기">✕</button>
     </div>
     <div class="detail-grid">
-      <div class="detail-row"><span class="k">주소</span><span class="v">${escapeHtml(card.address || "주소 확인 중")}</span></div>
-      <div class="detail-row"><span class="k">영업시간</span><span class="v">${escapeHtml(card.hours || "확인 중")}</span></div>
-      <div class="detail-row"><span class="k">거리</span><span class="v">${escapeHtml(distanceLabel(card.distance_m))} · ${escapeHtml(card.eta_label || "—")}</span></div>
-      <div class="detail-row"><span class="k">1인 예상</span><span class="v">${escapeHtml(card.price_band || "확인 중")}</span></div>
+      ${rows
+        .map(
+          ([k, v]) =>
+            `<div class="detail-row"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(v)}</span></div>`
+        )
+        .join("")}
     </div>
     <div class="sens-box">
       <div class="sens-title">

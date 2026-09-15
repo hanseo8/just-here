@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import quote
 
-from . import engine
+from . import brands, engine
 from .config import public_base_url
 from .radius import haversine_m, session_radius_m, walk_minutes
 
@@ -107,8 +107,60 @@ def join_room(
     return room
 
 
+def _resolve_brand_pick(room: DuoRoom) -> dict[str, Any] | None:
+    """배달 듀오 — 솔로와 같은 프랜차이즈 카탈로그에서 고른다.
+
+    지도로 보내면 둘 다 배달앱을 다시 켜야 한다. 브랜드 주문 페이지로 보낸다.
+    """
+    host_c = _cats(room.host_taste)
+    guest_c = _cats(room.guest_taste)
+    inter = host_c & guest_c
+    union = host_c | guest_c
+    taste = list(dict.fromkeys(room.host_taste + room.guest_taste))
+
+    scored: list[tuple[float, dict]] = []
+    for p in brands.brand_places(taste):
+        cat = p.get("category") or ""
+        score = float(p.get("rating", 4.0))
+        if inter and cat in inter:
+            score += 5.0
+        elif union and cat in union:
+            score += 2.0
+        if p.get("taste_match"):
+            score += 1.5
+        scored.append((score, p))
+    if not scored:
+        return None
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    p = scored[0][1]
+    reason = (
+        f"둘의 취향 교집합({', '.join(sorted(inter)) or '공통'})으로 "
+        f"배달 브랜드 1곳을 골랐어요"
+    )
+    return {
+        "place_id": p["place_id"],
+        "place_name": p["name"],
+        "menu_name": p["menu_name"],
+        "image_url": "",
+        "distance_m": None,
+        "eta_label": p["channel"],
+        "category": p["category"],
+        "intersection": sorted(inter),
+        "union": sorted(union),
+        "match_reason": reason,
+        "map_url": p["order_url"],
+        "inventory_source": "brand",
+        "host_taste": room.host_taste,
+        "guest_taste": room.guest_taste,
+    }
+
+
 def _resolve_pick(room: DuoRoom) -> dict[str, Any] | None:
     """초대자 좌표·intent·weather 고정. 취향 교집합 카테고리 우선."""
+    if room.intent == "delivery":
+        return _resolve_brand_pick(room)
+
     places, _tier, source = engine.load_inventory(
         room.lat, room.lng, room.intent, room.weather, room.host_taste
     )
@@ -116,13 +168,11 @@ def _resolve_pick(room: DuoRoom) -> dict[str, Any] | None:
     guest_c = _cats(room.guest_taste)
     inter = host_c & guest_c
     union = host_c | guest_c
-    radius = session_radius_m(room.intent, room.weather)  # type: ignore[arg-type]
+    radius = session_radius_m("visit", room.weather)  # type: ignore[arg-type]
 
     scored: list[tuple[float, dict, float]] = []
     for p in places:
         if not p.get("open_now", True):
-            continue
-        if room.intent == "delivery" and not p.get("delivery_available", True):
             continue
         dist = haversine_m(room.lat, room.lng, p["lat"], p["lng"])
         if dist > radius:
@@ -155,10 +205,9 @@ def _resolve_pick(room: DuoRoom) -> dict[str, Any] | None:
             f"https://map.naver.com/v5/search/{name}"
             f"/place?c={p['lng']},{p['lat']},15,0,0,0,dh"
         )
-    mode = "방문" if room.intent == "visit" else "배달"
     reason = (
         f"둘의 취향 교집합({', '.join(sorted(inter)) or '공통'})으로 "
-        f"{mode} 근처 1곳을 골랐어요"
+        f"걸어갈 수 있는 1곳을 골랐어요"
     )
     return {
         "place_id": p.get("place_id"),
@@ -166,11 +215,7 @@ def _resolve_pick(room: DuoRoom) -> dict[str, Any] | None:
         "menu_name": p.get("menu_name", ""),
         "image_url": p.get("image_url", ""),
         "distance_m": int(dist),
-        "eta_label": (
-            f"도보 {walk_minutes(dist)}분"
-            if room.intent == "visit"
-            else f"약 {int(dist)}m"
-        ),
+        "eta_label": f"도보 {walk_minutes(dist)}분",
         "category": p.get("category"),
         "intersection": sorted(inter),
         "union": sorted(union),

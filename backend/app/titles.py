@@ -192,14 +192,18 @@ def match_reason(*, persona_id: str, intent: str, weather: str, distance_m: floa
         "meat_myway": "고기·구이 시그널로 직진 매칭",
         "herbivore": "클린·채소 중심 메뉴로 매칭",
         "chameleon": "카테고리 유랑 끝, 오늘의 원픽 확정",
-        "storm_survivor": f"오늘 비/눈이라 배달 {(radius_m or 1000)}m 이내로 매칭 완료!",
+        "storm_survivor": "비·눈에는 안 나가는 게 답 — 배달로 매칭 완료!",
         "night_hyena": "심야 배달 타임 맞춤 매칭",
         "food_nomad": f"현재 위치에서 {int(distance_m or 0)}m — 원거리 탈주 매칭",
         "heat_explorer": "폭염 속 이열치열 메뉴 매칭",
         "morning_hunter": "모닝 타임 얼리버드 매칭",
         "weekend_hermit": "주말 낮, 방구석 배달 매칭",
         "spicy_ranker": "매운맛 시그널이 강한 메뉴로 매칭",
-        "temp_guardian": "온도·식감 민감 메뉴라 가까운 곳으로 매칭",
+        "temp_guardian": (
+            "온도·식감이 민감한 메뉴 — 도착하면 바로 먹기"
+            if intent == "delivery"
+            else "온도·식감 민감 메뉴라 가까운 곳으로 매칭"
+        ),
         "flexer": "하이엔드 예산 시그널 매칭",
         "value_hunter": "가성비 최강 메뉴로 매칭",
         "carb_addict": "탄수화물 충전 메뉴로 매칭",
@@ -207,10 +211,14 @@ def match_reason(*, persona_id: str, intent: str, weather: str, distance_m: floa
     }
     if persona_id in reasons:
         return reasons[persona_id]
-    mode = "방문" if intent == "visit" else "배달"
+    # 배달은 프랜차이즈 전국 주문 — "근처"라고 말하면 사실이 아니다
+    if intent == "delivery":
+        if weather in ("rain", "snow"):
+            return "날씨 보고 배달로 맞춰 매칭 완료!"
+        return "배달 모드 기준, 오늘의 원픽 확정"
     if weather in ("rain", "snow"):
-        return f"날씨·{mode} 조건으로 근처 매칭 완료!"
-    return f"{mode} 모드 기준, 지금 위치 근처로 매칭 완료!"
+        return "날씨·방문 조건으로 근처 매칭 완료!"
+    return "방문 모드 기준, 지금 위치 근처로 매칭 완료!"
 
 
 def resolve_persona(

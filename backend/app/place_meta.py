@@ -37,15 +37,16 @@ def price_band_label(price: int) -> str:
 def sensitivity_meta(score: float) -> dict:
     s = max(0.0, min(1.0, float(score or 0)))
     pct = int(round(s * 100))
+    # 배달 거리를 우리가 알 수 없으므로 "가까우면 괜찮다" 같은 말은 쓰지 않는다
     if s >= 0.85:
         level = "매우 높음"
-        tip = "식으면 맛이 확 떨어져요. 방문하거나 가까운 배달을 추천해요."
+        tip = "식으면 맛이 확 떨어져요. 도착하면 바로 드세요."
     elif s >= 0.65:
         level = "높음"
         tip = "배달 중 온도·식감 변화가 있어요. 도착 후 바로 먹는 게 좋아요."
     elif s >= 0.4:
         level = "보통"
-        tip = "일반적인 배달 메뉴예요. 너무 멀지만 않으면 괜찮아요."
+        tip = "일반적인 배달 메뉴예요. 무리 없이 배달돼요."
     else:
         level = "낮음"
         tip = "배달해도 맛·형태가 잘 유지되는 편이에요."
@@ -60,7 +61,11 @@ def sensitivity_meta(score: float) -> dict:
 def enrich_place_fields(place: dict) -> dict:
     """카드용 주소·가격·민감도 필드를 place에서 뽑아 반환."""
     source = place.get("source") or ("kakao" if str(place.get("place_id", "")).startswith("kakao") else "seed")
-    if source == "kakao":
+    if source == "brand":
+        # 프랜차이즈는 특정 지점이 아니다 — 주소를 만들어 붙이면 거짓말이 된다
+        address = ""
+        blurb = place.get("blurb") or ""
+    elif source == "kakao":
         address = (
             place.get("address")
             or place.get("road_address")

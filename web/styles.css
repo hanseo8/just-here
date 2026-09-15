@@ -986,24 +986,6 @@ body.allow-scroll {
   line-height: 1.45;
   color: var(--text-2);
 }
-.delivery-apps {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-}
-.delivery-apps a {
-  flex: 1;
-  padding: 11px 6px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
-  color: var(--text);
-  font-size: 13.5px;
-  font-weight: 500;
-  text-align: center;
-  text-decoration: none;
-}
-.delivery-apps a:hover { background: var(--surface-2); }
-
 .btn.share.outline {
   background: transparent;
   border: 1px solid var(--border-strong);
