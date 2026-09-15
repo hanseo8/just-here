@@ -1,0 +1,16 @@
+{
+  "deals": [
+    {
+      "id": "example-kyochon",
+      "brand_id": "kyochon",
+      "source": "brand_notice",
+      "title": "세트 1천원 할인",
+      "condition": "공식 주문, 기간 한정",
+      "starts_at": "2026-09-01T00:00:00+09:00",
+      "ends_at": "2026-09-30T23:59:59+09:00",
+      "min_order_krw": 15000,
+      "delivery_fee_included": false,
+      "verified_at": "2026-09-15T12:00:00+09:00"
+    }
+  ]
+}

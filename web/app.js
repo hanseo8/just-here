@@ -1514,8 +1514,15 @@ function renderCard() {
   note.classList.toggle("hidden", !noteText);
 
   const tagEl = $("card-tag");
-  tagEl.textContent = "";
-  tagEl.classList.add("hidden");
+  const deal = card.deal;
+  if (deal && deal.title) {
+    const bits = [deal.title, deal.condition].filter(Boolean);
+    tagEl.textContent = bits.join(" · ");
+    tagEl.classList.remove("hidden");
+  } else {
+    tagEl.textContent = "";
+    tagEl.classList.add("hidden");
+  }
   $("detail").classList.add("hidden");
   el.style.transform = "";
   el.style.opacity = "1";
@@ -1973,7 +1980,7 @@ async function submitMeal(eaten) {
       logic_version: data.logic_version || state.logicVersion,
     });
     box.innerHTML = eaten
-      ? "<p class=\"meal-prompt-title\">다음 추천에 반영할게요</p><p class=\"meal-prompt-sub\">비슷한 종류를 조금 더 자주 보여드려요.</p>"
+      ? "<p class=\"meal-prompt-title\">다음 식사 때 참고할게요</p><p class=\"meal-prompt-sub\">오늘은 다른 종류를 조금 앞에 두고, 나중에 비슷한 걸 더 자주 보여드려요.</p>"
       : "<p class=\"meal-prompt-title\">알겠어요</p><p class=\"meal-prompt-sub\">지금은 선택만 저장해 둘게요.</p>";
   } catch (err) {
     console.error(err);

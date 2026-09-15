@@ -6,7 +6,7 @@ import uuid
 from dataclasses import dataclass, field
 from urllib.parse import quote
 
-from . import brands, kakao
+from . import brands, deals, kakao
 from .geo import HUB_ID, resolve_tier, tier_copy, tier_label
 from .place_meta import enrich_place_fields
 from .radius import (
@@ -304,6 +304,7 @@ def _score(place: dict, distance_m: float, session: Session) -> float:
     score += place.get("rating", 4.0)
     score += _taste_boost(place, session.taste)
     score += _profile_delta(place, session)
+    score += deals.score_boost(deals.match(place))
     for tag in place.get("tags", []):
         score -= session.nope_tags.get(tag, 0.0)
     score -= session.nope_categories.get(place.get("category", ""), 0.0) * 0.8
@@ -315,6 +316,7 @@ def _brand_score(place: dict, session: Session) -> float:
     score = float(place.get("rating", 4.0))
     score += _taste_boost(place, session.taste)
     score += _profile_delta(place, session)
+    score += deals.score_boost(deals.match(place))
     for tag in place.get("tags", []):
         score -= session.nope_tags.get(tag, 0.0)
     score -= session.nope_categories.get(place.get("category", ""), 0.0) * 0.8
@@ -465,6 +467,7 @@ def build_brand_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
                 "price_source": "estimated",
                 "menu_source": "typical",
                 "menu_verified": False,
+                "deal": deals.public_payload(deals.match(p)),
                 "review": meta["review"],
                 "is_gold": False,
                 "taste_match": bool(p.get("taste_match")),
@@ -547,6 +550,7 @@ def build_visit_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
                 "price_source": "estimated",
                 "menu_source": "inferred",
                 "menu_verified": False,
+                "deal": deals.public_payload(deals.match(p)),
                 "review": meta["review"],
                 "is_gold": False,
                 "taste_match": bool(p.get("taste_match")),
@@ -563,7 +567,7 @@ def build_visit_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
 
 
 PACK_SIZE = 3
-LOGIC_VERSION = "persist-v1"
+LOGIC_VERSION = "deal-v1"
 
 TASTE_KO = {
     "korean": "한식",
@@ -644,6 +648,8 @@ def _why(session: Session, card: dict) -> str:
         return "다른 종류로 다시 골랐어요."
     if f.get("closer"):
         return "더 가까운 곳으로 다시 골랐어요."
+    if f.get("deal"):
+        return "확인된 혜택이 있는 쪽으로 다시 골랐어요."
     cat = str(card.get("category") or "")
     kind = str(card.get("kind") or "")
     if session.has_history:
@@ -659,6 +665,8 @@ def _why(session: Session, card: dict) -> str:
     if card.get("taste_match") and cats:
         shown = " · ".join(list(dict.fromkeys(cats))[:3])
         return f"선택한 {shown} 취향을 반영했어요."
+    if card.get("deal"):
+        return "확인된 혜택이 있는 곳이에요."
     if session.intent == "delivery":
         return "고르면 이 브랜드 주문 화면으로 바로 이어져요."
     return "지금 위치에서 걸어갈 수 있는 곳이에요."
@@ -692,6 +700,10 @@ def _apply_adjust_filters(session: Session, cards: list[dict]) -> list[dict]:
         if filtered:
             out = filtered
         out = sorted(out, key=lambda c: c.get("distance_m") or 10**9)
+    if f.get("deal"):
+        filtered = [c for c in out if c.get("deal")]
+        if filtered:
+            out = filtered
     return out
 
 
@@ -743,6 +755,8 @@ def adjust_options(session: Session) -> list[dict]:
     ]
     if session.intent == "visit":
         opts.append({"id": "closer", "label": "더 가까운 곳"})
+    if deals.public_ready():
+        opts.append({"id": "deal", "label": "확인된 혜택"})
     opts.append({"id": "again", "label": "조건 그대로 다시"})
     return opts
 
@@ -764,6 +778,8 @@ def apply_adjust(session: Session, option: str) -> None:
         dists = [int(c["distance_m"]) for c in last if c.get("distance_m") is not None]
         cap = min(int(min(dists) * 0.7), 500) if dists else 400
         session.adjust_filters = {"closer": True, "distance_cap": max(200, cap)}
+    elif option == "deal":
+        session.adjust_filters = {"deal": True}
     else:
         session.adjust_filters = {}
     session.adjust_needed = False

@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 from datetime import datetime, timezone  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app import brands, engine, kakao  # noqa: E402
+from app import brands, deals, engine, kakao  # noqa: E402
 from app.main import app  # noqa: E402
 from app.users import compute_taste_signals  # noqa: E402
 
@@ -202,6 +202,78 @@ feed, _, _ = engine.present_feed(loved)
 why = next((c.get("why") or "" for c in loved.pack_cards if c.get("kind") == "치킨"), "")
 check("자주 고른" in why, f"기록 있는 why → {why or (feed[0].get('why') if feed else '')}")
 check("평소 좋아하는" not in why, "근거 없는 개인화 문구를 쓰지 않는다")
+
+print("\n[혜택] 확인된 할인만 붙는다")
+try:
+    s_empty = engine.create_session(LAT, LNG, "delivery", "clear")
+    empty_cards, _, _ = engine.build_cards(s_empty)
+    check(all(not c.get("deal") for c in empty_cards), "카탈로그가 비면 혜택을 만들지 않는다")
+    check(
+        all(o["id"] != "deal" for o in engine.adjust_options(s_empty)),
+        "혜택이 부족하면 확인된 혜택 버튼을 숨긴다",
+    )
+
+    live_now = "2026-09-15T12:00:00+09:00"
+    expired = {
+        "id": "old",
+        "brand_id": "kyochon",
+        "source": "brand_notice",
+        "title": "지난 혜택",
+        "condition": "종료",
+        "starts_at": "2026-08-01T00:00:00+09:00",
+        "ends_at": "2026-08-31T23:59:59+09:00",
+        "verified_at": live_now,
+    }
+    one = {
+        "id": "kyo-1",
+        "brand_id": "kyochon",
+        "source": "brand_notice",
+        "title": "세트 1천원 할인",
+        "condition": "공식 주문",
+        "starts_at": "2026-09-01T00:00:00+09:00",
+        "ends_at": "2026-09-30T23:59:59+09:00",
+        "min_order_krw": 15000,
+        "delivery_fee_included": False,
+        "verified_at": live_now,
+    }
+    deals.set_catalog([expired])
+    s_exp = engine.create_session(LAT, LNG, "delivery", "clear")
+    exp_cards, _, _ = engine.build_cards(s_exp)
+    kyo = next(c for c in exp_cards if c.get("brand_id") == "kyochon")
+    check(not kyo.get("deal"), "만료된 혜택은 카드에 안 붙는다")
+
+    deals.set_catalog([one])
+    s_one = engine.create_session(LAT, LNG, "delivery", "clear")
+    one_cards, _, _ = engine.build_cards(s_one)
+    kyo1 = next(c for c in one_cards if c.get("brand_id") == "kyochon")
+    deal = kyo1.get("deal") or {}
+    check(deal.get("title") == "세트 1천원 할인", "확인된 혜택은 카드에 붙는다")
+    dumped = str(deal)
+    check("final_price" not in deal and "최종" not in dumped, "최종 결제금액을 만들지 않는다")
+    check(
+        all(o["id"] != "deal" for o in engine.adjust_options(s_one)),
+        "혜택 1건이면 확인된 혜택 버튼을 열지 않는다",
+    )
+    plain_kyo = next(c for c in empty_cards if c.get("brand_id") == "kyochon")["_score"]
+    check(kyo1["_score"] > plain_kyo, "확인된 혜택은 점수에 가산된다")
+
+    three = [
+        one,
+        {**one, "id": "bbq-1", "brand_id": "bbq", "title": "올라이브 할인"},
+        {**one, "id": "pel-1", "brand_id": "pelicana", "title": "양념 할인"},
+    ]
+    deals.set_catalog(three)
+    s_pub = engine.create_session(LAT, LNG, "delivery", "clear")
+    check(
+        any(o["id"] == "deal" for o in engine.adjust_options(s_pub)),
+        "확인된 혜택 3건부터 조정 선택지를 연다",
+    )
+    engine.apply_adjust(s_pub, "deal")
+    deal_feed, _, _ = engine.present_feed(s_pub)
+    check(all(c.get("deal") for c in s_pub.pack_cards), "확인된 혜택 조정은 혜택 카드만 남긴다")
+    check(deal_feed and deal_feed[0].get("deal"), "피드에도 혜택이 보인다")
+finally:
+    deals.set_catalog(None)
 
 print()
 if fails:

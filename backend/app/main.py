@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from . import analytics
+from . import deals
 from . import duo
 from . import engine
 from . import guest_token
@@ -628,7 +629,7 @@ def swipe(body: SwipeBody, request: Request):
 
 class AdjustBody(BaseModel):
     session_id: str
-    option: Literal["cheaper", "different", "closer", "again"]
+    option: Literal["cheaper", "different", "closer", "again", "deal"]
 
 
 class UndoBody(BaseModel):
@@ -642,6 +643,8 @@ def adjust(body: AdjustBody):
         raise HTTPException(404, "session not found")
     if body.option == "closer" and s.intent != "visit":
         raise HTTPException(400, "closer is visit-only")
+    if body.option == "deal" and not deals.public_ready():
+        raise HTTPException(400, "deals not public yet")
     engine.apply_adjust(s, body.option)
     cards, radius, gold = engine.present_feed(s)
     payload = _feed_payload(s, cards, radius, gold)

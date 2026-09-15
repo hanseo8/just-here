@@ -557,7 +557,8 @@ body.allow-scroll {
   border-radius: var(--r-sm);
   font-size: 11.5px;
   color: var(--text-2);
-  white-space: nowrap;
+  white-space: normal;
+  max-width: 16em;
 }
 .card-face .place {
   margin: 10px 0 0;
