@@ -4,6 +4,7 @@
  * - Kakao link: 공유/도감 저장 시 계정 병합
  */
 (function (global) {
+  const TOKEN_KEY = "jh_guest_token";
   const DEVICE_KEY = "jh_device_id";
   const UID_KEY = "jh_uid";
   const AUTH_TYPE_KEY = "jh_auth_type";
@@ -26,9 +27,14 @@
     return localStorage.getItem(UID_KEY) || "";
   }
 
-  function setIdentity(uid, authType) {
+  function getToken() {
+    return localStorage.getItem(TOKEN_KEY) || "";
+  }
+
+  function setIdentity(uid, authType, token) {
     if (uid) localStorage.setItem(UID_KEY, uid);
     if (authType) localStorage.setItem(AUTH_TYPE_KEY, authType);
+    if (token) localStorage.setItem(TOKEN_KEY, token);
   }
 
   async function ensureGuest(api) {
@@ -47,7 +53,7 @@
       method: "POST",
       body: JSON.stringify({ device_id, firebase_uid }),
     });
-    setIdentity(data.uid, data.auth_type || "anonymous");
+    setIdentity(data.uid, data.auth_type || "anonymous", data.guest_token);
     return data;
   }
 
@@ -58,7 +64,7 @@
       method: "POST",
       body: JSON.stringify({ guest_uid, access_token: accessToken }),
     });
-    setIdentity(data.uid, "kakao");
+    setIdentity(data.uid, "kakao", data.guest_token);
     return data;
   }
 
@@ -75,7 +81,7 @@
       }),
       retries: 0,
     });
-    setIdentity(data.uid, "kakao");
+    setIdentity(data.uid, "kakao", data.guest_token);
     return data;
   }
 
@@ -90,6 +96,7 @@
   global.JustHereAuth = {
     getDeviceId,
     getUid,
+    getToken,
     ensureGuest,
     linkKakao,
     linkKakaoCode,

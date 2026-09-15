@@ -26,7 +26,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=20260915-brand1" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260915-pack3a" />
 </head>
 <body>
   <!-- 진입 인트로: 첫 페인트를 브랜드로 채우고, 그 사이 init()이 끝난다 -->
@@ -49,7 +49,7 @@
       <div id="onboard-main">
         <div class="onboard">
           <h1 class="screen-title">오늘 뭐 먹지?</h1>
-          <p class="screen-desc">지금 있는 곳 근처에서 갈 만한 데를 한 장씩 보여줄게요.</p>
+          <p class="screen-desc">취향에 맞춰 하나씩 고를게요. 고르면 바로 갈 곳까지 이어져요.</p>
 
           <dl class="setup">
             <div class="setup-row">
@@ -73,10 +73,11 @@
       <div id="taste-stage" class="taste-stage hidden">
         <div id="taste-step-cat">
           <p class="taste-prompt">뭐가 땡겨?</p>
-          <p class="taste-sub">2~3개만 고르면 돼요. 많이 고를수록 범위가 넓어져요.</p>
+          <p class="taste-sub">1~3개만 고르면 돼요. 건너뛰어도 바로 시작할 수 있어요.</p>
           <div id="taste-cats" class="taste-cats" role="group" aria-label="음식 종류"></div>
           <p id="taste-cat-hint" class="taste-progress" aria-live="polite">0 / 3</p>
           <button type="button" id="btn-taste-next" class="btn primary" disabled>다음</button>
+          <button type="button" id="btn-taste-skip" class="link-btn taste-back">건너뛰고 시작</button>
           <button type="button" id="btn-taste-cancel" class="link-btn taste-back">돌아가기</button>
         </div>
         <div id="taste-step-tone" class="hidden">
@@ -113,7 +114,7 @@
         <p id="intent-reason" class="reason hidden"></p>
         <ul class="stat-row">
           <li><span class="k" id="radius-key">반경</span><span class="v" id="radius-label">—</span></li>
-          <li><span class="k">남은 카드</span><span class="v" id="slots-label">5/5</span></li>
+          <li><span class="k">이번 묶음</span><span class="v" id="slots-label">—</span></li>
           <li><span class="k">출처</span><span class="v" id="source-label">—</span></li>
         </ul>
       </div>
@@ -121,11 +122,16 @@
       <div id="card-stage" class="card-stage">
         <div id="empty" class="empty hidden">
           <p class="empty-title">지금 보여줄 곳이 없어요</p>
-          <p id="empty-msg" class="empty-msg">이 반경 안에서 조건에 맞는 가게를 못 찾았어요.</p>
+          <p id="empty-msg" class="empty-msg">이 위치에서 조건에 맞는 가게를 못 찾았어요. 위치를 바꾸거나 다시 시도해 주세요.</p>
           <div class="empty-actions">
-            <button type="button" id="btn-reload-feed" class="btn primary">다시 불러오기</button>
+            <button type="button" id="btn-reload-feed" class="btn primary">다시 시도</button>
             <button type="button" id="btn-empty-intent" class="btn ghost">배달로 바꿔 보기</button>
           </div>
+        </div>
+        <div id="adjust-sheet" class="adjust-sheet hidden" role="dialog" aria-labelledby="adjust-title">
+          <p id="adjust-title" class="adjust-title">어떤 쪽으로 다시 골라볼까요?</p>
+          <p class="adjust-sub">한 번만 고르면 다음 세 장을 바로 보여드려요.</p>
+          <div id="adjust-options" class="adjust-options"></div>
         </div>
         <article id="card" class="card hidden">
           <div class="card-photo" id="card-media" aria-hidden="true"></div>
@@ -157,10 +163,11 @@
       </div>
 
       <footer class="bottom actions">
-        <button type="button" id="btn-nope" class="act pass">패스</button>
-        <button type="button" id="btn-go" class="act go">그냥 여기</button>
+        <button type="button" id="btn-nope" class="act pass">다른 메뉴</button>
+        <button type="button" id="btn-go" class="act go">이걸로 할게</button>
       </footer>
-      <p id="feed-hint" class="swipe-hint" role="status">카드를 좌우로 밀어서 넘겨도 돼요.</p>
+      <p id="feed-hint" class="swipe-hint" role="status">카드를 좌우로 밀어도 같아요.</p>
+      <button type="button" id="btn-undo" class="link-btn undo-btn hidden">이전 후보로</button>
     </section>
 
     <!-- MATCH FLASH (즉시 딥링크 전 폭죽) -->
@@ -174,6 +181,8 @@
       <div class="done-box">
         <h2 id="done-title">여기로 정했어요</h2>
         <p id="done-sub"></p>
+        <p id="handoff-note" class="handoff-note hidden"></p>
+        <a id="handoff-link" class="btn primary" target="_blank" rel="noopener">지도에서 보기</a>
         <article id="receipt" class="receipt-card theme-bg_basic" role="status">
           <p class="receipt-label">나만의 식탐 영수증</p>
           <div class="receipt-sticker" id="receipt-sticker" aria-hidden="true">🛋️</div>
@@ -185,8 +194,6 @@
           <p class="receipt-row reason"><span>한 줄</span><strong id="receipt-reason"></strong></p>
           <p class="receipt-wm">JUST HERE · 그냥여기</p>
         </article>
-        <p id="handoff-note" class="handoff-note hidden"></p>
-        <a id="handoff-link" class="btn primary" target="_blank" rel="noopener">지도에서 보기</a>
         <button type="button" id="btn-kakao-link" class="btn kakao-link">
           <span class="kakao-ico" aria-hidden="true"></span>
           <span id="kakao-link-label">카카오로 저장·공유</span>
@@ -227,8 +234,8 @@
     </div>
   </div>
   <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
-  <script src="/static/auth.js?v=20260915-brand1"></script>
-  <script src="/static/story.js?v=20260915-brand1"></script>
-  <script src="/static/app.js?v=20260915-brand1"></script>
+  <script src="/static/auth.js?v=20260915-pack3a"></script>
+  <script src="/static/story.js?v=20260915-pack3a"></script>
+  <script src="/static/app.js?v=20260915-pack3a"></script>
 </body>
 </html>

@@ -15,12 +15,14 @@ services:
       - key: DATA_DIR
         value: /data
       - key: PUBLIC_BASE_URL
-        value: https://www.justthis.co.kr
+        value: https://justthis.co.kr
       - key: KAKAO_REST_API_KEY
         sync: false
       - key: KAKAO_JS_KEY
         sync: false
       - key: KAKAO_CLIENT_SECRET
+        sync: false
+      - key: GUEST_SIGNING_SECRET
         sync: false
       - key: ADMIN_TOKEN
         sync: false

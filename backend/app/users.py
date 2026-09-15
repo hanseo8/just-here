@@ -181,15 +181,8 @@ class UserStore:
             logs = u.setdefault("swipe_logs", [])
             logs.append({**event, "at": _now()})
             u["swipe_logs"] = logs[-500:]
-            prefs = u.setdefault("preferences", {})
-            if event.get("action") == "nope":
-                for tag in event.get("tags") or []:
-                    ht = prefs.setdefault("hate_tags", {})
-                    ht[tag] = float(ht.get(tag, 0)) + 1.0
-                cat = event.get("category")
-                if cat:
-                    hc = prefs.setdefault("hate_categories", {})
-                    hc[cat] = float(hc.get(cat, 0)) + 0.8
+            # 거절을 장기 비선호로 바로 누적하지 않는다.
+            # 일자별 신호는 2단계에서 swipe_logs를 읽어 계산한다.
             u["updated_at"] = _now()
             self._save()
             return deepcopy(u)

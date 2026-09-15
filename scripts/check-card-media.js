@@ -148,38 +148,55 @@ async function main() {
   }
 
   let bad = 0;
-  for (let i = 0; i < 5; i++) {
-    const s = await ev(`(() => {
-      const photo = document.getElementById('card-media');
-      return JSON.stringify({
-        place: document.getElementById('card-place')?.textContent.trim(),
-        kind: document.getElementById('card-menu')?.textContent.trim(),
-        hero: document.getElementById('card-hero-num')?.textContent.trim(),
-        cap: document.getElementById('card-hero-cap')?.textContent.trim(),
-        dist: document.getElementById('card-fact1-val')?.textContent.trim(),
-        pin: !!document.querySelector('.map-pin'),
-        photoOn: document.getElementById('card')?.classList.contains('has-photo'),
-        photoDisplay: photo ? getComputedStyle(photo).display : 'missing',
-      });
-    })()`);
-    const o = JSON.parse(s);
-    const ticketOk =
-      o.place &&
-      /^\d+분$/.test(o.hero) &&
-      o.dist &&
-      o.dist !== "—" &&
-      !o.pin &&
-      (o.photoOn || o.photoDisplay === "none");
-    if (!ticketOk) bad++;
-    console.log(
-      `${ticketOk ? "OK  " : "실패"} 카드 ${i + 1}: ${o.kind} · ${o.place} · ${o.hero} ${o.cap} · ${o.dist}`
-    );
-    if (i === 0) {
-      const r = await send("Page.captureScreenshot", { format: "png" });
-      fs.writeFileSync(path.join(OUT, "card.png"), Buffer.from(r.result.data, "base64"));
+  const visitState = await ev(`(() => JSON.stringify({
+    empty: !document.getElementById('empty')?.classList.contains('hidden'),
+    adjust: !document.getElementById('adjust-sheet')?.classList.contains('hidden'),
+    slots: document.getElementById('slots-label')?.textContent.trim(),
+  }))()`);
+  const vs = JSON.parse(visitState);
+  if (vs.empty) {
+    console.log("OK  방문 빈 결과: 가상 식당을 붙이지 않음");
+  } else {
+    for (let i = 0; i < 3; i++) {
+      const s = await ev(`(() => {
+        const photo = document.getElementById('card-media');
+        return JSON.stringify({
+          place: document.getElementById('card-place')?.textContent.trim(),
+          kind: document.getElementById('card-menu')?.textContent.trim(),
+          hero: document.getElementById('card-hero-num')?.textContent.trim(),
+          cap: document.getElementById('card-hero-cap')?.textContent.trim(),
+          dist: document.getElementById('card-fact1-val')?.textContent.trim(),
+          pin: !!document.querySelector('.map-pin'),
+          photoOn: document.getElementById('card')?.classList.contains('has-photo'),
+          photoDisplay: photo ? getComputedStyle(photo).display : 'missing',
+          slots: document.getElementById('slots-label')?.textContent.trim(),
+        });
+      })()`);
+      const o = JSON.parse(s);
+      const ticketOk =
+        o.place &&
+        /^\d+분$/.test(o.hero) &&
+        o.dist &&
+        o.dist !== "—" &&
+        !o.pin &&
+        (o.photoOn || o.photoDisplay === "none") &&
+        o.slots === `${i + 1}/3`;
+      if (!ticketOk) bad++;
+      console.log(
+        `${ticketOk ? "OK  " : "실패"} 방문 ${i + 1}/3: ${o.kind} · ${o.place} · ${o.hero} ${o.cap} · ${o.dist} · ${o.slots}`
+      );
+      if (i === 0) {
+        const r = await send("Page.captureScreenshot", { format: "png" });
+        fs.writeFileSync(path.join(OUT, "card.png"), Buffer.from(r.result.data, "base64"));
+      }
+      await ev(`document.getElementById('btn-nope')?.click(); true`);
+      await sleep(1800);
     }
-    await ev(`document.getElementById('btn-nope')?.click(); true`);
-    await sleep(1800);
+    const adjustOn = await ev(
+      `!document.getElementById('adjust-sheet')?.classList.contains('hidden')`
+    );
+    if (!adjustOn) bad++;
+    console.log(`${adjustOn ? "OK  " : "실패"} 3장 거절 후 조정 시트`);
   }
 
   // 배달은 프랜차이즈 브랜드 카드 — 거리·ETA가 아니라 예산과 주문 채널을 보여준다
@@ -206,7 +223,7 @@ async function main() {
     d.f1k === "종류" &&
     d.f2k === "주문" &&
     d.f2v &&
-    d.cap === "1인 예상" &&
+    d.cap === "예상 1인" &&
     d.radius === "전국";
   if (!deliveryOk) bad++;
   console.log(

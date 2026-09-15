@@ -32,6 +32,10 @@ ALLOWED_EVENTS = {
     "install_click",
     "story_unlock",
     "story_image",
+    "recommend_shown",
+    "pack_exhausted",
+    "adjust",
+    "undo",
 }
 
 

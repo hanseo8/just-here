@@ -16,6 +16,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from . import analytics
 from . import duo
 from . import engine
+from . import guest_token
 from . import kakao
 from . import share
 from . import titles
@@ -88,14 +89,39 @@ class AnalyticsEventBody(BaseModel):
     props: dict = Field(default_factory=dict)
 
 
+def _guest_header(request: Request) -> str:
+    return (request.headers.get("x-guest-token") or request.headers.get("X-Guest-Token") or "").strip()
+
+
+def _require_uid(request: Request, uid: str) -> str:
+    uid = (uid or "").strip()
+    if not uid:
+        raise HTTPException(401, "guest token required")
+    payload = guest_token.verify(_guest_header(request))
+    if not payload or payload.get("uid") != uid:
+        raise HTTPException(401, "guest token required")
+    return uid
+
+
+def _optional_uid(request: Request, uid: str | None) -> str | None:
+    if not uid:
+        return None
+    return _require_uid(request, uid)
+
+
 def _strip(cards: list[dict]) -> list[dict]:
     return [{k: v for k, v in c.items() if not k.startswith("_")} for c in cards]
 
 
 def _feed_payload(s: engine.Session, cards: list[dict], radius: int, gold: bool = False) -> dict:
     meta = engine.session_meta(s)
-    # 티어 카피는 "근처" 기준이라 배달(전국 프랜차이즈)에는 맞지 않는다
-    copy = "고르면 바로 주문 화면으로 넘어가요" if s.intent == "delivery" else meta["copy"]
+    pack = engine.pack_meta(s)
+    if s.intent == "delivery":
+        copy = "고르면 이 브랜드 주문 화면으로 이어져요"
+    elif pack["adjust_needed"]:
+        copy = "어떤 쪽으로 다시 골라볼까요?"
+    else:
+        copy = "오늘 뭐 먹을지, 한 장씩 골라볼게요"
     return {
         "session_id": s.id,
         "intent": s.intent,
@@ -108,9 +134,10 @@ def _feed_payload(s: engine.Session, cards: list[dict], radius: int, gold: bool 
         "hub_id": meta["hub_id"],
         "inventory_source": meta["inventory_source"],
         "kakao_enabled": meta["kakao_enabled"],
-        "nudge": "gold" if gold else None,
+        "nudge": None,
         "cards": _strip(cards),
-        "empty": len(cards) == 0,
+        "empty": len(cards) == 0 and not pack["adjust_needed"],
+        **pack,
     }
 
 
@@ -212,15 +239,17 @@ def meta():
 def auth_guest(body: GuestAuthBody):
     """1단계: 회원가입 없이 기기 기준 익명 uid 발급/재연결."""
     profile = users.STORE.ensure_guest(body.device_id, firebase_uid=body.firebase_uid)
+    token = guest_token.issue(profile["uid"], body.device_id)
     return {
         "ok": True,
         "uid": profile["uid"],
         "auth_type": profile.get("auth_type"),
+        "guest_token": token,
         "user": users.STORE.public_profile(profile["uid"]),
     }
 
 
-def _finish_kakao_link(guest_uid: str, kakao_user: dict) -> dict:
+def _finish_kakao_link(guest_uid: str, kakao_user: dict, device_id: str = "") -> dict:
     kakao_uid = f"kakao_{kakao_user['kakao_id']}"
     try:
         users.STORE.merge_guest_into(guest_uid, kakao_uid, auth_type="kakao")
@@ -236,13 +265,15 @@ def _finish_kakao_link(guest_uid: str, kakao_user: dict) -> dict:
         "uid": kakao_uid,
         "auth_type": "kakao",
         "linked_from": guest_uid,
+        "guest_token": guest_token.issue(kakao_uid, device_id),
         "user": users.STORE.public_profile(kakao_uid),
     }
 
 
 @app.post("/v1/auth/kakao/link")
-def auth_kakao_link(body: KakaoLinkBody):
+def auth_kakao_link(body: KakaoLinkBody, request: Request):
     """2단계: 액세스 토큰으로 익명 데이터 병합 (레거시)."""
+    _require_uid(request, body.guest_uid)
     try:
         kakao_user = users.verify_kakao_access_token(body.access_token)
     except ValueError as e:
@@ -251,13 +282,11 @@ def auth_kakao_link(body: KakaoLinkBody):
 
 
 @app.post("/v1/auth/kakao/code")
-def auth_kakao_code(body: KakaoCodeBody):
+def auth_kakao_code(body: KakaoCodeBody, request: Request):
     """2단계: SDK v2 authorize 인가코드 → 토큰 교환 후 병합."""
-    # 재배포로 guest가 비어도 병합 가능하도록 보장
-    try:
-        users.STORE.ensure_uid(body.guest_uid)
-    except KeyError:
-        raise HTTPException(400, "guest uid missing") from None
+    _require_uid(request, body.guest_uid)
+    if not users.STORE.get(body.guest_uid):
+        raise HTTPException(404, "guest user not found")
     try:
         kakao_user = users.exchange_kakao_auth_code(body.code, body.redirect_uri)
     except ValueError as e:
@@ -266,7 +295,8 @@ def auth_kakao_code(body: KakaoCodeBody):
 
 
 @app.get("/v1/me")
-def me(uid: str = Query(...)):
+def me(request: Request, uid: str = Query(...)):
+    _require_uid(request, uid)
     profile = users.STORE.public_profile(uid)
     if not profile:
         raise HTTPException(404, "user not found")
@@ -274,7 +304,8 @@ def me(uid: str = Query(...)):
 
 
 @app.post("/v1/me/taste")
-def me_taste(body: TasteSyncBody):
+def me_taste(body: TasteSyncBody, request: Request):
+    _require_uid(request, body.uid)
     try:
         users.STORE.set_taste(body.uid, body.taste)
     except KeyError:
@@ -283,9 +314,11 @@ def me_taste(body: TasteSyncBody):
 
 
 @app.post("/v1/me/unlock")
-def me_unlock(body: UnlockBody):
+def me_unlock(body: UnlockBody, request: Request):
     """영수증 코스메틱 해금 (스토리 인증 보상 등)."""
-    users.STORE.ensure_uid(body.uid)
+    _require_uid(request, body.uid)
+    if not users.STORE.get(body.uid):
+        raise HTTPException(404, "user not found")
     profile = users.STORE.add_unlock(body.uid, body.key)
     return {"ok": True, "unlocks": profile.get("unlocks") or []}
 
@@ -328,14 +361,15 @@ def context(
 
 
 @app.post("/v1/session")
-def start_session(body: SessionStartBody):
+def start_session(body: SessionStartBody, request: Request):
+    uid = _optional_uid(request, body.uid)
     s = engine.create_session(body.lat, body.lng, body.intent, body.weather, body.taste)
-    if body.uid:
+    if uid:
         try:
-            users.STORE.set_taste(body.uid, body.taste)
+            users.STORE.set_taste(uid, body.taste)
         except KeyError:
             pass
-    cards, radius, gold = engine.build_cards(s)
+    cards, radius, gold = engine.present_feed(s)
     return _feed_payload(s, cards, radius, gold)
 
 
@@ -363,7 +397,7 @@ def feed(
         if not moved:
             engine.refresh_inventory(s)
 
-    cards, radius, gold = engine.build_cards(s)
+    cards, radius, gold = engine.present_feed(s)
     return _feed_payload(s, cards, radius, gold)
 
 
@@ -484,10 +518,11 @@ def swipe(body: SwipeBody, request: Request):
     if not place:
         raise HTTPException(404, "menu not found")
 
-    if body.uid:
+    uid = _optional_uid(request, body.uid)
+    if uid:
         try:
             users.STORE.append_swipe(
-                body.uid,
+                uid,
                 {
                     "action": body.action,
                     "menu_id": body.menu_id,
@@ -497,6 +532,8 @@ def swipe(body: SwipeBody, request: Request):
                     "tags": place.get("tags") or [],
                     "intent": s.intent,
                     "weather": s.weather,
+                    "pack_id": s.pack_id,
+                    "logic_version": engine.LOGIC_VERSION,
                 },
             )
         except KeyError:
@@ -504,15 +541,15 @@ def swipe(body: SwipeBody, request: Request):
 
     if body.action == "nope":
         engine.apply_nope(s, place)
-        cards, radius, gold = engine.build_cards(s)
+        cards, radius, gold = engine.present_feed(s)
         return _feed_payload(s, cards, radius, gold)
 
     handoff = engine.apply_lets_go(s, place)
     persona = _build_persona(s, place)
     title = persona["title"]
-    if body.uid:
+    if uid:
         try:
-            users.STORE.earn_title(body.uid, title, persona.get("id") or "")
+            users.STORE.earn_title(uid, title, persona.get("id") or "")
         except KeyError:
             pass
     receipt = share.create_receipt(
@@ -540,6 +577,40 @@ def swipe(body: SwipeBody, request: Request):
         "menu_name": place["menu_name"],
         "receipt": share.share_payload(receipt, str(request.base_url)),
     }
+
+
+class AdjustBody(BaseModel):
+    session_id: str
+    option: Literal["cheaper", "different", "closer", "again"]
+
+
+class UndoBody(BaseModel):
+    session_id: str
+
+
+@app.post("/v1/adjust")
+def adjust(body: AdjustBody):
+    s = engine.get_session(body.session_id)
+    if not s:
+        raise HTTPException(404, "session not found")
+    if body.option == "closer" and s.intent != "visit":
+        raise HTTPException(400, "closer is visit-only")
+    engine.apply_adjust(s, body.option)
+    cards, radius, gold = engine.present_feed(s)
+    payload = _feed_payload(s, cards, radius, gold)
+    payload["adjusted"] = body.option
+    return payload
+
+
+@app.post("/v1/undo")
+def undo(body: UndoBody):
+    s = engine.get_session(body.session_id)
+    if not s:
+        raise HTTPException(404, "session not found")
+    if not engine.apply_undo(s):
+        raise HTTPException(400, "nothing to undo")
+    cards, radius, gold = engine.present_feed(s)
+    return _feed_payload(s, cards, radius, gold)
 
 
 if WEB_DIR.is_dir():

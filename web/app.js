@@ -16,6 +16,13 @@ const state = {
   cards: [],
   perfect: 5,
   radius: 700,
+  packId: "",
+  packRank: 0,
+  packSize: 3,
+  adjustNeeded: false,
+  canUndo: false,
+  adjustOptions: [],
+  logicVersion: "",
   swiping: false,
   modeSwitching: false,
   lastReceipt: null,
@@ -93,6 +100,9 @@ async function api(path, opts = {}) {
       const res = await fetch(path, {
         headers: {
           "Content-Type": "application/json",
+          ...(window.JustHereAuth?.getToken?.()
+            ? { "X-Guest-Token": window.JustHereAuth.getToken() }
+            : {}),
           ...(fetchOpts.headers || {}),
         },
         ...fetchOpts,
@@ -164,6 +174,8 @@ function setFeedHint(text, tone = "") {
 function setSwipeBusy(busy, action) {
   const pass = $("btn-nope");
   const go = $("btn-go");
+  const undo = $("btn-undo");
+  if (undo) undo.disabled = !!busy;
   [pass, go].forEach((btn) => {
     if (btn) btn.disabled = !!busy;
   });
@@ -399,7 +411,7 @@ const TASTE_CATEGORIES = [
   { key: "mexican", label: "멕시칸" },
 ];
 
-const TASTE_CAT_MIN = 2;
+const TASTE_CAT_MIN = 1;
 const TASTE_CAT_MAX = 3;
 
 function closeTasteFlow() {
@@ -562,7 +574,9 @@ function setTasteStatus(text, tone = "") {
 
 function setTasteBusy(busy) {
   document
-    .querySelectorAll(".taste-tone, #btn-taste-skip-tone, #btn-taste-back")
+    .querySelectorAll(
+      ".taste-tone, #btn-taste-skip-tone, #btn-taste-back, #btn-taste-skip, #btn-taste-next, #btn-taste-cancel"
+    )
     .forEach((btn) => {
       btn.disabled = !!busy;
     });
@@ -1057,6 +1071,22 @@ async function init() {
   }
   const tasteNext = $("btn-taste-next");
   if (tasteNext) tasteNext.onclick = () => goTasteToneStep();
+  const tasteSkip = $("btn-taste-skip");
+  if (tasteSkip) {
+    tasteSkip.onclick = async () => {
+      state.tasteChoices = [];
+      track("taste_done", { taste: [], tone: "skip_all" });
+      setTasteBusy(true);
+      try {
+        await startSession();
+      } catch (err) {
+        console.error(err);
+        setTasteStatus("근처 가게를 불러오지 못했어요. 잠시 후 다시 눌러 주세요.", "error");
+      } finally {
+        setTasteBusy(false);
+      }
+    };
+  }
   document.querySelectorAll(".taste-tone").forEach((btn) => {
     btn.onclick = () => finishTasteWithTone(btn.dataset.tone || "");
   });
@@ -1070,6 +1100,8 @@ async function init() {
   if (locateBtn) locateBtn.onclick = () => locateAndSyncWeather(true);
   $("btn-nope").onclick = () => swipe("nope");
   $("btn-go").onclick = () => swipe("lets_go");
+  const undoBtn = $("btn-undo");
+  if (undoBtn) undoBtn.onclick = () => undoCard();
   $("btn-again").onclick = () => location.reload();
   $("btn-share").onclick = () => shareReceipt();
   const kakaoBtn = $("btn-kakao-link");
@@ -1111,7 +1143,7 @@ async function init() {
         if (msg) msg.textContent = "다시 불러오지 못했어요. 잠시 후 시도해 주세요.";
       } finally {
         reloadBtn.disabled = false;
-        reloadBtn.textContent = "다시 불러오기";
+        reloadBtn.textContent = "다시 시도";
       }
     };
   }
@@ -1136,7 +1168,7 @@ async function init() {
       setToggleUI(state.intent);
       setFeedHint(
         next === "delivery"
-          ? "배달 가능한 곳으로 다시 찾는 중이에요."
+          ? "주문할 브랜드를 고르는 중이에요."
           : "걸어갈 수 있는 곳으로 다시 찾는 중이에요.",
         "busy"
       );
@@ -1261,24 +1293,52 @@ function applyFeed(data) {
   state.cards = data.cards || [];
   state.perfect = data.perfect_slots_left;
   state.radius = data.effective_radius_m;
+  state.packId = data.pack_id || "";
+  state.packRank = data.pack_rank || 0;
+  state.packSize = data.pack_size || 3;
+  state.adjustNeeded = !!data.adjust_needed;
+  state.canUndo = !!data.can_undo;
+  state.adjustOptions = data.adjust_options || [];
+  state.logicVersion = data.logic_version || "";
   if (data.intent) state.intent = data.intent;
-  $("feed-copy").textContent = data.copy || "오늘 점심은 그냥여기 어때?";
-  // 배달은 프랜차이즈 전국 주문이라 반경이 없다
+  $("feed-copy").textContent = data.copy || "오늘 뭐 먹을지, 한 장씩 골라볼게요";
   const brandMode = state.intent === "delivery";
   $("radius-key").textContent = brandMode ? "범위" : "반경";
   $("radius-label").textContent = brandMode ? "전국" : `${state.radius}m`;
-  $("slots-label").textContent = `${state.perfect}/5`;
+  $("slots-label").textContent = state.adjustNeeded
+    ? "다시 고르기"
+    : state.packRank
+      ? `${state.packRank}/${state.packSize}`
+      : "—";
   if ($("source-label")) {
     const srcMap = {
       hub_seed: "송도 큐레이션",
       hub_seed_anchored: "송도 · 내위치",
-      "hub+kakao": "송도 + 주변",
+      "hub+kakao": "주변 실상호",
       kakao: "주변 실상호",
       seed_fallback: "라이트",
+      empty: "결과 없음",
     };
     $("source-label").textContent = brandMode
       ? "공식 주문"
       : srcMap[data.inventory_source] || data.inventory_source || "—";
+  }
+  syncUndoBtn();
+  const card = currentCard();
+  if (card) {
+    track("recommend_shown", {
+      pack_id: card.pack_id || state.packId,
+      menu_id: card.menu_id,
+      rank: card.pack_rank || state.packRank,
+      logic_version: card.logic_version || state.logicVersion,
+      intent: state.intent,
+    });
+  } else if (state.adjustNeeded) {
+    track("pack_exhausted", {
+      pack_id: state.packId,
+      logic_version: state.logicVersion,
+      intent: state.intent,
+    });
   }
 }
 
@@ -1335,8 +1395,10 @@ function categoryLabel(card) {
 }
 
 function kindLabel(card) {
-  const menu = String(card.menu_name || "").trim();
-  if (menu && menu !== "추천 메뉴") return menu;
+  if (card.is_brand) {
+    const menu = String(card.menu_name || "").trim();
+    if (menu && menu !== "추천 메뉴") return menu;
+  }
   return categoryLabel(card);
 }
 
@@ -1353,7 +1415,7 @@ function shortPrice(krw) {
    방문은 도착까지 걸리는 시간, 배달은 지점이 없어 시간을 알 수 없으니 예산. */
 function heroMetric(card) {
   if (card.is_brand) {
-    return { num: shortPrice(card.price_krw), cap: "1인 예상" };
+    return { num: shortPrice(card.price_krw), cap: "예상 1인" };
   }
   const mins = walkMinutes(card.distance_m);
   if (mins == null) return { num: "—", cap: "걸어가면 도착" };
@@ -1372,33 +1434,46 @@ function renderCard() {
   const card = currentCard();
   const empty = $("empty");
   const el = $("card");
+  const adjust = $("adjust-sheet");
+  const actions = document.querySelector(".bottom.actions");
+
+  if (state.adjustNeeded) {
+    el.classList.add("hidden");
+    empty.classList.add("hidden");
+    $("feed-hint")?.classList.add("hidden");
+    if (actions) actions.classList.add("hidden");
+    renderAdjustSheet();
+    syncUndoBtn();
+    return;
+  }
+  if (adjust) adjust.classList.add("hidden");
+
   if (!card) {
     el.classList.add("hidden");
     empty.classList.remove("hidden");
+    if (actions) actions.classList.add("hidden");
     const msg = $("empty-msg");
     if (msg) {
-      msg.textContent =
-        state.intent === "delivery"
-          ? "주문 가능한 브랜드를 다 보여드렸어요. 다시 불러오면 처음부터 보여드려요."
-          : state.usingFallbackLoc
-            ? `송도 기준 ${state.radius}m 안에서 조건에 맞는 가게를 못 찾았어요. 위치를 다시 잡으면 결과가 달라져요.`
-            : `${state.radius}m 안에서 조건에 맞는 가게를 못 찾았어요.`;
+      msg.textContent = state.usingFallbackLoc
+        ? "이 임시 위치에서 가게를 못 찾았어요. 위치 권한을 허용하면 결과가 달라져요."
+        : "이 위치에서 조건에 맞는 가게를 못 찾았어요. 위치를 바꾸거나 다시 시도해 주세요.";
     }
     const swapBtn = $("btn-empty-intent");
     if (swapBtn) {
       swapBtn.textContent =
         state.intent === "delivery" ? "방문으로 바꿔 보기" : "배달로 바꿔 보기";
     }
-    // 카드가 없으면 스와이프 안내는 의미 없음
     $("feed-hint")?.classList.add("hidden");
+    syncUndoBtn();
     return;
   }
   $("feed-hint")?.classList.remove("hidden");
   setFeedHint("");
   empty.classList.add("hidden");
+  if (actions) actions.classList.remove("hidden");
   el.classList.remove("hidden");
-  el.classList.toggle("gold", !!card.is_gold);
-  $("gold-badge").classList.toggle("hidden", !card.is_gold);
+  el.classList.remove("gold");
+  $("gold-badge").classList.add("hidden");
   setCardPhoto(card);
   $("card-place").textContent = card.place_name;
   $("card-menu").textContent = kindLabel(card);
@@ -1406,8 +1481,6 @@ function renderCard() {
   $("card-hero-num").textContent = hero.num;
   $("card-hero-cap").textContent = hero.cap;
 
-  /* 방문은 주소, 배달은 이 브랜드를 왜 지금 고르는지.
-     둘 다 실제 값이 있을 때만 — 자리 채우기용 문구는 숨긴다 */
   const where = $("card-where");
   const sub = card.is_brand
     ? card.review || ""
@@ -1417,8 +1490,6 @@ function renderCard() {
   where.textContent = sub;
   where.classList.toggle("hidden", !sub);
 
-  /* 브랜드 카드에는 지점이 없어 거리가 존재하지 않는다.
-     빈 값을 보여주는 대신 판단에 쓸 수 있는 사실로 바꿔 넣는다. */
   if (card.is_brand) {
     $("card-fact1-key").textContent = "종류";
     $("card-fact1-val").textContent = categoryLabel(card);
@@ -1427,30 +1498,95 @@ function renderCard() {
   } else {
     $("card-fact1-key").textContent = "거리";
     $("card-fact1-val").textContent = distanceLabel(card.distance_m);
-    $("card-fact2-key").textContent = "1인 예상";
-    $("card-fact2-val").textContent = card.price_band || "—";
+    $("card-fact2-key").textContent = "예상 1인";
+    $("card-fact2-val").textContent = card.price_band
+      ? `예상 ${card.price_band}`
+      : "가격 미확인";
   }
 
-  // 배달일 때만: 이 메뉴가 배달을 견디는지에 대한 안내
   const note = $("card-note");
-  const noteText =
-    state.intent === "delivery" && card.sensitivity_tip ? card.sensitivity_tip : "";
+  const noteText = card.why || "";
   note.textContent = noteText;
   note.classList.toggle("hidden", !noteText);
 
-  // 이유가 있을 때만 태그를 보여준다 (#그냥여기 같은 빈 태그는 정보가 없음)
-  const rawTag = readableTag(card.hashtag);
-  const tagText = card.taste_match
-    ? "취향 맞춤"
-    : rawTag === "그냥여기"
-      ? ""
-      : rawTag;
   const tagEl = $("card-tag");
-  tagEl.textContent = tagText;
-  tagEl.classList.toggle("hidden", !tagText);
+  tagEl.textContent = "";
+  tagEl.classList.add("hidden");
   $("detail").classList.add("hidden");
   el.style.transform = "";
   el.style.opacity = "1";
+  syncUndoBtn();
+}
+
+function renderAdjustSheet() {
+  const sheet = $("adjust-sheet");
+  const box = $("adjust-options");
+  if (!sheet || !box) return;
+  box.innerHTML = "";
+  (state.adjustOptions || []).forEach((opt) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn ghost adjust-opt";
+    btn.dataset.option = opt.id;
+    btn.textContent = opt.label;
+    btn.onclick = () => submitAdjust(opt.id);
+    box.appendChild(btn);
+  });
+  sheet.classList.remove("hidden");
+}
+
+function syncUndoBtn() {
+  const btn = $("btn-undo");
+  if (!btn) return;
+  const show = !!state.canUndo && !state.swiping;
+  btn.classList.toggle("hidden", !show);
+}
+
+async function submitAdjust(option) {
+  if (!state.sessionId || state.swiping) return;
+  state.swiping = true;
+  try {
+    const data = await api("/v1/adjust", {
+      method: "POST",
+      body: JSON.stringify({ session_id: state.sessionId, option }),
+    });
+    track("adjust", {
+      option,
+      pack_id: state.packId,
+      logic_version: data.logic_version || state.logicVersion,
+    });
+    applyFeed(data);
+    renderCard();
+  } catch (err) {
+    console.error(err);
+    setFeedHint("조건을 바꾸지 못했어요. 다시 눌러 주세요.", "error");
+  } finally {
+    state.swiping = false;
+    syncUndoBtn();
+  }
+}
+
+async function undoCard() {
+  if (!state.sessionId || !state.canUndo || state.swiping) return;
+  state.swiping = true;
+  try {
+    const data = await api("/v1/undo", {
+      method: "POST",
+      body: JSON.stringify({ session_id: state.sessionId }),
+    });
+    track("undo", {
+      pack_id: data.pack_id || state.packId,
+      logic_version: data.logic_version || state.logicVersion,
+    });
+    applyFeed(data);
+    renderCard();
+  } catch (err) {
+    console.error(err);
+    setFeedHint("이전 후보를 불러오지 못했어요.", "error");
+  } finally {
+    state.swiping = false;
+    syncUndoBtn();
+  }
 }
 
 function openHandoff(handoff) {
@@ -1499,20 +1635,26 @@ async function swipe(action) {
     });
     if (action === "lets_go") {
       track("swipe_go", {
-        category: card.category || card.category_path?.[0] || "",
-        place: card.name || "",
+        category: card.category || "",
+        pack_id: card.pack_id || state.packId,
+        rank: card.pack_rank || state.packRank,
+        logic_version: card.logic_version || state.logicVersion,
       });
       track("match_done", {
-        category: card.category || card.category_path?.[0] || "",
+        category: card.category || "",
         intent: state.intent,
         persona: data.persona?.id || "",
-        place: data.place_name || card.name || "",
+        pack_id: card.pack_id || state.packId,
+        logic_version: card.logic_version || state.logicVersion,
       });
       showMatchThenHandoff(data);
       return true;
     }
     track("swipe_nope", {
-      category: card.category || card.category_path?.[0] || "",
+      category: card.category || "",
+      pack_id: card.pack_id || state.packId,
+      rank: card.pack_rank || state.packRank,
+      logic_version: card.logic_version || state.logicVersion,
     });
     applyFeed(data);
     renderCard();
@@ -1524,6 +1666,7 @@ async function swipe(action) {
   } finally {
     state.swiping = false;
     setSwipeBusy(false);
+    syncUndoBtn();
   }
 }
 
