@@ -258,6 +258,24 @@ async function main() {
   if (!handoffOk) bad++;
   console.log(`${handoffOk ? "OK  " : "실패"} 배달 핸드오프: "${h.label}" → ${h.href}`);
   if (h.note) console.log(`     안내: ${h.note}`);
+  const meal = await ev(`(() => JSON.stringify({
+    hidden: document.getElementById('meal-prompt')?.classList.contains('hidden'),
+    title: document.querySelector('#meal-prompt .meal-prompt-title')?.textContent.trim() || '',
+    yes: !!document.getElementById('btn-meal-yes'),
+    handoffFirst: (() => {
+      const box = document.querySelector('.done-box');
+      if (!box) return false;
+      const kids = [...box.children].map((el) => el.id);
+      return kids.indexOf('handoff-link') < kids.indexOf('meal-prompt') &&
+        kids.indexOf('meal-prompt') < kids.indexOf('receipt');
+    })(),
+  }))()`);
+  const m = JSON.parse(meal);
+  const mealOk = m.hidden === false && m.yes && /드셨어요/.test(m.title) && m.handoffFirst;
+  if (!mealOk) bad++;
+  console.log(
+    `${mealOk ? "OK  " : "실패"} 식사 확인: hidden=${m.hidden} "${m.title}" 순서=${m.handoffFirst}`
+  );
   const r3 = await send("Page.captureScreenshot", { format: "png" });
   fs.writeFileSync(path.join(OUT, "done-delivery.png"), Buffer.from(r3.result.data, "base64"));
 

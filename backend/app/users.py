@@ -12,13 +12,16 @@ import secrets
 import threading
 import time
 import uuid
+from collections import defaultdict
 from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 import httpx
 
 from .config import data_dir
+from .radius import KST
 
 USERS_PATH = data_dir() / "users.json"
 _LOCK = threading.Lock()
@@ -26,6 +29,95 @@ _LOCK = threading.Lock()
 
 def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def _parse_ts(raw: str) -> datetime | None:
+    text = (raw or "").strip()
+    if not text:
+        return None
+    try:
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        dt = datetime.fromisoformat(text)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except ValueError:
+        return None
+
+
+def compute_taste_signals(
+    logs: list[dict[str, Any]] | None,
+    *,
+    exclude: list[str] | None = None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """스와이프 기록 → 다음 세션 점수에 넣을 장기 신호.
+
+    한 번의 거절은 장기 hate가 아니다. 서로 다른 날짜에 같은 종류를 거절해야
+    감점하고, 선택은 그날부터 약한 가산, 식사 확인은 그보다 세게 본다.
+    """
+    now = now or datetime.now(timezone.utc)
+    nope_days: dict[str, set[str]] = defaultdict(set)
+    go_days: dict[str, set[str]] = defaultdict(set)
+    go_count: dict[str, int] = defaultdict(int)
+    ate_count: dict[str, int] = defaultdict(int)
+    recent: set[str] = set()
+    has_history = False
+
+    for ev in logs or []:
+        action = ev.get("action") or ""
+        keys = []
+        for raw in (ev.get("category"), ev.get("kind")):
+            val = str(raw or "").strip()
+            if val and val not in keys and val != "other":
+                keys.append(val)
+        if not keys:
+            continue
+        ts = _parse_ts(str(ev.get("at") or ""))
+        if ts is None:
+            continue
+        has_history = True
+        day = ts.astimezone(KST).strftime("%Y-%m-%d")
+        recent_hit = (now - ts) <= timedelta(hours=36)
+        for cat in keys:
+            if action == "nope":
+                nope_days[cat].add(day)
+            elif action == "lets_go":
+                go_days[cat].add(day)
+                go_count[cat] += 1
+                if recent_hit:
+                    recent.add(cat)
+            elif action == "ate":
+                go_days[cat].add(day)
+                go_count[cat] += 1
+                ate_count[cat] += 1
+                if recent_hit:
+                    recent.add(cat)
+
+    hate: dict[str, float] = {}
+    prefer: dict[str, float] = {}
+    frequent: list[str] = []
+    for cat in set(nope_days) | set(go_days) | set(ate_count):
+        n_days = len(nope_days.get(cat, ()))
+        g_days = len(go_days.get(cat, ()))
+        if n_days >= 2 and n_days > g_days:
+            hate[cat] = round(min(1.6, 0.45 * (n_days - 1)), 2)
+        pref = 0.3 * min(go_count.get(cat, 0), 4) + 0.7 * ate_count.get(cat, 0)
+        if pref > 0:
+            prefer[cat] = round(min(1.8, pref), 2)
+        if g_days >= 2:
+            frequent.append(cat)
+    frequent.sort(key=lambda c: (len(go_days.get(c, ())), go_count.get(c, 0)), reverse=True)
+
+    return {
+        "hate_categories": hate,
+        "prefer_categories": prefer,
+        "recent_repeat_categories": sorted(recent),
+        "frequent_categories": frequent[:6],
+        "exclude_categories": [str(x) for x in (exclude or []) if x],
+        "has_history": has_history,
+    }
 
 
 def _empty_user(uid: str, *, auth_type: str, device_id: str = "") -> dict[str, Any]:
@@ -196,6 +288,23 @@ class UserStore:
             u["updated_at"] = _now()
             self._save()
             return deepcopy(u)
+
+    def get_taste(self, uid: str) -> list[str]:
+        u = self.get(uid)
+        if not u:
+            return []
+        taste = (u.get("preferences") or {}).get("taste") or []
+        return [str(x) for x in taste if x]
+
+    def taste_signals(self, uid: str) -> dict[str, Any]:
+        u = self.get(uid)
+        if not u:
+            return compute_taste_signals([])
+        prefs = u.get("preferences") or {}
+        return compute_taste_signals(
+            u.get("swipe_logs") or [],
+            exclude=list(prefs.get("exclude_categories") or []),
+        )
 
     def earn_title(self, uid: str, title: str, title_id: str = "") -> dict[str, Any]:
         with _LOCK:

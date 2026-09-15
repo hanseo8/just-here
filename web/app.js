@@ -1102,6 +1102,10 @@ async function init() {
   $("btn-go").onclick = () => swipe("lets_go");
   const undoBtn = $("btn-undo");
   if (undoBtn) undoBtn.onclick = () => undoCard();
+  const mealYes = $("btn-meal-yes");
+  if (mealYes) mealYes.onclick = () => submitMeal(true);
+  const mealSkip = $("btn-meal-skip");
+  if (mealSkip) mealSkip.onclick = () => submitMeal(false);
   $("btn-again").onclick = () => location.reload();
   $("btn-share").onclick = () => shareReceipt();
   const kakaoBtn = $("btn-kakao-link");
@@ -1918,9 +1922,65 @@ function showDone(data) {
   updateKakaoLinkButton();
   updateStoryReward();
   refreshTitleBadge();
+  renderMealPrompt(data);
   ensureReceipt(data)
     .then(() => setShareStatus("공유할 준비됐어요"))
     .catch(() => setShareStatus("공유 링크를 아직 못 만들었어요"));
+}
+
+function mealStorageKey(data) {
+  const uid = state.uid || window.JustHereAuth?.getUid?.() || "";
+  const menu = data?.menu_id || data?.place_name || "";
+  const day = new Date().toISOString().slice(0, 10);
+  return `jh_meal:${uid}:${menu}:${day}`;
+}
+
+function renderMealPrompt(data) {
+  const box = $("meal-prompt");
+  if (!box) return;
+  const uid = state.uid || window.JustHereAuth?.getUid?.() || "";
+  const answered = !!(data && localStorage.getItem(mealStorageKey(data)));
+  box.classList.toggle("hidden", !uid || answered);
+}
+
+async function submitMeal(eaten) {
+  const data = state.lastDone;
+  const uid = state.uid || window.JustHereAuth?.getUid?.() || "";
+  const box = $("meal-prompt");
+  if (!data || !uid || !box || box.classList.contains("hidden")) return;
+  const yes = $("btn-meal-yes");
+  const skip = $("btn-meal-skip");
+  if (yes) yes.disabled = true;
+  if (skip) skip.disabled = true;
+  try {
+    await api("/v1/me/meal", {
+      method: "POST",
+      body: JSON.stringify({
+        uid,
+        menu_id: data.menu_id || "",
+        category: data.category || "",
+        kind: data.kind || "",
+        place_name: data.place_name || "",
+        eaten: !!eaten,
+      }),
+    });
+    localStorage.setItem(mealStorageKey(data), eaten ? "ate" : "skip");
+    track("meal_confirm", {
+      eaten: !!eaten,
+      category: data.category || "",
+      menu_id: data.menu_id || "",
+      pack_id: data.pack_id || state.packId,
+      logic_version: data.logic_version || state.logicVersion,
+    });
+    box.innerHTML = eaten
+      ? "<p class=\"meal-prompt-title\">다음 추천에 반영할게요</p><p class=\"meal-prompt-sub\">비슷한 종류를 조금 더 자주 보여드려요.</p>"
+      : "<p class=\"meal-prompt-title\">알겠어요</p><p class=\"meal-prompt-sub\">지금은 선택만 저장해 둘게요.</p>";
+  } catch (err) {
+    console.error(err);
+    if (yes) yes.disabled = false;
+    if (skip) skip.disabled = false;
+    setShareStatus("식사 확인을 저장하지 못했어요. 다시 눌러 주세요.");
+  }
 }
 
 function setupSwipeGestures() {

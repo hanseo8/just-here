@@ -36,6 +36,7 @@ ALLOWED_EVENTS = {
     "pack_exhausted",
     "adjust",
     "undo",
+    "meal_confirm",
 }
 
 
@@ -113,6 +114,10 @@ def summarize(since_days: int = 7) -> dict[str, Any]:
         "match_done": 0,
         "share": 0,
         "kakao_link": 0,
+        "recommend_shown": 0,
+        "pack_exhausted": 0,
+        "adjust": 0,
+        "meal_confirm": 0,
     }
 
     for r in rows:
@@ -177,6 +182,15 @@ def summarize(since_days: int = 7) -> dict[str, Any]:
             "session_to_match": rate(funnel["match_done"], funnel["session_start"]),
             "match_to_share": rate(funnel["share"], funnel["match_done"]),
             "match_to_kakao": rate(funnel["kakao_link"], funnel["match_done"]),
+            "pack_exhausted_rate": rate(
+                funnel.get("pack_exhausted", 0), funnel["session_start"]
+            ),
+            "match_after_adjust": rate(
+                funnel["match_done"], funnel.get("adjust", 0) + funnel["session_start"]
+            ),
+            "meal_confirm_rate": rate(
+                funnel.get("meal_confirm", 0), funnel["match_done"]
+            ),
             "locate_ok_rate": rate(
                 funnel["locate_ok"],
                 funnel["locate_ok"] + funnel["locate_fallback"],

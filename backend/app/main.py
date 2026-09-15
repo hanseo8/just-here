@@ -77,6 +77,15 @@ class TasteSyncBody(BaseModel):
     taste: list[str] = Field(default_factory=list)
 
 
+class MealConfirmBody(BaseModel):
+    uid: str
+    menu_id: str = ""
+    category: str = ""
+    kind: str = ""
+    place_name: str = ""
+    eaten: bool
+
+
 class UnlockBody(BaseModel):
     uid: str
     key: Literal["story_gold"]
@@ -313,6 +322,27 @@ def me_taste(body: TasteSyncBody, request: Request):
     return {"ok": True, "user": users.STORE.public_profile(body.uid)}
 
 
+@app.post("/v1/me/meal")
+def me_meal(body: MealConfirmBody, request: Request):
+    """선택적 식사 확인 — 선택보다 강한 선호 신호. 안 골라도 된다."""
+    uid = _require_uid(request, body.uid)
+    action = "ate" if body.eaten else "skip_meal"
+    try:
+        users.STORE.append_swipe(
+            uid,
+            {
+                "action": action,
+                "menu_id": body.menu_id,
+                "place_name": body.place_name,
+                "category": body.category,
+                "kind": body.kind,
+            },
+        )
+    except KeyError:
+        raise HTTPException(404, "user not found") from None
+    return {"ok": True, "action": action}
+
+
 @app.post("/v1/me/unlock")
 def me_unlock(body: UnlockBody, request: Request):
     """영수증 코스메틱 해금 (스토리 인증 보상 등)."""
@@ -363,12 +393,23 @@ def context(
 @app.post("/v1/session")
 def start_session(body: SessionStartBody, request: Request):
     uid = _optional_uid(request, body.uid)
-    s = engine.create_session(body.lat, body.lng, body.intent, body.weather, body.taste)
+    taste = list(body.taste or [])
+    signals = None
     if uid:
+        stored = users.STORE.get_taste(uid)
+        if taste:
+            try:
+                users.STORE.set_taste(uid, taste)
+            except KeyError:
+                pass
+        else:
+            taste = stored
         try:
-            users.STORE.set_taste(uid, body.taste)
+            signals = users.STORE.taste_signals(uid)
         except KeyError:
-            pass
+            signals = None
+    s = engine.create_session(body.lat, body.lng, body.intent, body.weather, taste)
+    engine.apply_profile(s, signals, stored_taste=taste)
     cards, radius, gold = engine.present_feed(s)
     return _feed_payload(s, cards, radius, gold)
 
@@ -529,6 +570,7 @@ def swipe(body: SwipeBody, request: Request):
                     "place_id": place.get("place_id"),
                     "place_name": place.get("name"),
                     "category": place.get("category"),
+                    "kind": place.get("kind") or "",
                     "tags": place.get("tags") or [],
                     "intent": s.intent,
                     "weather": s.weather,
@@ -575,6 +617,11 @@ def swipe(body: SwipeBody, request: Request):
         "persona": persona,
         "place_name": place["name"],
         "menu_name": place["menu_name"],
+        "menu_id": place.get("menu_id") or body.menu_id,
+        "category": place.get("category") or "",
+        "kind": place.get("kind") or "",
+        "pack_id": s.pack_id,
+        "logic_version": engine.LOGIC_VERSION,
         "receipt": share.share_payload(receipt, str(request.base_url)),
     }
 

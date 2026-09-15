@@ -1044,6 +1044,31 @@ body.allow-scroll {
   line-height: 1.45;
   color: var(--text-2);
 }
+.meal-prompt {
+  margin: 14px 0 0;
+  padding: 14px 14px 12px;
+  border-radius: var(--r);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.meal-prompt.hidden { display: none; }
+.meal-prompt-title {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+}
+.meal-prompt-sub {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.45;
+}
+.meal-prompt-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.meal-prompt-actions .btn { min-height: 42px; flex: 1; }
 .btn.share.outline {
   background: transparent;
   border: 1px solid var(--border-strong);

@@ -47,6 +47,12 @@ class Session:
     adjust_needed: bool = False
     adjust_filters: dict = field(default_factory=dict)
     last_radius_m: int = 0
+    long_hate_cats: dict[str, float] = field(default_factory=dict)
+    long_prefer_cats: dict[str, float] = field(default_factory=dict)
+    recent_repeat_cats: set[str] = field(default_factory=set)
+    frequent_cats: list[str] = field(default_factory=list)
+    exclude_cats: set[str] = field(default_factory=set)
+    has_history: bool = False
 
 
 SESSIONS: dict[str, Session] = {}
@@ -155,6 +161,25 @@ def create_session(
     return s
 
 
+def apply_profile(session: Session, signals: dict | None, stored_taste: list[str] | None = None) -> None:
+    """장기 신호를 이번 세션 점수에 불러온다. 세션 거절 감점과는 별개다."""
+    if stored_taste and not session.taste:
+        session.taste = list(stored_taste)
+    sig = signals or {}
+    session.long_hate_cats = {
+        str(k): float(v) for k, v in (sig.get("hate_categories") or {}).items()
+    }
+    session.long_prefer_cats = {
+        str(k): float(v) for k, v in (sig.get("prefer_categories") or {}).items()
+    }
+    session.recent_repeat_cats = {
+        str(x) for x in (sig.get("recent_repeat_categories") or []) if x
+    }
+    session.frequent_cats = [str(x) for x in (sig.get("frequent_categories") or []) if x]
+    session.exclude_cats = {str(x) for x in (sig.get("exclude_categories") or []) if x}
+    session.has_history = bool(sig.get("has_history"))
+
+
 def get_session(session_id: str) -> Session | None:
     return SESSIONS.get(session_id)
 
@@ -251,11 +276,34 @@ def _taste_boost(place: dict, taste: list[str]) -> float:
     return boost
 
 
+def _signal_keys(place: dict) -> list[str]:
+    keys = []
+    for raw in (place.get("category"), place.get("kind")):
+        val = str(raw or "").strip()
+        if val and val not in keys and val != "other":
+            keys.append(val)
+    return keys
+
+
+def _profile_delta(place: dict, session: Session) -> float:
+    keys = _signal_keys(place)
+    if any(k in session.exclude_cats for k in keys):
+        return -50.0
+    score = 0.0
+    if keys:
+        score -= max(session.long_hate_cats.get(k, 0.0) for k in keys)
+        score += max(session.long_prefer_cats.get(k, 0.0) for k in keys)
+        if any(k in session.recent_repeat_cats for k in keys):
+            score -= 0.7
+    return score
+
+
 def _score(place: dict, distance_m: float, session: Session) -> float:
     """방문 카드 점수 — 가까울수록, 평점·취향이 맞을수록 높다."""
     score = 10.0 - distance_m / 100.0
     score += place.get("rating", 4.0)
     score += _taste_boost(place, session.taste)
+    score += _profile_delta(place, session)
     for tag in place.get("tags", []):
         score -= session.nope_tags.get(tag, 0.0)
     score -= session.nope_categories.get(place.get("category", ""), 0.0) * 0.8
@@ -266,6 +314,7 @@ def _brand_score(place: dict, session: Session) -> float:
     """배달 브랜드 점수 — 거리가 없으므로 평점·취향·거부 이력만 본다."""
     score = float(place.get("rating", 4.0))
     score += _taste_boost(place, session.taste)
+    score += _profile_delta(place, session)
     for tag in place.get("tags", []):
         score -= session.nope_tags.get(tag, 0.0)
     score -= session.nope_categories.get(place.get("category", ""), 0.0) * 0.8
@@ -366,7 +415,13 @@ def build_brand_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
     묶음 구성은 present_feed가 한다. 여기는 후보 풀만 만든다.
     """
     pool = brands.brand_places(session.taste)
-    avail = [p for p in pool if p["menu_id"] not in session.seen_menu_ids]
+    avail = [
+        p
+        for p in pool
+        if p["menu_id"] not in session.seen_menu_ids
+        and (p.get("category") or "") not in session.exclude_cats
+        and (p.get("kind") or "") not in session.exclude_cats
+    ]
     scored = [(_brand_score(p, session), p) for p in avail]
     taste_first = sorted(
         [x for x in scored if x[1].get("taste_match")], key=lambda x: x[0], reverse=True
@@ -447,6 +502,10 @@ def build_visit_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
             continue
         if p["menu_id"] in session.seen_menu_ids:
             continue
+        if (p.get("category") or "") in session.exclude_cats:
+            continue
+        if (p.get("kind") or "") in session.exclude_cats:
+            continue
         sc = _score(p, dist, session)
         kakao_cands.append((sc, p, dist, allow_r))
 
@@ -504,7 +563,7 @@ def build_visit_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
 
 
 PACK_SIZE = 3
-LOGIC_VERSION = "pack3-v1"
+LOGIC_VERSION = "persist-v1"
 
 TASTE_KO = {
     "korean": "한식",
@@ -585,6 +644,13 @@ def _why(session: Session, card: dict) -> str:
         return "다른 종류로 다시 골랐어요."
     if f.get("closer"):
         return "더 가까운 곳으로 다시 골랐어요."
+    cat = str(card.get("category") or "")
+    kind = str(card.get("kind") or "")
+    if session.has_history:
+        for key in (kind, cat):
+            if key and key in session.frequent_cats:
+                label = TASTE_KO.get(key) or key
+                return f"최근 자주 고른 {label} 메뉴예요."
     cats = [
         TASTE_KO[t]
         for t in (session.taste or [])

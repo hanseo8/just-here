@@ -10,10 +10,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
+from datetime import datetime, timezone  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app import brands, engine, kakao  # noqa: E402
 from app.main import app  # noqa: E402
+from app.users import compute_taste_signals  # noqa: E402
 
 LAT, LNG = 37.3826, 126.6432  # 송도
 fails: list[str] = []
@@ -150,6 +152,56 @@ ok = client.get("/v1/me", params={"uid": uid}, headers={"X-Guest-Token": token})
 check(ok.status_code == 200, f"토큰 있으면 me → {ok.status_code}")
 wrong = client.get("/v1/me", params={"uid": uid}, headers={"X-Guest-Token": "nope"})
 check(wrong.status_code == 401, "잘못된 토큰은 401")
+
+print("\n[개인화] 장기 신호는 여러 날에만 붙는다")
+now = datetime(2026, 9, 15, 12, tzinfo=timezone.utc)
+same_day = [
+    {"action": "nope", "category": "meat", "kind": "치킨", "at": "2026-09-15T01:00:00Z"},
+    {"action": "nope", "category": "meat", "kind": "치킨", "at": "2026-09-15T03:00:00Z"},
+]
+sig_day = compute_taste_signals(same_day, now=now)
+check("치킨" not in sig_day["hate_categories"], "하루 거절은 장기 hate가 아니다")
+
+two_days = same_day + [
+    {"action": "nope", "category": "meat", "kind": "치킨", "at": "2026-09-14T01:00:00Z"}
+]
+sig_hate = compute_taste_signals(two_days, now=now)
+check(sig_hate["hate_categories"].get("치킨", 0) > 0, "이틀 거절은 장기 hate")
+
+goes = [
+    {"action": "lets_go", "category": "meat", "kind": "치킨", "at": "2026-09-08T01:00:00Z"},
+    {"action": "lets_go", "category": "meat", "kind": "치킨", "at": "2026-09-13T01:00:00Z"},
+    {"action": "ate", "category": "meat", "kind": "치킨", "at": "2026-09-13T12:00:00Z"},
+]
+sig_pref = compute_taste_signals(goes, now=now)
+check("치킨" in sig_pref["frequent_categories"], "이틀 선택은 자주 고른 종류")
+check(sig_pref["prefer_categories"].get("치킨", 0) > sig_hate["hate_categories"].get("치킨", 0), "식사 확인이 거절보다 세다")
+
+plain = engine.create_session(LAT, LNG, "delivery", "clear")
+hated = engine.create_session(LAT, LNG, "delivery", "clear")
+engine.apply_profile(hated, sig_hate)
+loved = engine.create_session(LAT, LNG, "delivery", "clear")
+engine.apply_profile(loved, sig_pref)
+
+
+def _chicken_score(sess):
+    cards, _, _ = engine.build_cards(sess)
+    hit = next((c for c in cards if c.get("kind") == "치킨"), None)
+    return hit["_score"] if hit else None
+
+
+plain_sc = _chicken_score(plain)
+hate_sc = _chicken_score(hated)
+love_sc = _chicken_score(loved)
+check(plain_sc is not None and hate_sc is not None, "치킨 카드 점수를 계산한다")
+check(hate_sc < plain_sc, f"반복 거절은 점수가 낮다 ({hate_sc} < {plain_sc})")
+check(love_sc > plain_sc, f"반복 선택·식사는 점수가 높다 ({love_sc} > {plain_sc})")
+
+engine.reset_pack(loved)
+feed, _, _ = engine.present_feed(loved)
+why = next((c.get("why") or "" for c in loved.pack_cards if c.get("kind") == "치킨"), "")
+check("자주 고른" in why, f"기록 있는 why → {why or (feed[0].get('why') if feed else '')}")
+check("평소 좋아하는" not in why, "근거 없는 개인화 문구를 쓰지 않는다")
 
 print()
 if fails:
