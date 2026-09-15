@@ -28,6 +28,7 @@ const state = {
   lastReceipt: null,
   lastDone: null,
   savedTaste: [],
+  excludeCats: [],
   forceRetaste: false,
   goldUnlocked: false,
 };
@@ -120,11 +121,15 @@ async function api(path, opts = {}) {
 /** 소프트런치 퍼널 이벤트 — 실패해도 UX 방해 없음 */
 function track(event, props = {}) {
   try {
+    const merged = { ...(props || {}) };
+    if (state.sessionId && merged.session_id == null) {
+      merged.session_id = state.sessionId;
+    }
     const body = {
       event,
       uid: state.uid || window.JustHereAuth?.getUid?.() || "",
       device_id: window.JustHereAuth?.getDeviceId?.() || "",
-      props: props || {},
+      props: merged,
     };
     const payload = JSON.stringify(body);
     if (navigator.sendBeacon) {
@@ -1014,6 +1019,7 @@ async function init() {
         state.savedTaste = taste;
         state.tasteChoices = [...taste];
       }
+      applyExcludeFromMe(guest.user);
       state.goldUnlocked = (guest.user?.unlocks || []).includes("story_gold");
       // /v1/me로 한 번 더 동기화
       if (state.uid) {
@@ -1026,6 +1032,7 @@ async function init() {
           }
           if (me.user?.auth_type) state.authType = me.user.auth_type;
           state.goldUnlocked = (me.user?.unlocks || []).includes("story_gold");
+          applyExcludeFromMe(me.user);
         } catch (_) {}
       }
       updateTasteReuseHint();
@@ -1246,7 +1253,114 @@ function updateTasteReuseHint() {
       : "아직 고르지 않았어요";
   }
   if (retaste) retaste.textContent = saved.length ? "변경" : "고르기";
+  renderExcludeRow();
   syncStartState();
+}
+
+function excludeLabel(key) {
+  return CATEGORY_LABELS[key] || key || "이 종류";
+}
+
+function applyExcludeFromMe(user) {
+  const raw = user?.preferences?.exclude_categories || [];
+  state.excludeCats = [...new Set(raw.map((x) => String(x || "").trim()).filter(Boolean))];
+  renderExcludeRow();
+}
+
+function renderExcludeRow() {
+  const row = $("exclude-row");
+  const dd = $("exclude-summary");
+  if (!row || !dd) return;
+  const keys = state.excludeCats || [];
+  if (!keys.length) {
+    row.classList.add("hidden");
+    dd.textContent = "";
+    return;
+  }
+  row.classList.remove("hidden");
+  dd.innerHTML = "";
+  keys.forEach((key) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "exclude-chip";
+    btn.textContent = `${excludeLabel(key)} 되돌리기`;
+    btn.onclick = () => restoreExclude(key);
+    dd.appendChild(btn);
+  });
+}
+
+async function restoreExclude(key) {
+  const uid = state.uid || window.JustHereAuth?.getUid?.() || "";
+  if (!uid || !key) return;
+  try {
+    const data = await api("/v1/me/exclude", {
+      method: "POST",
+      body: JSON.stringify({
+        uid,
+        kind: key,
+        exclude: false,
+        session_id: state.sessionId || undefined,
+      }),
+    });
+    state.excludeCats = (state.excludeCats || []).filter((x) => x !== key);
+    if (Array.isArray(data.exclude_categories)) {
+      state.excludeCats = data.exclude_categories;
+    }
+    renderExcludeRow();
+    if (data.session_id) {
+      applyFeed(data);
+      renderCard();
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+async function submitExclude(card) {
+  const uid = state.uid || window.JustHereAuth?.getUid?.() || "";
+  const kind = String(card?.kind || "").trim();
+  const category = String(card?.category || "").trim();
+  if (!uid || (!kind && !category)) return;
+  const already = (state.excludeCats || []).includes(kind || category);
+  try {
+    const data = await api("/v1/me/exclude", {
+      method: "POST",
+      body: JSON.stringify({
+        uid,
+        session_id: state.sessionId || undefined,
+        kind,
+        category: kind ? "" : category,
+        exclude: !already,
+      }),
+    });
+    track("exclude", {
+      kind: kind || category,
+      exclude: !already,
+      pack_id: card.pack_id || state.packId,
+      logic_version: card.logic_version || state.logicVersion,
+    });
+    if (Array.isArray(data.exclude_categories)) {
+      state.excludeCats = data.exclude_categories;
+    } else if (!already) {
+      state.excludeCats = [...new Set([...(state.excludeCats || []), kind || category])];
+    } else {
+      state.excludeCats = (state.excludeCats || []).filter((x) => x !== (kind || category));
+    }
+    renderExcludeRow();
+    hideDetailModal();
+    if (data.session_id) {
+      applyFeed(data);
+      renderCard();
+    }
+    const label = excludeLabel(kind || category);
+    setFeedHint(
+      already ? `${label} 다시 추천에 넣을게요.` : `${label} 빼 두었어요.`,
+      already ? "" : "ok"
+    );
+  } catch (err) {
+    console.error(err);
+    setFeedHint("종류를 저장하지 못했어요. 다시 눌러 주세요.", "error");
+  }
 }
 
 async function startSession() {
@@ -1304,6 +1418,10 @@ function applyFeed(data) {
   state.canUndo = !!data.can_undo;
   state.adjustOptions = data.adjust_options || [];
   state.logicVersion = data.logic_version || "";
+  if (Array.isArray(data.exclude_categories)) {
+    state.excludeCats = data.exclude_categories;
+    renderExcludeRow();
+  }
   if (data.intent) state.intent = data.intent;
   $("feed-copy").textContent = data.copy || "오늘 뭐 먹을지, 한 장씩 골라볼게요";
   const brandMode = state.intent === "delivery";
@@ -1395,15 +1513,34 @@ const CATEGORY_LABELS = {
 };
 
 function categoryLabel(card) {
-  return card.kind || CATEGORY_LABELS[card.category] || "근처 가게";
+  if (card?.is_brand) {
+    return card.kind || CATEGORY_LABELS[card.category] || "근처 가게";
+  }
+  return CATEGORY_LABELS[card?.category] || card?.menu_name || "식당";
 }
 
 function kindLabel(card) {
-  if (card.is_brand) {
+  if (card?.is_brand) {
     const menu = String(card.menu_name || "").trim();
     if (menu && menu !== "추천 메뉴") return menu;
+    return categoryLabel(card);
   }
-  return categoryLabel(card);
+  if (card?.menu_verified && card.menu_name) return card.menu_name;
+  const cat = CATEGORY_LABELS[card?.category] || card?.menu_name || "식당";
+  const text = String(cat).trim();
+  if (!text) return "추정 식당";
+  return text.startsWith("추정 ") ? text : `추정 ${text}`;
+}
+
+function displayMenuName(data) {
+  const name = String(data?.menu_name || "").trim();
+  const delivery =
+    data?.is_brand ||
+    data?.handoff?.intent === "delivery" ||
+    data?.menu_source === "typical";
+  if (delivery || data?.menu_verified) return name;
+  if (!name) return "추정 식당";
+  return name.startsWith("추정 ") ? name : `추정 ${name}`;
 }
 
 /* 히어로는 한 줄에 들어가야 크게 읽힌다 — "1.5~2.5만원"은 넘치므로 짧게 만든다 */
@@ -1516,8 +1653,12 @@ function renderCard() {
   const tagEl = $("card-tag");
   const deal = card.deal;
   if (deal && deal.title) {
-    const bits = [deal.title, deal.condition].filter(Boolean);
-    tagEl.textContent = bits.join(" · ");
+    const bits = [];
+    if (deal.audience && deal.audience !== "everyone" && deal.audience_label) {
+      bits.push(deal.audience_label);
+    }
+    bits.push(deal.title, deal.condition);
+    tagEl.textContent = bits.filter(Boolean).join(" · ");
     tagEl.classList.remove("hidden");
   } else {
     tagEl.textContent = "";
@@ -1618,7 +1759,7 @@ function openHandoff(handoff) {
 
 function showMatchThenHandoff(data) {
   const flash = $("match-flash");
-  $("match-sub").textContent = `${data.place_name} · ${data.menu_name}`;
+  $("match-sub").textContent = `${data.place_name} · ${displayMenuName(data)}`;
   flash.classList.remove("hidden");
 
   window.setTimeout(() => {
@@ -1893,7 +2034,7 @@ async function unlockStoryGold() {
 function showDone(data) {
   state.lastDone = data;
   show("screen-done");
-  $("done-sub").textContent = `${data.place_name} · ${data.menu_name}`;
+  $("done-sub").textContent = `${data.place_name} · ${displayMenuName(data)}`;
   const persona = data.persona || {};
   const title = data.receipt_title || persona.title || "본능 100% 그냥이거 마스터";
   $("receipt-title").textContent = title;
@@ -1901,7 +2042,7 @@ function showDone(data) {
   $("receipt-sticker").textContent =
     persona.sticker || data.receipt?.sticker || "🛋️";
   $("receipt-place").textContent = data.place_name || "";
-  $("receipt-menu").textContent = data.menu_name || "";
+  $("receipt-menu").textContent = displayMenuName(data);
   $("receipt-reason").textContent =
     persona.match_reason || data.receipt?.match_reason || "근처 매칭 완료";
   const theme =
@@ -1915,6 +2056,14 @@ function showDone(data) {
   const link = $("handoff-link");
   link.href = data.handoff.url;
   link.textContent = data.handoff.cta || "지도에서 보기";
+  link.onclick = () => {
+    track("handoff_open", {
+      intent: data.handoff?.intent || state.intent,
+      pack_id: data.pack_id || state.packId,
+      logic_version: data.logic_version || state.logicVersion,
+      provider: data.handoff?.provider || "",
+    });
+  };
   const note = $("handoff-note");
   if (note) {
     if (data.handoff.note) {
@@ -2056,19 +2205,26 @@ function renderDetailModal(card) {
     card.sensitivity_tip ||
     "배달 중 맛·형태가 얼마나 변하는지 보여주는 지표예요.";
   /* 브랜드는 지점이 아니라 브랜드다 — 주소·거리를 채워 넣으면 거짓이 된다 */
+  const visitKind = [
+    ["종류", kindLabel(card)],
+    card.inferred_kind && card.inferred_kind !== categoryLabel(card)
+      ? ["카카오 분류(추정)", card.inferred_kind]
+      : null,
+    ["주소", card.address || "주소 확인 중"],
+    ["영업시간", card.hours || "영업시간 미확인"],
+    ["거리", `${distanceLabel(card.distance_m)} · ${card.eta_label || "—"}`],
+    ["1인 예상", card.price_band ? `예상 ${card.price_band}` : "가격 미확인"],
+  ].filter(Boolean);
   const rows = card.is_brand
     ? [
         ["종류", categoryLabel(card)],
         ["대표 메뉴", card.menu_name || "—"],
         ["주문 채널", card.order_channel || "공식 주문"],
-        ["1인 예상", card.price_band || "확인 중"],
+        ["1인 예상", card.price_band ? `예상 ${card.price_band}` : "가격 미확인"],
       ]
-    : [
-        ["주소", card.address || "주소 확인 중"],
-        ["영업시간", card.hours || "확인 중"],
-        ["거리", `${distanceLabel(card.distance_m)} · ${card.eta_label || "—"}`],
-        ["1인 예상", card.price_band || "확인 중"],
-      ];
+    : visitKind;
+  const kindName = excludeLabel(card.kind || card.category);
+  const excluded = (state.excludeCats || []).includes(String(card.kind || "").trim());
   d.innerHTML = `
     <div class="detail-head">
       <strong>${escapeHtml(card.place_name)}</strong>
@@ -2090,6 +2246,9 @@ function renderDetailModal(card) {
       <div class="sens-gauge" aria-hidden="true"><span style="width:${pct}%"></span></div>
       <p class="sens-tip">${escapeHtml(tip)}</p>
     </div>
+    <button type="button" class="btn ghost detail-exclude" id="btn-exclude-kind">
+      ${excluded ? `${escapeHtml(kindName)} 다시 추천하기` : `${escapeHtml(kindName)}, 안 먹어요`}
+    </button>
   `;
   d.classList.remove("hidden");
   const close = $("detail-close");
@@ -2099,6 +2258,13 @@ function renderDetailModal(card) {
       hideDetailModal();
     };
     close.focus();
+  }
+  const ex = document.getElementById("btn-exclude-kind");
+  if (ex) {
+    ex.onclick = (e) => {
+      e.stopPropagation();
+      submitExclude(card);
+    };
   }
 }
 
@@ -2166,6 +2332,7 @@ function setupLongPress() {
     const d = $("detail");
     if (d && !d.classList.contains("hidden")) {
       if (e.target.closest && e.target.closest("#detail-close")) return;
+      if (e.target.closest && e.target.closest("#btn-exclude-kind")) return;
       if (!moved) hideDetailModal();
     }
   });

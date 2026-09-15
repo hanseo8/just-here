@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 from datetime import datetime, timezone  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app import brands, deals, engine, kakao  # noqa: E402
+from app import analytics, brands, deals, engine, kakao  # noqa: E402
 from app.main import app  # noqa: E402
 from app.users import compute_taste_signals  # noqa: E402
 
@@ -119,6 +119,16 @@ if vcards:
     check(all("도보" in c["eta_label"] for c in vcards), "ETA는 도보 기준이다")
     check(all(c.get("price_source") == "estimated" for c in vcards), "가격은 예상")
     check(all(c.get("menu_source") == "inferred" for c in vcards), "메뉴는 추정")
+    check(all(c.get("menu_verified") is False for c in vcards), "방문 메뉴는 미검증")
+    labels = set(engine.KIND_KO.values())
+    check(
+        all(c.get("menu_name") in labels for c in vcards),
+        "표시 메뉴는 종류 한글이지 카카오 말단이 아니다",
+    )
+    check(
+        all(c.get("menu_name") != c.get("place_name") for c in vcards),
+        "상호를 판매 메뉴처럼 쓰지 않는다",
+    )
     vplace = engine.find_place(s4, vcards[0]["menu_id"])
     vhandoff = engine.apply_lets_go(s4, vplace)
     check(vhandoff["intent"] == "visit", f"방문 핸드오프 intent={vhandoff['intent']}")
@@ -250,6 +260,7 @@ try:
     check(deal.get("title") == "세트 1천원 할인", "확인된 혜택은 카드에 붙는다")
     dumped = str(deal)
     check("final_price" not in deal and "최종" not in dumped, "최종 결제금액을 만들지 않는다")
+    check(deal.get("audience") == "everyone", "공통 혜택만 카드에 붙는다")
     check(
         all(o["id"] != "deal" for o in engine.adjust_options(s_one)),
         "혜택 1건이면 확인된 혜택 버튼을 열지 않는다",
@@ -272,8 +283,197 @@ try:
     deal_feed, _, _ = engine.present_feed(s_pub)
     check(all(c.get("deal") for c in s_pub.pack_cards), "확인된 혜택 조정은 혜택 카드만 남긴다")
     check(deal_feed and deal_feed[0].get("deal"), "피드에도 혜택이 보인다")
+
+    s_vis = engine.create_session(LAT, LNG, "visit", "clear")
+    check(
+        all(o["id"] != "deal" for o in engine.adjust_options(s_vis)),
+        "브랜드 혜택만으로는 방문 할인 버튼을 안 연다",
+    )
+
+    high = {**one, "min_order_krw": 50000}
+    deals.set_catalog([high])
+    s_hi = engine.create_session(LAT, LNG, "delivery", "clear")
+    kyo_hi = next(c for c in engine.build_cards(s_hi)[0] if c.get("brand_id") == "kyochon")
+    check(not kyo_hi.get("deal"), "최소주문보다 싼 카드에는 혜택을 안 붙인다")
+
+    member = {**one, "audience": "membership"}
+    deals.set_catalog(
+        [
+            member,
+            {**member, "id": "m2", "brand_id": "bbq"},
+            {**member, "id": "m3", "brand_id": "pelicana"},
+        ]
+    )
+    s_mem = engine.create_session(LAT, LNG, "delivery", "clear")
+    mem_cards, _, _ = engine.build_cards(s_mem)
+    check(all(not c.get("deal") for c in mem_cards), "멤버십 혜택은 공통처럼 안 붙인다")
+    check(
+        all(o["id"] != "deal" for o in engine.adjust_options(s_mem)),
+        "멤버십만 있으면 확인된 혜택을 열지 않는다",
+    )
+
+    other_hub = [
+        {**one, "id": "h1", "hub_id": "hub_busan"},
+        {**one, "id": "h2", "brand_id": "bbq", "hub_id": "hub_busan"},
+        {**one, "id": "h3", "brand_id": "pelicana", "hub_id": "hub_busan"},
+    ]
+    deals.set_catalog(other_hub)
+    s_away = engine.create_session(LAT, LNG, "delivery", "clear")
+    check(
+        all(o["id"] != "deal" for o in engine.adjust_options(s_away)),
+        "다른 지역 혜택은 이 시장에 안 연다",
+    )
 finally:
     deals.set_catalog(None)
+
+print("\n[제외] 안 먹어요는 강한 제외다")
+s_ex = engine.create_session(LAT, LNG, "delivery", "clear")
+engine.apply_profile(s_ex, {"exclude_categories": ["치킨"]})
+ex_cards, _, _ = engine.build_cards(s_ex)
+check(ex_cards and all(c.get("kind") != "치킨" for c in ex_cards), "안 먹어요 종류는 후보에서 빠진다")
+s_pack = engine.create_session(LAT, LNG, "delivery", "clear")
+engine.present_feed(s_pack)
+first_kind = s_pack.pack_cards[0]["kind"]
+engine.apply_exclude(s_pack, [first_kind], exclude=True)
+check(all(c.get("kind") != first_kind for c in s_pack.pack_cards), "지금 묶음에서도 바로 뺀다")
+no_tok = client.post("/v1/me/exclude", json={"uid": uid, "kind": "치킨"})
+check(no_tok.status_code == 401, f"토큰 없이 안 먹어요 → {no_tok.status_code}")
+saved = client.post(
+    "/v1/me/exclude",
+    json={"uid": uid, "kind": "치킨"},
+    headers={"X-Guest-Token": token},
+)
+check(saved.status_code == 200, f"토큰 있으면 안 먹어요 → {saved.status_code}")
+me_ex = client.get("/v1/me", params={"uid": uid}, headers={"X-Guest-Token": token})
+excl = (me_ex.json().get("user") or {}).get("preferences", {}).get("exclude_categories") or []
+check("치킨" in excl, "안 먹어요는 다음 방문용으로 저장된다")
+client.post(
+    "/v1/me/exclude",
+    json={"uid": uid, "kind": "치킨", "exclude": False},
+    headers={"X-Guest-Token": token},
+)
+
+print("\n[방문] 카카오 말단은 메뉴가 아니다")
+s_menu = engine.create_session(LAT, LNG, "visit", "clear")
+s_menu.inventory_source = "kakao"
+s_menu.places = [
+    {
+        "place_id": "kakao_x",
+        "name": "탕화쿵푸마라탕 송도5공구점",
+        "lat": LAT,
+        "lng": LNG,
+        "menu_id": "kakao_m_x",
+        "menu_name": "탕화쿵푸마라탕",
+        "kind": "탕화쿵푸마라탕",
+        "category": "chinese",
+        "kakao_category": "음식점 > 중식 > 탕화쿵푸마라탕",
+        "open_now": True,
+        "source": "kakao",
+        "tags": ["#근처_실상호"],
+        "delivery_sensitivity": 0.5,
+        "address": "인천 연수구",
+    }
+]
+v_fake, _, _ = engine.build_visit_cards(s_menu)
+check(bool(v_fake), "가짜 실상호로 방문 카드가 나온다")
+if v_fake:
+    check(v_fake[0]["menu_name"] == "중식", f"표시 메뉴={v_fake[0]['menu_name']}")
+    check(v_fake[0]["kind"] == "탕화쿵푸마라탕", "kind는 다양성·제외용 말단")
+    check(v_fake[0]["inferred_kind"] == "탕화쿵푸마라탕", "카카오 분류는 추정으로만")
+    check(v_fake[0]["menu_verified"] is False, "방문 메뉴 미검증")
+    check(v_fake[0]["menu_name"] != v_fake[0]["place_name"], "상호 ≠ 메뉴")
+check(engine.card_menu_name(s_menu.places[0]) == "중식", "영수증도 추정 종류")
+
+print("\n[지표] 세션 성공 지표")
+rows = [
+    {
+        "ts": "2026-09-14T00:00:00Z",
+        "event": "app_open",
+        "device_id": "d1",
+        "uid": "",
+        "props": {},
+    },
+    {
+        "ts": "2026-09-15T00:00:00Z",
+        "event": "app_open",
+        "device_id": "d1",
+        "uid": "",
+        "props": {},
+    },
+    {
+        "ts": "2026-09-15T00:00:12Z",
+        "event": "recommend_shown",
+        "device_id": "d1",
+        "uid": "",
+        "props": {"session_id": "s1", "pack_id": "p1"},
+    },
+    {
+        "ts": "2026-09-15T00:00:20Z",
+        "event": "swipe_go",
+        "device_id": "d1",
+        "uid": "",
+        "props": {"session_id": "s1", "pack_id": "p1", "rank": 2},
+    },
+    {
+        "ts": "2026-09-15T00:00:20Z",
+        "event": "match_done",
+        "device_id": "d1",
+        "uid": "",
+        "props": {"session_id": "s1", "pack_id": "p1"},
+    },
+    {
+        "ts": "2026-09-15T00:00:22Z",
+        "event": "handoff_open",
+        "device_id": "d1",
+        "uid": "",
+        "props": {"session_id": "s1"},
+    },
+    {
+        "ts": "2026-09-15T00:59:48Z",
+        "event": "app_open",
+        "device_id": "d2",
+        "uid": "",
+        "props": {},
+    },
+    {
+        "ts": "2026-09-15T01:00:00Z",
+        "event": "recommend_shown",
+        "device_id": "d2",
+        "uid": "",
+        "props": {"session_id": "s2", "pack_id": "p2"},
+    },
+    {
+        "ts": "2026-09-15T01:00:05Z",
+        "event": "pack_exhausted",
+        "device_id": "d2",
+        "uid": "",
+        "props": {"session_id": "s2", "pack_id": "p2"},
+    },
+    {
+        "ts": "2026-09-15T01:00:06Z",
+        "event": "adjust",
+        "device_id": "d2",
+        "uid": "",
+        "props": {"session_id": "s2"},
+    },
+    {
+        "ts": "2026-09-15T01:00:10Z",
+        "event": "match_done",
+        "device_id": "d2",
+        "uid": "",
+        "props": {"session_id": "s2", "pack_id": "p3"},
+    },
+]
+pm = analytics.product_metrics(rows)
+check(pm["median_open_to_first_recommend_s"] == 12.0, f"진입→추천 {pm['median_open_to_first_recommend_s']}")
+check(pm["median_first_recommend_to_choice_s"] == 9.0, f"추천→선택 {pm['median_first_recommend_to_choice_s']}")
+check(pm["first_pack_choose_rate"] == 50.0, f"첫 묶음 선택 {pm['first_pack_choose_rate']}")
+check(pm["first_pack_no_choice_rate"] == 50.0, "첫 3장 안 선택 50%")
+check(pm["first_pack_exhaust_rate"] == 50.0, "3장 모두 거절 50%")
+check(pm["choose_after_adjust_rate"] == 100.0, "조정 후 선택 100%")
+check(pm["match_to_handoff_rate"] == 50.0, "선택→클릭 50% (주문 완료 아님)")
+check(pm["revisit_rate"] == 50.0, "재방문 1/2 기기")
+check("handoff_open" in analytics.ALLOWED_EVENTS, "handoff_open 수집")
 
 print()
 if fails:

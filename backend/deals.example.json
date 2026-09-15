@@ -4,6 +4,7 @@
       "id": "example-kyochon",
       "brand_id": "kyochon",
       "source": "brand_notice",
+      "audience": "everyone",
       "title": "세트 1천원 할인",
       "condition": "공식 주문, 기간 한정",
       "starts_at": "2026-09-01T00:00:00+09:00",

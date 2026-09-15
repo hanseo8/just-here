@@ -135,6 +135,7 @@ def _empty_user(uid: str, *, auth_type: str, device_id: str = "") -> dict[str, A
             "hate_categories": {},
             "taste": [],
             "preferred_spice_level": 2,
+            "exclude_categories": [],
         },
         "swipe_logs": [],
         "created_at": _now(),
@@ -249,6 +250,13 @@ class UserStore:
             tp["hate_categories"] = hc
             taste = list(dict.fromkeys((tp.get("taste") or []) + (gp.get("taste") or [])))
             tp["taste"] = taste[-20:]
+            excl = list(
+                dict.fromkeys(
+                    [str(x) for x in (tp.get("exclude_categories") or []) if x]
+                    + [str(x) for x in (gp.get("exclude_categories") or []) if x]
+                )
+            )
+            tp["exclude_categories"] = excl[:40]
 
             logs = (target.get("swipe_logs") or []) + (guest.get("swipe_logs") or [])
             target["swipe_logs"] = logs[-500:]
@@ -285,6 +293,33 @@ class UserStore:
             if not u:
                 raise KeyError("user_not_found")
             u.setdefault("preferences", {})["taste"] = list(taste or [])[:20]
+            u["updated_at"] = _now()
+            self._save()
+            return deepcopy(u)
+
+    def set_exclude(
+        self, uid: str, keys: list[str], *, exclude: bool = True
+    ) -> dict[str, Any]:
+        """명시적 제외. 거절 로그와 따로 둔다."""
+        cleaned = [
+            str(k).strip()
+            for k in keys
+            if str(k).strip() and str(k).strip() != "other"
+        ]
+        with _LOCK:
+            u = self._users.get(uid)
+            if not u:
+                raise KeyError("user_not_found")
+            prefs = u.setdefault("preferences", {})
+            cur = [str(x) for x in (prefs.get("exclude_categories") or []) if x]
+            if exclude:
+                for key in cleaned:
+                    if key not in cur:
+                        cur.append(key)
+            else:
+                drop = set(cleaned)
+                cur = [x for x in cur if x not in drop]
+            prefs["exclude_categories"] = cur[:40]
             u["updated_at"] = _now()
             self._save()
             return deepcopy(u)

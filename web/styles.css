@@ -238,6 +238,29 @@ body.allow-scroll {
 }
 .setup-row dd.ok { color: var(--text); }
 .setup-row dd.err { color: var(--warn); }
+#exclude-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.exclude-chip {
+  margin: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.exclude-chip:hover,
+.exclude-chip:focus-visible { color: var(--text); }
+.detail-exclude {
+  margin-top: 12px;
+  width: 100%;
+  min-height: 42px;
+}
 .row-btn {
   flex: 0 0 auto;
   align-self: center;

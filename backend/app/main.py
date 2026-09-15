@@ -92,6 +92,14 @@ class UnlockBody(BaseModel):
     key: Literal["story_gold"]
 
 
+class ExcludeBody(BaseModel):
+    uid: str
+    session_id: str | None = None
+    kind: str = ""
+    category: str = ""
+    exclude: bool = True
+
+
 class AnalyticsEventBody(BaseModel):
     event: str
     uid: str | None = None
@@ -344,6 +352,33 @@ def me_meal(body: MealConfirmBody, request: Request):
     return {"ok": True, "action": action}
 
 
+@app.post("/v1/me/exclude")
+def me_exclude(body: ExcludeBody, request: Request):
+    """명시적 '안 먹어요'. 거절보다 강한 제외. 매번 묻지 않는다."""
+    uid = _require_uid(request, body.uid)
+    keys = engine.exclude_keys(body.kind, body.category)
+    if not keys:
+        raise HTTPException(400, "kind or category required")
+    try:
+        users.STORE.set_exclude(uid, keys, exclude=body.exclude)
+    except KeyError:
+        raise HTTPException(404, "user not found") from None
+    s = engine.get_session(body.session_id) if body.session_id else None
+    if s:
+        engine.apply_exclude(s, keys, exclude=body.exclude)
+        cards, radius, gold = engine.present_feed(s)
+        payload = _feed_payload(s, cards, radius, gold)
+        payload["ok"] = True
+        payload["exclude_categories"] = sorted(s.exclude_cats)
+        return payload
+    profile = users.STORE.public_profile(uid) or {}
+    prefs = profile.get("preferences") or {}
+    return {
+        "ok": True,
+        "exclude_categories": list(prefs.get("exclude_categories") or []),
+    }
+
+
 @app.post("/v1/me/unlock")
 def me_unlock(body: UnlockBody, request: Request):
     """영수증 코스메틱 해금 (스토리 인증 보상 등)."""
@@ -571,7 +606,7 @@ def swipe(body: SwipeBody, request: Request):
                     "place_id": place.get("place_id"),
                     "place_name": place.get("name"),
                     "category": place.get("category"),
-                    "kind": place.get("kind") or "",
+                    "kind": place.get("kind") or engine._visit_kind(place),
                     "tags": place.get("tags") or [],
                     "intent": s.intent,
                     "weather": s.weather,
@@ -595,10 +630,11 @@ def swipe(body: SwipeBody, request: Request):
             users.STORE.earn_title(uid, title, persona.get("id") or "")
         except KeyError:
             pass
+    display_menu = engine.card_menu_name(place)
     receipt = share.create_receipt(
         title=title,
         place_name=place["name"],
-        menu_name=place["menu_name"],
+        menu_name=display_menu,
         intent=s.intent,
         tier=s.tier,
         sub_text=persona["sub_text"],
@@ -617,10 +653,12 @@ def swipe(body: SwipeBody, request: Request):
         "receipt_title": title,
         "persona": persona,
         "place_name": place["name"],
-        "menu_name": place["menu_name"],
+        "menu_name": display_menu,
         "menu_id": place.get("menu_id") or body.menu_id,
         "category": place.get("category") or "",
-        "kind": place.get("kind") or "",
+        "kind": place.get("kind") or engine._visit_kind(place),
+        "menu_verified": False,
+        "menu_source": "typical" if s.intent == "delivery" else "inferred",
         "pack_id": s.pack_id,
         "logic_version": engine.LOGIC_VERSION,
         "receipt": share.share_payload(receipt, str(request.base_url)),
@@ -643,7 +681,7 @@ def adjust(body: AdjustBody):
         raise HTTPException(404, "session not found")
     if body.option == "closer" and s.intent != "visit":
         raise HTTPException(400, "closer is visit-only")
-    if body.option == "deal" and not deals.public_ready():
+    if body.option == "deal" and not deals.public_ready(hub_id=s.hub_id, intent=s.intent):
         raise HTTPException(400, "deals not public yet")
     engine.apply_adjust(s, body.option)
     cards, radius, gold = engine.present_feed(s)

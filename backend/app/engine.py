@@ -298,13 +298,17 @@ def _profile_delta(place: dict, session: Session) -> float:
     return score
 
 
+def _deal_for(place: dict, session: Session) -> dict | None:
+    return deals.match(place, hub_id=session.hub_id)
+
+
 def _score(place: dict, distance_m: float, session: Session) -> float:
     """방문 카드 점수 — 가까울수록, 평점·취향이 맞을수록 높다."""
     score = 10.0 - distance_m / 100.0
     score += place.get("rating", 4.0)
     score += _taste_boost(place, session.taste)
     score += _profile_delta(place, session)
-    score += deals.score_boost(deals.match(place))
+    score += deals.score_boost(_deal_for(place, session))
     for tag in place.get("tags", []):
         score -= session.nope_tags.get(tag, 0.0)
     score -= session.nope_categories.get(place.get("category", ""), 0.0) * 0.8
@@ -316,7 +320,7 @@ def _brand_score(place: dict, session: Session) -> float:
     score = float(place.get("rating", 4.0))
     score += _taste_boost(place, session.taste)
     score += _profile_delta(place, session)
-    score += deals.score_boost(deals.match(place))
+    score += deals.score_boost(_deal_for(place, session))
     for tag in place.get("tags", []):
         score -= session.nope_tags.get(tag, 0.0)
     score -= session.nope_categories.get(place.get("category", ""), 0.0) * 0.8
@@ -467,7 +471,7 @@ def build_brand_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
                 "price_source": "estimated",
                 "menu_source": "typical",
                 "menu_verified": False,
-                "deal": deals.public_payload(deals.match(p)),
+                "deal": deals.public_payload(_deal_for(p, session)),
                 "review": meta["review"],
                 "is_gold": False,
                 "taste_match": bool(p.get("taste_match")),
@@ -509,6 +513,8 @@ def build_visit_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
             continue
         if (p.get("kind") or "") in session.exclude_cats:
             continue
+        if _visit_kind(p) in session.exclude_cats:
+            continue
         sc = _score(p, dist, session)
         kakao_cands.append((sc, p, dist, allow_r))
 
@@ -522,19 +528,21 @@ def build_visit_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
     for sc, p, dist, allow_r in candidates[:limit]:
         meta = enrich_place_fields(p)
         kind = _visit_kind(p)
+        cat_label = category_ko(p.get("category") or "")
         cards.append(
             {
                 "card_id": str(uuid.uuid4()),
                 "place_id": p["place_id"],
                 "menu_id": p["menu_id"],
                 "place_name": p["name"],
-                "menu_name": kind,
+                "menu_name": cat_label,
                 "image_url": p.get("image_url") or "",
                 "has_photo": bool(p.get("has_photo", bool(p.get("image_url")))),
                 "distance_m": int(dist),
                 "eta_label": f"도보 {walk_minutes(dist)}분",
                 "category": p.get("category") or "",
                 "kind": kind,
+                "inferred_kind": kind if kind and kind != cat_label else "",
                 "hashtag": (p.get("tags") or [""])[0],
                 "is_brand": False,
                 "delivery_sensitivity": meta["delivery_sensitivity"],
@@ -550,7 +558,7 @@ def build_visit_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
                 "price_source": "estimated",
                 "menu_source": "inferred",
                 "menu_verified": False,
-                "deal": deals.public_payload(deals.match(p)),
+                "deal": deals.public_payload(_deal_for(p, session)),
                 "review": meta["review"],
                 "is_gold": False,
                 "taste_match": bool(p.get("taste_match")),
@@ -567,7 +575,7 @@ def build_visit_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
 
 
 PACK_SIZE = 3
-LOGIC_VERSION = "deal-v1"
+LOGIC_VERSION = "menu-metrics-v1"
 
 TASTE_KO = {
     "korean": "한식",
@@ -599,12 +607,27 @@ KIND_KO = {
 }
 
 
+def category_ko(category: str) -> str:
+    return KIND_KO.get(category or "", "식당")
+
+
 def _visit_kind(place: dict) -> str:
+    """다양성·제외용. 카카오 말단을 유지한다. 화면에 메뉴처럼 쓰지 않는다."""
     cat_name = place.get("kakao_category") or ""
     leaf = cat_name.split(">")[-1].strip() if ">" in cat_name else cat_name.strip()
     if leaf and leaf not in ("음식점", "맛집"):
         return leaf
-    return KIND_KO.get(place.get("category") or "", "식당")
+    kind = str(place.get("kind") or "").strip()
+    if kind and kind not in ("음식점", "맛집"):
+        return kind
+    return category_ko(place.get("category") or "")
+
+
+def card_menu_name(place: dict) -> str:
+    """영수증·완료 화면에 쓸 표시명. 방문은 검증된 메뉴가 아니라 추정 종류."""
+    if place.get("brand_id") or str(place.get("menu_id") or "").startswith("brand:"):
+        return str(place.get("menu_name") or "")
+    return category_ko(place.get("category") or "")
 
 
 def reset_pack(session: Session) -> None:
@@ -653,9 +676,13 @@ def _why(session: Session, card: dict) -> str:
     cat = str(card.get("category") or "")
     kind = str(card.get("kind") or "")
     if session.has_history:
-        for key in (kind, cat):
+        keys = (kind, cat) if card.get("is_brand") else (cat, kind)
+        for key in keys:
             if key and key in session.frequent_cats:
-                label = TASTE_KO.get(key) or key
+                if card.get("is_brand"):
+                    label = TASTE_KO.get(key) or key
+                else:
+                    label = TASTE_KO.get(cat) or KIND_KO.get(cat) or category_ko(cat)
                 return f"최근 자주 고른 {label} 메뉴예요."
     cats = [
         TASTE_KO[t]
@@ -730,6 +757,43 @@ def start_pack(session: Session) -> int:
     return radius
 
 
+def exclude_keys(kind: str = "", category: str = "") -> list[str]:
+    kind = str(kind or "").strip()
+    cat = str(category or "").strip()
+    if kind and kind != "other":
+        return [kind]
+    if cat and cat != "other":
+        return [cat]
+    return []
+
+
+def _card_excluded(card: dict, keys: set[str]) -> bool:
+    return bool(keys & {str(card.get("kind") or ""), str(card.get("category") or "")})
+
+
+def apply_exclude(session: Session, keys: list[str], *, exclude: bool = True) -> None:
+    """명시적 '안 먹어요'. 거절과 달리 다음 추천에서 바로 뺀다."""
+    keys = [str(k).strip() for k in keys if str(k).strip() and str(k).strip() != "other"]
+    if not keys:
+        return
+    if exclude:
+        session.exclude_cats.update(keys)
+    else:
+        session.exclude_cats.difference_update(keys)
+    blocked = session.exclude_cats
+    session.undo_stack = [c for c in session.undo_stack if not _card_excluded(c, blocked)]
+    kept = [c for c in session.pack_cards if not _card_excluded(c, blocked)]
+    session.pack_cards = kept
+    session.adjust_needed = False
+    if kept:
+        for i, c in enumerate(kept):
+            c["pack_rank"] = i + 1
+            c["pack_size"] = len(kept)
+        mark_deck_shown(session)
+        return
+    start_pack(session)
+
+
 def present_feed(session: Session) -> tuple[list[dict], int, bool]:
     """클라이언트에 한 장만 내려준다. 묶음이 비면 조정 플래그만 세운다."""
     if session.adjust_needed:
@@ -755,7 +819,7 @@ def adjust_options(session: Session) -> list[dict]:
     ]
     if session.intent == "visit":
         opts.append({"id": "closer", "label": "더 가까운 곳"})
-    if deals.public_ready():
+    if deals.public_ready(hub_id=session.hub_id, intent=session.intent):
         opts.append({"id": "deal", "label": "확인된 혜택"})
     opts.append({"id": "again", "label": "조건 그대로 다시"})
     return opts

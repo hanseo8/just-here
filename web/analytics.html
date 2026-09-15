@@ -169,6 +169,10 @@
     <div id="board" class="hidden">
       <div class="kpis" id="kpis"></div>
 
+      <h2>성공 지표</h2>
+      <p class="note" id="product-note">지도·주문 클릭은 외부 앱 이동이지 주문 완료가 아닙니다.</p>
+      <div class="kpis" id="product"></div>
+
       <h2>전환율</h2>
       <div id="conv"></div>
 
@@ -251,12 +255,21 @@
       }
     }
 
+    function fmtSec(v) {
+      if (v == null || v === "") return "—";
+      const n = Number(v);
+      if (!Number.isFinite(n)) return "—";
+      if (n < 10) return `${n.toFixed(1)}초`;
+      return `${Math.round(n)}초`;
+    }
+
     function render(data) {
       $("board").classList.remove("hidden");
       $("note").textContent = data.note || "";
       $("note").classList.toggle("hidden", !data.note);
       const f = data.funnel || {};
       const c = data.conversion || {};
+      const p = data.product || {};
       $("kpis").innerHTML = [
         ["오늘 기기", data.unique_devices_today, "app_open 기준"],
         ["기간 기기", data.unique_devices_period, `${data.since_days}일`],
@@ -273,11 +286,31 @@
         )
         .join("");
 
+      $("product").innerHTML = [
+        ["진입 → 첫 추천", fmtSec(p.median_open_to_first_recommend_s), "기기별 중앙값"],
+        ["첫 추천 → 선택", fmtSec(p.median_first_recommend_to_choice_s), "세션 중앙값"],
+        ["첫 3장 안 선택", `${p.first_pack_no_choice_rate ?? 0}%`, `${p.sessions_with_shown || 0}세션`],
+        ["3장 모두 거절", `${p.first_pack_exhaust_rate ?? 0}%`, "첫 묶음 기준"],
+        ["조정 후 선택", `${p.choose_after_adjust_rate ?? 0}%`, `${p.sessions_adjusted || 0}회 조정`],
+        ["선택 → 지도·주문", `${p.match_to_handoff_rate ?? 0}%`, "클릭이지 결제 완료 아님"],
+        ["재방문", `${p.revisit_rate ?? 0}%`, `${p.devices_revisited || 0} / ${p.devices_seen || 0}기기`],
+      ]
+        .map(
+          ([l, v, s]) =>
+            `<div class="kpi"><div class="l">${l}</div><div class="v">${v ?? 0}</div>${s ? `<div class="s">${s}</div>` : ""}</div>`
+        )
+        .join("");
+
       $("conv").innerHTML = `
         <table>
           <tbody>
             <tr><td>오픈 → 세션</td><td class="num">${c.open_to_session || 0}%</td></tr>
             <tr><td>세션 → 매칭</td><td class="num">${c.session_to_match || 0}%</td></tr>
+            <tr><td>첫 3장 안 선택</td><td class="num">${c.first_pack_no_choice_rate || 0}%</td></tr>
+            <tr><td>3장 모두 거절</td><td class="num">${c.pack_exhausted_rate || 0}%</td></tr>
+            <tr><td>조정 후 선택</td><td class="num">${c.match_after_adjust || 0}%</td></tr>
+            <tr><td>선택 → 지도·주문 클릭</td><td class="num">${c.match_to_handoff || 0}%</td></tr>
+            <tr><td>재방문</td><td class="num">${c.revisit_rate || 0}%</td></tr>
             <tr><td>매칭 → 공유</td><td class="num">${c.match_to_share || 0}%</td></tr>
             <tr><td>매칭 → 카카오</td><td class="num">${c.match_to_kakao || 0}%</td></tr>
           </tbody>
