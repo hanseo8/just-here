@@ -1,6 +1,6 @@
 """경량 이벤트 수집 · 일일 집계 (소프트런치용).
 
-파일: data/events.jsonl (재배포 시 휘발 가능 → 이후 Postgres/GA4 병행)
+파일: <DATA_DIR>/events.jsonl. 영구 디스크가 없으면 재배포·재시작·슬립에 휘발한다.
 """
 from __future__ import annotations
 
@@ -9,11 +9,11 @@ import os
 import threading
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Any
 
-DATA_DIR = Path(__file__).resolve().parents[2] / "data"
-EVENTS_PATH = DATA_DIR / "events.jsonl"
+from .config import data_dir
+
+EVENTS_PATH = data_dir() / "events.jsonl"
 _LOCK = threading.Lock()
 
 ALLOWED_EVENTS = {
@@ -62,7 +62,6 @@ def append_event(
         "props": props or {},
     }
     with _LOCK:
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
         with EVENTS_PATH.open("a", encoding="utf-8") as f:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
     return row

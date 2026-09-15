@@ -2,10 +2,18 @@ services:
   - type: web
     name: just-here
     runtime: docker
-    plan: free
+    # starter 이상이어야 스핀다운(첫 접속 1분 대기)이 없고 디스크를 붙일 수 있다
+    plan: starter
     region: singapore
     healthCheckPath: /health
+    # 영구 디스크가 없으면 events.jsonl / users.json이 재배포·재시작마다 날아간다
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
     envVars:
+      - key: DATA_DIR
+        value: /data
       - key: PUBLIC_BASE_URL
         value: https://www.justthis.co.kr
       - key: KAKAO_REST_API_KEY

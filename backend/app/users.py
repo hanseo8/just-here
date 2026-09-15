@@ -18,8 +18,9 @@ from typing import Any
 
 import httpx
 
-DATA_DIR = Path(__file__).resolve().parents[2] / "data"
-USERS_PATH = DATA_DIR / "users.json"
+from .config import data_dir
+
+USERS_PATH = data_dir() / "users.json"
 _LOCK = threading.Lock()
 
 

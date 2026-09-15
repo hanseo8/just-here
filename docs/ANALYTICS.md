@@ -30,9 +30,19 @@ API:
 - `POST /v1/analytics/event` — 공개 (허용 이벤트만)
 - `GET /v1/analytics/summary?token=&days=7` — 관리자
 
+## 저장 위치
+
+`DATA_DIR/events.jsonl`에 쌓입니다. `DATA_DIR`이 비어 있으면 레포의 `data/`를 씁니다.
+
+Render는 기본이 휘발성 파일시스템이라, **영구 디스크를 붙이고 `DATA_DIR`을 마운트 경로로 지정해야** 데이터가 남습니다. 무료 플랜은 디스크를 붙일 수 없고 15분 유휴 시 스핀다운하면서 파일이 초기화되므로, 사실상 접속이 끊길 때마다 지표가 사라집니다.
+
+- Render Dashboard → 서비스 → Settings → Instance Type을 **Starter 이상**으로
+- 같은 화면에서 **Disk 추가** (mount path `/data`, 1GB)
+- Environment에 **`DATA_DIR=/data`**
+
 ## 한계와 다음 단계
 
-- **Render Free** 디스크는 재배포·슬립 시 `events.jsonl`이 날아갈 수 있습니다. 소프트런치 관찰용으로 충분하고, 장기 보관은 아래를 병행하세요.
+- 디스크를 붙이면 무중단 배포가 꺼져 배포 때마다 몇 초 끊깁니다.
 - **GA4** (또는 Mixpanel): 페이지·유입 채널·리텐션에 강함. 태그 한 줄로 병행 가능.
 - **Postgres / Firestore**: 이벤트 영구 저장 + 지역·시간대 리포트 (B2B용).
 
