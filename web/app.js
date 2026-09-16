@@ -2200,10 +2200,10 @@ function renderDetailModal(card) {
   const pct = card.sensitivity_percent != null
     ? card.sensitivity_percent
     : Math.round(Number(card.delivery_sensitivity || 0) * 100);
-  const level = card.sensitivity_level || "보통";
+  const level = card.sensitivity_level || "무난해요";
   const tip =
     card.sensitivity_tip ||
-    "배달 중 맛·형태가 얼마나 변하는지 보여주는 지표예요.";
+    "식으면 맛이 얼마나 달라지는지예요. 배달 거리를 알 수는 없어요.";
   /* 브랜드는 지점이 아니라 브랜드다 — 주소·거리를 채워 넣으면 거짓이 된다 */
   const visitKind = [
     ["종류", kindLabel(card)],
@@ -2211,7 +2211,7 @@ function renderDetailModal(card) {
       ? ["카카오 분류(추정)", card.inferred_kind]
       : null,
     ["주소", card.address || "주소 확인 중"],
-    ["영업시간", card.hours || "영업시간 미확인"],
+    ["영업시간", card.hours || "카카오맵에서 확인"],
     ["거리", `${distanceLabel(card.distance_m)} · ${card.eta_label || "—"}`],
     ["1인 예상", card.price_band ? `예상 ${card.price_band}` : "가격 미확인"],
   ].filter(Boolean);
@@ -2238,14 +2238,18 @@ function renderDetailModal(card) {
         )
         .join("")}
     </div>
-    <div class="sens-box">
+    ${
+      card.is_brand
+        ? `<div class="sens-box">
       <div class="sens-title">
-        <span>배달 민감도</span>
-        <span>${escapeHtml(level)} · ${pct}%</span>
+        <span>식으면</span>
+        <span>${escapeHtml(level)}</span>
       </div>
       <div class="sens-gauge" aria-hidden="true"><span style="width:${pct}%"></span></div>
       <p class="sens-tip">${escapeHtml(tip)}</p>
-    </div>
+    </div>`
+        : ""
+    }
     <button type="button" class="btn ghost detail-exclude" id="btn-exclude-kind">
       ${excluded ? `${escapeHtml(kindName)} 다시 추천하기` : `${escapeHtml(kindName)}, 안 먹어요`}
     </button>

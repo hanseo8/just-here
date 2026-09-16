@@ -143,11 +143,11 @@ def _doc_to_place(doc: dict, i: int = 0, tag: str = "#근처_실상호") -> dict
         "delivery_sensitivity": CATEGORY_SENSITIVITY.get(internal, 0.5),
         "temp_hold": 0.5,
         "texture_hold": 0.5,
-        # 카카오는 영업 여부를 주지 않는다. 방문 덱에만 쓰이므로 True로 두되,
-        # 배달 가능 여부는 아예 다루지 않는다 — 알 수 없는 값을 만들지 않는다.
+        # 로컬 API는 영업시간을 주지 않는다. 방문 덱에만 쓰이므로 open_now는
+        # True로 두되, 시간을 만들어 넣지 않는다.
         "open_now": True,
         "rating": 4.0,
-        "hours": "영업시간 확인",
+        "hours": "카카오맵에서 확인",
         "address": doc.get("road_address_name") or doc.get("address_name") or "",
         "review": doc.get("road_address_name") or doc.get("address_name") or "",
         "blurb": short or "근처 실상호",

@@ -1,4 +1,4 @@
-"""카드 상세·가격대·배달 민감도 카피."""
+"""카드 상세·가격대·배달 시 맛 변화 카피."""
 from __future__ import annotations
 
 
@@ -39,17 +39,17 @@ def sensitivity_meta(score: float) -> dict:
     pct = int(round(s * 100))
     # 배달 거리를 우리가 알 수 없으므로 "가까우면 괜찮다" 같은 말은 쓰지 않는다
     if s >= 0.85:
-        level = "매우 높음"
+        level = "많이 변해요"
         tip = "식으면 맛이 확 떨어져요. 도착하면 바로 드세요."
     elif s >= 0.65:
-        level = "높음"
-        tip = "배달 중 온도·식감 변화가 있어요. 도착 후 바로 먹는 게 좋아요."
+        level = "조금 변해요"
+        tip = "온도나 식감이 달라질 수 있어요. 도착하면 바로 드세요."
     elif s >= 0.4:
-        level = "보통"
-        tip = "일반적인 배달 메뉴예요. 무리 없이 배달돼요."
+        level = "무난해요"
+        tip = "배달해도 크게 무리는 없는 편이에요."
     else:
-        level = "낮음"
-        tip = "배달해도 맛·형태가 잘 유지되는 편이에요."
+        level = "잘 유지돼요"
+        tip = "식어도 맛·형태가 잘 남는 편이에요."
     return {
         "score": s,
         "percent": pct,
@@ -87,7 +87,7 @@ def enrich_place_fields(place: dict) -> dict:
         "sensitivity_level": sens["level"],
         "sensitivity_percent": sens["percent"],
         "sensitivity_tip": sens["tip"],
-        "hours": place.get("hours") or "영업시간 확인",
+        "hours": place.get("hours") or "카카오맵에서 확인",
         "rating": float(place.get("rating") or 4.0),
         "review": blurb,
     }
