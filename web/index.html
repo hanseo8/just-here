@@ -26,7 +26,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=20260924-ctx1" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260924-ctx3" />
 </head>
 <body>
   <!-- 진입 인트로: 첫 페인트를 브랜드로 채우고, 그 사이 init()이 끝난다 -->
@@ -143,8 +143,10 @@
           <p class="empty-title">지금 보여줄 곳이 없어요</p>
           <p id="empty-msg" class="empty-msg">이 위치에서 조건에 맞는 가게를 못 찾았어요. 위치를 바꾸거나 다시 시도해 주세요.</p>
           <div class="empty-actions">
+            <button type="button" id="btn-empty-locate" class="btn ghost">위치 다시 확인</button>
             <button type="button" id="btn-reload-feed" class="btn primary">다시 시도</button>
             <button type="button" id="btn-empty-intent" class="btn ghost">배달로 바꿔 보기</button>
+            <button type="button" id="btn-empty-meal" class="btn ghost hidden">한 끼로 다시 보기</button>
           </div>
         </div>
         <div id="adjust-sheet" class="adjust-sheet hidden" role="dialog" aria-labelledby="adjust-title">
@@ -261,8 +263,8 @@
     </div>
   </div>
   <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
-  <script src="/static/auth.js?v=20260924-ctx1"></script>
-  <script src="/static/story.js?v=20260924-ctx1"></script>
-  <script src="/static/app.js?v=20260924-ctx1"></script>
+  <script src="/static/auth.js?v=20260924-ctx3"></script>
+  <script src="/static/story.js?v=20260924-ctx3"></script>
+  <script src="/static/app.js?v=20260924-ctx3"></script>
 </body>
 </html>

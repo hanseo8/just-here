@@ -11,11 +11,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 from datetime import datetime, timezone  # noqa: E402
+import uuid  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app import analytics, brands, deals, engine, kakao  # noqa: E402
 from app.main import app  # noqa: E402
 from app.radius import suggest_meal_context  # noqa: E402
+from app import users  # noqa: E402
 from app.users import compute_taste_signals  # noqa: E402
 
 LAT, LNG = 37.3826, 126.6432  # 송도
@@ -477,7 +479,7 @@ check(pm["revisit_rate"] == 50.0, "재방문 1/2 기기")
 check("handoff_open" in analytics.ALLOWED_EVENTS, "handoff_open 수집")
 
 print("\n[상황] meal_context는 종류와 별개다")
-check(engine.LOGIC_VERSION == "meal-context-v1", f"로직 버전={engine.LOGIC_VERSION}")
+check(engine.LOGIC_VERSION == "meal-context-v2", f"로직 버전={engine.LOGIC_VERSION}")
 check(suggest_meal_context(23) == "late_night", "늦은 시간은 야식을 제안한다")
 check(suggest_meal_context(12) == "meal", "점심은 한 끼를 제안한다")
 ctx_night = client.get("/v1/context", params={"hour": 23})
@@ -574,6 +576,258 @@ visit_cards, _, _ = engine.build_cards(s_visit_menu)
 if visit_cards:
     check(all(c.get("menu_verified") is False for c in visit_cards), "방문 메뉴는 미검증")
     check(all(c.get("menu_source") == "inferred" for c in visit_cards), "추정 종류만 쓴다")
+
+print("\n[경계] 되돌리기 후 재거절/선택, 상황 변경, 0~2장")
+s_edge = engine.create_session(LAT, LNG, "delivery", "clear")
+last = None
+for _ in range(3):
+    deck, _, _ = engine.present_feed(s_edge)
+    last = deck[0]
+    engine.apply_nope(s_edge, engine.find_place(s_edge, last["menu_id"]))
+check(engine.pack_meta(s_edge)["adjust_needed"], "3장 후 조정")
+pen_after_3 = dict(s_edge.nope_categories)
+check(engine.apply_undo(s_edge), "조정 중 되돌리기")
+restored, _, _ = engine.present_feed(s_edge)
+check(restored and restored[0]["menu_id"] == last["menu_id"], "직전 후보 복귀")
+check(s_edge.nope_categories != pen_after_3, "되돌리면 세션 페널티만 걷는다")
+engine.apply_nope(s_edge, engine.find_place(s_edge, restored[0]["menu_id"]))
+check(engine.pack_meta(s_edge)["adjust_needed"], "다시 거절하면 조정이 다시 열린다")
+check(s_edge.nope_categories == pen_after_3, "재거절 페널티는 한 번만 다시 붙는다")
+
+s_go = engine.create_session(LAT, LNG, "delivery", "clear")
+d1, _, _ = engine.present_feed(s_go)
+engine.apply_nope(s_go, engine.find_place(s_go, d1[0]["menu_id"]))
+engine.apply_undo(s_go)
+back, _, _ = engine.present_feed(s_go)
+handoff = engine.apply_lets_go(s_go, engine.find_place(s_go, back[0]["menu_id"]))
+check(back[0]["menu_id"] == d1[0]["menu_id"], "되돌린 후보를 고를 수 있다")
+check(handoff.get("url"), "최종 선택은 주문으로 이어진다")
+
+s_adj = engine.create_session(LAT, LNG, "delivery", "clear")
+for _ in range(3):
+    deck, _, _ = engine.present_feed(s_adj)
+    engine.apply_nope(s_adj, engine.find_place(s_adj, deck[0]["menu_id"]))
+old_pack = s_adj.pack_id
+check(s_adj.adjust_needed, "조정 요청 화면")
+engine.apply_meal_context(s_adj, "late_night")
+engine.present_feed(s_adj)
+check(not s_adj.adjust_needed, "조정 중 상황 변경은 조정을 닫는다")
+check(s_adj.undo_stack == [], "이전 후보를 섞지 않는다")
+check(s_adj.pack_id != old_pack, "새 상황 묶음")
+check(
+    not engine.accept_action(s_adj, pack_id=old_pack, meal_context="meal"),
+    "이전 상황 요청은 거절한다",
+)
+
+s_stale = engine.create_session(LAT, LNG, "delivery", "clear")
+first, _, _ = engine.present_feed(s_stale)
+old_menu = first[0]["menu_id"]
+old_pack = s_stale.pack_id
+engine.apply_meal_context(s_stale, "anju")
+engine.present_feed(s_stale)
+stale_swipe = client.post(
+    "/v1/swipe",
+    json={
+        "session_id": s_stale.id,
+        "card_id": first[0]["card_id"],
+        "menu_id": old_menu,
+        "action": "nope",
+        "pack_id": old_pack,
+        "meal_context": "meal",
+    },
+)
+check(stale_swipe.status_code == 409, f"늦은 거절은 409 (실제 {stale_swipe.status_code})")
+check(stale_swipe.json().get("stale") is True, "stale 표시")
+check(stale_swipe.json().get("meal_context") == "anju", "새 상황을 덮어쓰지 않는다")
+check(old_menu not in s_stale.seen_menu_ids, "늦은 거절은 페널티를 안 남긴다")
+
+s_tiny = engine.create_session(LAT, LNG, "delivery", "clear")
+engine.present_feed(s_tiny)
+s_tiny.pack_cards = s_tiny.pack_cards[:2]
+for i, card in enumerate(s_tiny.pack_cards):
+    card["pack_rank"] = i + 1
+    card["pack_size"] = 2
+s_tiny.last_pack_size = 2
+check(len(s_tiny.pack_cards) == 2, "후보 2장이면 묶음도 2장")
+engine.apply_nope(s_tiny, engine.find_place(s_tiny, s_tiny.pack_cards[0]["menu_id"]))
+engine.apply_nope(s_tiny, engine.find_place(s_tiny, s_tiny.pack_cards[0]["menu_id"]))
+check(s_tiny.adjust_needed, "2장 모두 거절해도 조정이 열린다")
+check(engine.pack_meta(s_tiny)["pack_size"] == 2, "조정 화면 pack_size도 2")
+
+s_zero = engine.create_session(LAT, LNG, "delivery", "clear")
+all_ids = [c["menu_id"] for c in engine.build_cards(s_zero)[0]]
+s_zero.seen_menu_ids = set(all_ids)
+engine.reset_pack(s_zero)
+engine.start_pack(s_zero)
+empty, _, _ = engine.present_feed(s_zero)
+check(empty == [] and not s_zero.adjust_needed, "처음부터 0장이면 빈 결과이지 조정이 아니다")
+s_zero.left_swipe_count = 1
+engine.start_pack(s_zero)
+check(s_zero.adjust_needed, "거절 뒤 0장이면 조정을 연다")
+
+guest2 = client.post("/v1/auth/guest", json={"device_id": f"edge-undo-logs-{uuid.uuid4().hex[:8]}"})
+uid2 = guest2.json()["uid"]
+tok2 = guest2.json()["guest_token"]
+s_log = engine.create_session(LAT, LNG, "delivery", "clear")
+engine.present_feed(s_log)
+mid = s_log.pack_cards[0]["menu_id"]
+swipe1 = client.post(
+    "/v1/swipe",
+    json={"session_id": s_log.id, "card_id": s_log.pack_cards[0]["card_id"], "menu_id": mid, "action": "nope", "uid": uid2},
+    headers={"X-Guest-Token": tok2},
+)
+check(swipe1.status_code == 200, "첫 거절 기록")
+undo1 = client.post("/v1/undo", json={"session_id": s_log.id, "uid": uid2}, headers={"X-Guest-Token": tok2})
+check(undo1.status_code == 200, "되돌리기")
+again = client.post(
+    "/v1/swipe",
+    json={
+        "session_id": s_log.id,
+        "card_id": undo1.json()["cards"][0]["card_id"],
+        "menu_id": mid,
+        "action": "nope",
+        "uid": uid2,
+    },
+    headers={"X-Guest-Token": tok2},
+)
+check(again.status_code == 200, "다시 거절")
+logs = (users.STORE.get(uid2) or {}).get("swipe_logs") or []
+nopes = [x for x in logs if x.get("action") == "nope" and x.get("menu_id") == mid]
+check(len(nopes) == 2, f"재거절 행동 로그는 남긴다 (실제 {len(nopes)})")
+
+print("\n[멱등] 성공 후 응답 유실 재시도")
+s_id = engine.create_session(LAT, LNG, "delivery", "clear")
+engine.present_feed(s_id)
+top = s_id.pack_cards[0]
+aid = "act-nope-dup"
+first = client.post(
+    "/v1/swipe",
+    json={
+        "session_id": s_id.id,
+        "card_id": top["card_id"],
+        "menu_id": top["menu_id"],
+        "action": "nope",
+        "action_id": aid,
+        "pack_id": s_id.pack_id,
+        "meal_context": "meal",
+        "epoch": s_id.epoch,
+    },
+)
+# epoch는 거절 전에 읽어야 한다. 위에서 present 직후 값을 안 넣었으면 첫 요청이 stale일 수 있다.
+check(first.status_code in (200, 409), f"첫 거절 응답 {first.status_code}")
+if first.status_code == 409:
+    # epoch를 맞춰 다시
+    aid = "act-nope-dup2"
+    top = s_id.pack_cards[0]
+    first = client.post(
+        "/v1/swipe",
+        json={
+            "session_id": s_id.id,
+            "card_id": top["card_id"],
+            "menu_id": top["menu_id"],
+            "action": "nope",
+            "action_id": aid,
+            "pack_id": s_id.pack_id,
+            "meal_context": s_id.meal_context,
+            "epoch": s_id.epoch,
+        },
+    )
+check(first.status_code == 200, f"거절 성공 {first.status_code}")
+nopes_after = s_id.left_swipe_count
+second = client.post(
+    "/v1/swipe",
+    json={
+        "session_id": s_id.id,
+        "card_id": top["card_id"],
+        "menu_id": top["menu_id"],
+        "action": "nope",
+        "action_id": aid,
+        "pack_id": "old-pack",
+        "meal_context": "meal",
+        "epoch": 0,
+    },
+)
+check(second.status_code == 200, "같은 action_id 재시도는 성공으로 재생한다")
+check(second.json().get("replayed") is True, "재생 표시")
+check(s_id.left_swipe_count == nopes_after, "거절이 두 번 적용되지 않는다")
+
+engine.apply_undo(s_id)
+after_undo = s_id.left_swipe_count
+back = s_id.pack_cards[0]
+re_nope = client.post(
+    "/v1/swipe",
+    json={
+        "session_id": s_id.id,
+        "card_id": back["card_id"],
+        "menu_id": back["menu_id"],
+        "action": "nope",
+        "action_id": "act-nope-new",
+        "pack_id": s_id.pack_id,
+        "meal_context": s_id.meal_context,
+        "epoch": s_id.epoch,
+    },
+)
+check(re_nope.status_code == 200, "되돌린 뒤 재거절은 새 행동")
+check(s_id.left_swipe_count == after_undo + 1, "새 거절만 한 번 더 적용")
+
+print("\n[경합] 상황 변경 후 이전 epoch는 409로 현재 묶음을 돌려준다")
+s_race = engine.create_session(LAT, LNG, "delivery", "clear")
+engine.present_feed(s_race)
+old_epoch = s_race.epoch
+old_pack = s_race.pack_id
+engine.apply_meal_context(s_race, "late_night")
+engine.present_feed(s_race)
+stale_adj = client.post(
+    "/v1/adjust",
+    json={
+        "session_id": s_race.id,
+        "option": "again",
+        "pack_id": old_pack,
+        "meal_context": "meal",
+        "epoch": old_epoch,
+        "action_id": "act-adj-old",
+    },
+)
+check(stale_adj.status_code == 409, f"겹친 조정은 409 (실제 {stale_adj.status_code})")
+body = stale_adj.json()
+check(body.get("stale") is True, "stale")
+check(body.get("meal_context") == "late_night", "화면 복구는 새 상황")
+check(body.get("epoch") == s_race.epoch, "epoch가 서버와 같다")
+check("cards" in body, "현재 묶음을 내려준다")
+
+print("\n[빈 화면] 0장일 때 이유와 다음 행동")
+s_emp = engine.create_session(LAT, LNG, "delivery", "clear", meal_context="late_night")
+all_ids = [c["menu_id"] for c in engine.build_cards(s_emp)[0]]
+s_emp.seen_menu_ids = set(all_ids)
+engine.reset_pack(s_emp)
+emp_feed, _, _ = engine.present_feed(s_emp)
+guide = engine.empty_guide(s_emp)
+check(emp_feed == [], "카드 0장")
+check(guide["empty"] is True, "empty")
+check(guide["empty_copy"], "이유가 있다")
+ids = {a["id"] for a in guide["empty_actions"]}
+check({"relocate", "retry", "switch_intent"} <= ids, f"다음 행동 {ids}")
+check("switch_meal" in ids, "야식이면 한 끼로 다시 보기가 있다")
+
+print("\n[검증메뉴] 예시는 추천에 안 넣고 출처가 있어야 한다")
+from app import verified_menus  # noqa: E402
+
+check("verified_menus" not in Path(engine.__file__).read_text(encoding="utf-8"), "엔진이 검증 메뉴를 불러오지 않는다")
+ex = verified_menus.load_catalog(Path(__file__).resolve().parents[1] / "data" / "verified-menus.songdo.example.json")
+check(ex["count"] == 0, "예시 파일 0행")
+check(ex.get("wired_to_ranking") is False, "랭킹 미연결")
+check(verified_menus.catalog_path().name == "verified-menus.json", "실제 입력은 verified-menus.json")
+row_ok = {
+    "menu_name": "테스트국밥",
+    "place_name": "테스트식당",
+    "address": "인천 연수구 송도동 1",
+    "source": "visit",
+    "source_note": "2026-09-24 방문, 메뉴판 사진 확인",
+    "confirmed_at": "2026-09-24",
+}
+check(verified_menus._clean(row_ok) is not None, "출처 기록이 있으면 통과")
+row_bad = {**row_ok, "source_note": "", "source_url": ""}
+check(verified_menus._clean(row_bad) is None, "출처 링크/기록 없으면 버린다")
 
 print()
 if fails:

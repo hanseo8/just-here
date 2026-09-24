@@ -8,7 +8,7 @@ from typing import Literal
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
@@ -51,6 +51,10 @@ class SwipeBody(BaseModel):
     card_id: str
     menu_id: str
     action: Literal["nope", "lets_go"]
+    pack_id: str | None = None
+    meal_context: Literal["meal", "late_night", "anju"] | None = None
+    action_id: str | None = None
+    epoch: int | None = None
     uid: str | None = None
 
 
@@ -128,6 +132,14 @@ def _require_uid(request: Request, uid: str) -> str:
     return uid
 
 
+def _stale_response(s: engine.Session) -> JSONResponse:
+    cards, radius, gold = engine.present_feed(s)
+    payload = _feed_payload(s, cards, radius, gold)
+    payload["ok"] = False
+    payload["stale"] = True
+    return JSONResponse(status_code=409, content=payload)
+
+
 def _optional_uid(request: Request, uid: str | None) -> str | None:
     if not uid:
         return None
@@ -171,6 +183,7 @@ def _feed_payload(s: engine.Session, cards: list[dict], radius: int, gold: bool 
         "nudge": None,
         "cards": _strip(cards),
         "empty": len(cards) == 0 and not pack["adjust_needed"],
+        **engine.empty_guide(s),
         **pack,
     }
 
@@ -484,6 +497,26 @@ def feed(
     lat: float | None = None,
     lng: float | None = None,
 ):
+    with engine.lock_session(session_id):
+        return _feed_locked(
+            session_id,
+            intent=intent,
+            weather=weather,
+            meal_context=meal_context,
+            lat=lat,
+            lng=lng,
+        )
+
+
+def _feed_locked(
+    session_id: str,
+    *,
+    intent: str | None,
+    weather: str | None,
+    meal_context: str | None,
+    lat: float | None,
+    lng: float | None,
+):
     s = engine.get_session(session_id)
     if not s:
         raise HTTPException(404, "session not found")
@@ -614,14 +647,42 @@ def receipt_landing(receipt_id: str):
     return FileResponse(path)
 
 
+def _replay_or_stale(s: engine.Session, replay: dict | None):
+    if replay and replay.get("kind") == "lets_go" and replay.get("payload"):
+        return replay["payload"]
+    cards, radius, gold = engine.present_feed(s)
+    payload = _feed_payload(s, cards, radius, gold)
+    if replay:
+        payload["replayed"] = True
+        payload["action_id"] = replay.get("action_id")
+    return payload
+
+
 @app.post("/v1/swipe")
 def swipe(body: SwipeBody, request: Request):
+    with engine.lock_session(body.session_id):
+        return _swipe_locked(body, request)
+
+
+def _swipe_locked(body: SwipeBody, request: Request):
     s = engine.get_session(body.session_id)
     if not s:
         raise HTTPException(404, "session not found")
+    replay = engine.peek_action(s, body.action_id)
+    if replay and replay.get("kind") == body.action:
+        return _replay_or_stale(s, replay)
     place = engine.find_place(s, body.menu_id)
     if not place:
         raise HTTPException(404, "menu not found")
+    if not engine.accept_action(
+        s,
+        menu_id=body.menu_id,
+        pack_id=body.pack_id,
+        meal_context=body.meal_context,
+        epoch=body.epoch,
+        require_card=True,
+    ):
+        return _stale_response(s)
 
     uid = _optional_uid(request, body.uid)
     if uid:
@@ -630,6 +691,7 @@ def swipe(body: SwipeBody, request: Request):
                 uid,
                 {
                     "action": body.action,
+                    "action_id": engine.normalize_action_id(body.action_id),
                     "menu_id": body.menu_id,
                     "place_id": place.get("place_id"),
                     "place_name": place.get("name"),
@@ -649,7 +711,13 @@ def swipe(body: SwipeBody, request: Request):
     if body.action == "nope":
         engine.apply_nope(s, place)
         cards, radius, gold = engine.present_feed(s)
-        return _feed_payload(s, cards, radius, gold)
+        payload = _feed_payload(s, cards, radius, gold)
+        engine.store_action(
+            s,
+            body.action_id,
+            {"kind": "nope", "action_id": engine.normalize_action_id(body.action_id), "menu_id": body.menu_id},
+        )
+        return payload
 
     handoff = engine.apply_lets_go(s, place)
     persona = _build_persona(s, place)
@@ -673,7 +741,7 @@ def swipe(body: SwipeBody, request: Request):
         sticker=persona.get("sticker", "🛋️"),
         asset_id=persona.get("asset_id", persona["theme"]),
     )
-    return {
+    payload = {
         "ok": True,
         "action": "lets_go",
         "perfect_slots_left": s.perfect_slots_left,
@@ -691,51 +759,86 @@ def swipe(body: SwipeBody, request: Request):
         "pack_id": s.pack_id,
         "logic_version": engine.LOGIC_VERSION,
         "receipt": share.share_payload(receipt, str(request.base_url)),
+        "replayed": False,
     }
+    engine.store_action(
+        s,
+        body.action_id,
+        {"kind": "lets_go", "action_id": engine.normalize_action_id(body.action_id), "payload": payload},
+    )
+    return payload
 
 
 class AdjustBody(BaseModel):
     session_id: str
     option: Literal["cheaper", "different", "closer", "again", "deal"]
+    pack_id: str | None = None
+    meal_context: Literal["meal", "late_night", "anju"] | None = None
+    action_id: str | None = None
+    epoch: int | None = None
 
 
 class UndoBody(BaseModel):
     session_id: str
+    pack_id: str | None = None
+    meal_context: Literal["meal", "late_night", "anju"] | None = None
+    action_id: str | None = None
+    epoch: int | None = None
     uid: str | None = None
 
 
 @app.post("/v1/adjust")
 def adjust(body: AdjustBody):
-    s = engine.get_session(body.session_id)
-    if not s:
-        raise HTTPException(404, "session not found")
-    if body.option == "closer" and s.intent != "visit":
-        raise HTTPException(400, "closer is visit-only")
-    if body.option == "deal" and not deals.public_ready(hub_id=s.hub_id, intent=s.intent):
-        raise HTTPException(400, "deals not public yet")
-    engine.apply_adjust(s, body.option)
-    cards, radius, gold = engine.present_feed(s)
-    payload = _feed_payload(s, cards, radius, gold)
-    payload["adjusted"] = body.option
-    return payload
+    with engine.lock_session(body.session_id):
+        s = engine.get_session(body.session_id)
+        if not s:
+            raise HTTPException(404, "session not found")
+        replay = engine.peek_action(s, body.action_id)
+        if replay and replay.get("kind") == "adjust":
+            return _replay_or_stale(s, replay)
+        if not engine.accept_action(
+            s, pack_id=body.pack_id, meal_context=body.meal_context, epoch=body.epoch
+        ):
+            return _stale_response(s)
+        if body.option == "closer" and s.intent != "visit":
+            raise HTTPException(400, "closer is visit-only")
+        if body.option == "deal" and not deals.public_ready(hub_id=s.hub_id, intent=s.intent):
+            raise HTTPException(400, "deals not public yet")
+        engine.apply_adjust(s, body.option)
+        cards, radius, gold = engine.present_feed(s)
+        payload = _feed_payload(s, cards, radius, gold)
+        payload["adjusted"] = body.option
+        engine.store_action(
+            s,
+            body.action_id,
+            {"kind": "adjust", "action_id": engine.normalize_action_id(body.action_id), "option": body.option},
+        )
+        return payload
 
 
 @app.post("/v1/undo")
 def undo(body: UndoBody, request: Request):
-    s = engine.get_session(body.session_id)
-    if not s:
-        raise HTTPException(404, "session not found")
-    card = s.undo_stack[-1] if s.undo_stack else None
-    if not engine.apply_undo(s):
-        raise HTTPException(400, "nothing to undo")
-    uid = _optional_uid(request, body.uid)
-    if uid and card:
-        try:
-            users.STORE.undo_last_nope(uid, str(card.get("menu_id") or ""))
-        except KeyError:
-            pass
-    cards, radius, gold = engine.present_feed(s)
-    return _feed_payload(s, cards, radius, gold)
+    with engine.lock_session(body.session_id):
+        s = engine.get_session(body.session_id)
+        if not s:
+            raise HTTPException(404, "session not found")
+        replay = engine.peek_action(s, body.action_id)
+        if replay and replay.get("kind") == "undo":
+            return _replay_or_stale(s, replay)
+        if not engine.accept_action(
+            s, pack_id=body.pack_id, meal_context=body.meal_context, epoch=body.epoch
+        ):
+            return _stale_response(s)
+        if not engine.apply_undo(s):
+            raise HTTPException(400, "nothing to undo")
+        cards, radius, gold = engine.present_feed(s)
+        payload = _feed_payload(s, cards, radius, gold)
+        engine.store_action(
+            s,
+            body.action_id,
+            {"kind": "undo", "action_id": engine.normalize_action_id(body.action_id)},
+        )
+        return payload
 
 
 if WEB_DIR.is_dir():

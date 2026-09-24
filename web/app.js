@@ -27,6 +27,10 @@ const state = {
   logicVersion: "",
   swiping: false,
   modeSwitching: false,
+  reqSeq: 0,
+  epoch: 0,
+  shownKeys: {},
+  lastAction: null,
   lastReceipt: null,
   lastDone: null,
   savedTaste: [],
@@ -110,11 +114,13 @@ async function api(path, opts = {}) {
         },
         ...fetchOpts,
       });
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409 && data && data.stale) return data;
+      if (!res.ok) throw new Error(typeof data === "string" ? data : JSON.stringify(data));
+      return data;
     } catch (err) {
       lastErr = err;
-      if (i < retries) await sleep(1200 * (i + 1));
+      if (i < retries && !(err && err.stale)) await sleep(1200 * (i + 1));
     }
   }
   throw lastErr;
@@ -262,6 +268,46 @@ function setToggleUI(intent) {
   } else {
     reason.classList.add("hidden");
   }
+}
+
+function beginReq() {
+  state.reqSeq += 1;
+  return state.reqSeq;
+}
+
+function isCurrentReq(req) {
+  return req === state.reqSeq;
+}
+
+function sessionActionBody(extra = {}) {
+  return {
+    session_id: state.sessionId,
+    pack_id: state.packId || undefined,
+    meal_context: state.mealContext || undefined,
+    epoch: state.epoch || undefined,
+    ...extra,
+  };
+}
+
+function newActionId() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  return `a-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function actionIdFor(key) {
+  const prev = state.lastAction;
+  if (prev && prev.key === key && prev.pending) return prev.id;
+  const id = newActionId();
+  state.lastAction = { id, key, pending: true };
+  return id;
+}
+
+function settleAction() {
+  if (state.lastAction) state.lastAction.pending = false;
+}
+
+function shownKey(sessionId, packId, menuId) {
+  return `${sessionId || ""}:${packId || ""}:${menuId || ""}`;
 }
 
 function setMealUI(ctx) {
@@ -1169,6 +1215,7 @@ async function init() {
       reloadBtn.textContent = "찾는 중…";
       try {
         await ensureFreshLocation();
+        const req = beginReq();
         const data = await api("/v1/session", {
           method: "POST",
           body: JSON.stringify({
@@ -1181,9 +1228,10 @@ async function init() {
             uid: state.uid || undefined,
           }),
         });
-        applyFeed(data);
-        setToggleUI(state.intent);
-        renderCard();
+        if (applyFeed(data, { req })) {
+          setToggleUI(state.intent);
+          renderCard();
+        }
       } catch (err) {
         console.error(err);
         const msg = $("empty-msg");
@@ -1199,6 +1247,28 @@ async function init() {
   if (emptySwap) {
     emptySwap.onclick = () => {
       document.querySelector(".tog:not(.on)")?.click();
+    };
+  }
+  const emptyMeal = $("btn-empty-meal");
+  if (emptyMeal) {
+    emptyMeal.onclick = () => selectMealContext("meal");
+  }
+  const emptyLocate = $("btn-empty-locate");
+  if (emptyLocate) {
+    emptyLocate.onclick = async () => {
+      if (emptyLocate.disabled) return;
+      emptyLocate.disabled = true;
+      try {
+        await locateAndSyncWeather(true);
+        if (state.sessionId) await refreshFeed();
+        else await startSession();
+        renderCard();
+      } catch (err) {
+        console.error(err);
+        setFeedHint("위치를 다시 확인하지 못했어요.", "error");
+      } finally {
+        emptyLocate.disabled = false;
+      }
     };
   }
 
@@ -1344,8 +1414,8 @@ async function restoreExclude(key) {
     }
     renderExcludeRow();
     if (data.session_id) {
-      applyFeed(data);
-      renderCard();
+      const req = beginReq();
+      if (applyFeed(data, { req })) renderCard();
     }
   } catch (err) {
     console.error(err);
@@ -1385,8 +1455,8 @@ async function submitExclude(card) {
     renderExcludeRow();
     hideDetailModal();
     if (data.session_id) {
-      applyFeed(data);
-      renderCard();
+      const req = beginReq();
+      if (applyFeed(data, { req })) renderCard();
     }
     const label = excludeLabel(kind || category);
     setFeedHint(
@@ -1401,6 +1471,7 @@ async function submitExclude(card) {
 
 async function startSession() {
   await ensureFreshLocation();
+  const req = beginReq();
   const data = await api("/v1/session", {
     method: "POST",
     body: JSON.stringify({
@@ -1423,7 +1494,7 @@ async function startSession() {
     state.savedTaste = [...state.tasteChoices];
     updateTasteReuseHint();
   }
-  applyFeed(data);
+  if (!applyFeed(data, { req })) return;
   show("screen-feed");
   setToggleUI(state.intent);
   setMealUI(state.mealContext);
@@ -1432,6 +1503,7 @@ async function startSession() {
 
 async function refreshFeed() {
   if (!state.sessionId) return;
+  const req = beginReq();
   await ensureFreshLocation();
   const q = new URLSearchParams({
     session_id: state.sessionId,
@@ -1442,7 +1514,7 @@ async function refreshFeed() {
     lng: String(state.lng),
   });
   const data = await api(`/v1/feed?${q}`);
-  applyFeed(data);
+  if (!applyFeed(data, { req })) return;
 }
 
 async function selectMealContext(next) {
@@ -1473,6 +1545,8 @@ async function selectMealContext(next) {
 }
 
 function applyFeed(data, opts = {}) {
+  if (opts.req != null && !isCurrentReq(opts.req)) return false;
+  if (!data || !data.session_id) return false;
   state.sessionId = data.session_id;
   state.cards = data.cards || [];
   state.perfect = data.perfect_slots_left;
@@ -1484,6 +1558,14 @@ function applyFeed(data, opts = {}) {
   state.canUndo = !!data.can_undo;
   state.adjustOptions = data.adjust_options || [];
   state.logicVersion = data.logic_version || "";
+  if (data.epoch != null) state.epoch = data.epoch;
+  state.emptyTitle = data.empty_title || "";
+  state.emptyCopy = data.empty_copy || "";
+  state.emptyActions = data.empty_actions || [];
+  if (data.session_id && data.session_id !== state.shownSessionId) {
+    state.shownKeys = {};
+    state.shownSessionId = data.session_id;
+  }
   if (Array.isArray(data.exclude_categories)) {
     state.excludeCats = data.exclude_categories;
     renderExcludeRow();
@@ -1515,13 +1597,19 @@ function applyFeed(data, opts = {}) {
   syncUndoBtn();
   const card = currentCard();
   if (card && !opts.fromUndo) {
-    track("recommend_shown", {
-      pack_id: card.pack_id || state.packId,
-      menu_id: card.menu_id,
-      rank: card.pack_rank || state.packRank,
-      logic_version: card.logic_version || state.logicVersion,
-      intent: state.intent,
-    });
+    const key = shownKey(state.sessionId, card.pack_id || state.packId, card.menu_id);
+    if (!state.shownKeys[key]) {
+      state.shownKeys[key] = true;
+      track("recommend_shown", {
+        session_id: state.sessionId,
+        pack_id: card.pack_id || state.packId,
+        menu_id: card.menu_id,
+        candidate_id: card.menu_id,
+        rank: card.pack_rank || state.packRank,
+        logic_version: card.logic_version || state.logicVersion,
+        intent: state.intent,
+      });
+    }
   } else if (state.adjustNeeded && !opts.fromUndo) {
     track("pack_exhausted", {
       pack_id: state.packId,
@@ -1529,6 +1617,7 @@ function applyFeed(data, opts = {}) {
       intent: state.intent,
     });
   }
+  return true;
 }
 
 function currentCard() {
@@ -1660,17 +1749,28 @@ function renderCard() {
     el.classList.add("hidden");
     empty.classList.remove("hidden");
     if (actions) actions.classList.add("hidden");
+    const title = $("empty")?.querySelector(".empty-title");
+    if (title) title.textContent = state.emptyTitle || "지금 보여줄 곳이 없어요";
     const msg = $("empty-msg");
     if (msg) {
       msg.textContent = state.usingFallbackLoc
-        ? "이 임시 위치에서 가게를 못 찾았어요. 위치 권한을 허용하면 결과가 달라져요."
-        : "이 위치에서 조건에 맞는 가게를 못 찾았어요. 위치를 바꾸거나 다시 시도해 주세요.";
+        ? "임시 위치라서 근처 가게를 못 찾았어요. 위치 권한을 허용하면 결과가 달라져요."
+        : state.emptyCopy ||
+          "이 위치에서 조건에 맞는 가게를 못 찾았어요. 위치를 바꾸거나 다시 시도해 주세요.";
     }
     const swapBtn = $("btn-empty-intent");
     if (swapBtn) {
       swapBtn.textContent =
         state.intent === "delivery" ? "방문으로 바꿔 보기" : "배달로 바꿔 보기";
+      swapBtn.classList.remove("hidden");
     }
+    const mealBtn = $("btn-empty-meal");
+    if (mealBtn) {
+      const showMeal = state.mealContext && state.mealContext !== "meal";
+      mealBtn.classList.toggle("hidden", !showMeal);
+    }
+    const locBtn = $("btn-empty-locate");
+    if (locBtn) locBtn.classList.remove("hidden");
     $("feed-hint")?.classList.add("hidden");
     syncUndoBtn();
     return;
@@ -1763,19 +1863,26 @@ function syncUndoBtn() {
 
 async function submitAdjust(option) {
   if (!state.sessionId || state.swiping) return;
+  const req = beginReq();
+  const actionId = actionIdFor(`adjust:${option}:${state.packId}`);
   state.swiping = true;
   try {
     const data = await api("/v1/adjust", {
       method: "POST",
-      body: JSON.stringify({ session_id: state.sessionId, option }),
+      body: JSON.stringify(sessionActionBody({ option, action_id: actionId })),
     });
+    if (data.stale) {
+      settleAction();
+      if (applyFeed(data, { req })) renderCard();
+      return;
+    }
+    settleAction();
     track("adjust", {
       option,
       pack_id: state.packId,
       logic_version: data.logic_version || state.logicVersion,
     });
-    applyFeed(data);
-    renderCard();
+    if (applyFeed(data, { req })) renderCard();
   } catch (err) {
     console.error(err);
     setFeedHint("조건을 바꾸지 못했어요. 다시 눌러 주세요.", "error");
@@ -1787,21 +1894,31 @@ async function submitAdjust(option) {
 
 async function undoCard() {
   if (!state.sessionId || !state.canUndo || state.swiping) return;
+  const req = beginReq();
+  const actionId = actionIdFor(`undo:${state.packId}:${state.packRank}`);
   state.swiping = true;
   try {
     const data = await api("/v1/undo", {
       method: "POST",
-      body: JSON.stringify({
-        session_id: state.sessionId,
-        uid: state.uid || undefined,
-      }),
+      body: JSON.stringify(
+        sessionActionBody({ uid: state.uid || undefined, action_id: actionId })
+      ),
     });
+    if (data.stale) {
+      settleAction();
+      if (applyFeed(data, { req })) renderCard();
+      return;
+    }
+    settleAction();
+    const shown = (data.cards && data.cards[0]) || {};
     track("undo", {
       pack_id: data.pack_id || state.packId,
+      menu_id: shown.menu_id || "",
+      candidate_id: shown.menu_id || "",
+      replay: true,
       logic_version: data.logic_version || state.logicVersion,
     });
-    applyFeed(data, { fromUndo: true });
-    renderCard();
+    if (applyFeed(data, { req, fromUndo: true })) renderCard();
   } catch (err) {
     console.error(err);
     setFeedHint("이전 후보를 불러오지 못했어요.", "error");
@@ -1842,19 +1959,29 @@ function showMatchThenHandoff(data) {
 async function swipe(action) {
   const card = currentCard();
   if (!card || state.swiping) return false;
+  const req = beginReq();
+  const actionId = actionIdFor(`swipe:${action}:${card.menu_id}:${card.pack_id || state.packId}`);
   state.swiping = true;
   setSwipeBusy(true, action);
   try {
     const data = await api("/v1/swipe", {
       method: "POST",
-      body: JSON.stringify({
-        session_id: state.sessionId,
-        card_id: card.card_id,
-        menu_id: card.menu_id,
-        action,
-        uid: state.uid || undefined,
-      }),
+      body: JSON.stringify(
+        sessionActionBody({
+          card_id: card.card_id,
+          menu_id: card.menu_id,
+          action,
+          action_id: actionId,
+          uid: state.uid || undefined,
+        })
+      ),
     });
+    if (data.stale) {
+      settleAction();
+      if (applyFeed(data, { req })) renderCard();
+      return false;
+    }
+    settleAction();
     if (action === "lets_go") {
       track("swipe_go", {
         category: card.category || "",
@@ -1878,8 +2005,7 @@ async function swipe(action) {
       rank: card.pack_rank || state.packRank,
       logic_version: card.logic_version || state.logicVersion,
     });
-    applyFeed(data);
-    renderCard();
+    if (applyFeed(data, { req })) renderCard();
     return true;
   } catch (err) {
     console.error(err);

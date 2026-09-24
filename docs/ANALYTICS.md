@@ -18,6 +18,8 @@
 | `locate_ok` / `locate_fallback` | 위치 성공 / 송도 폴백 (세션당 1회) |
 | `taste_done` | 취향 온보딩 완료 |
 | `session_start` | 스와이프 세션 시작 |
+| `recommend_shown` | 후보를 화면에 처음 보여줄 때. 집계 키는 **세션 + pack_id + menu_id(후보)** |
+| `undo` | 같은 묶음 직전 후보 재열람. `recommend_shown`으로 중복 집계하지 않음 |
 | `swipe_nope` / `swipe_go` | 스와이프 |
 | `match_done` | 매칭 완료 |
 | `share` | 링크/네이티브/카톡 공유 |

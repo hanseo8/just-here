@@ -44,4 +44,5 @@ data/events.jsonl
 data/*.tmp
 data/.guest_secret
 data/deals.json
+data/verified-menus.json
 

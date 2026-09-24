@@ -1,0 +1,36 @@
+{
+  "experiment_id": "songdo1_menu_v0",
+  "hub_id": "hub_songdo",
+  "dong_code": "yeonsu:songdo-1",
+  "note": "한 동에서 실제 판매 메뉴 20~30개를 확인하는 초기 실험. 추천 품질을 보장하는 수치가 아니다. 확인되지 않은 칸은 비운다. 이 파일을 그대로 쓰지 말고 data/verified-menus.json으로 복사한 뒤 채운다.",
+  "menus": [
+    {
+      "example": true,
+      "menu_id": "vm_songdo_001",
+      "menu_name": "",
+      "place_name": "",
+      "place_id": "",
+      "kakao_place_id": "",
+      "address": "",
+      "price_krw": null,
+      "price_verified_at": "",
+      "confirmed_at": "",
+      "source": "",
+      "source_url": "",
+      "source_note": "",
+      "confirmed_by": "",
+      "meal_contexts": [],
+      "photo_url": "",
+      "photo_rights": null,
+      "hours": "",
+      "hours_verified": false,
+      "order_url": "",
+      "order_verified": false,
+      "open_now": null,
+      "delivery_available": null,
+      "portion": "",
+      "hub_id": "hub_songdo",
+      "dong_code": "yeonsu:songdo-1"
+    }
+  ]
+}

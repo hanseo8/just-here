@@ -151,6 +151,7 @@ def product_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
             continue
         s = sessions[sid]
         if ev == "recommend_shown":
+            # 집계 단위: session_id + pack_id + menu_id(후보). undo 재열람은 이 이벤트가 아니다.
             if not s["first_shown_ts"]:
                 s["first_shown_ts"] = ts
                 s["first_pack_id"] = str(props.get("pack_id") or "")

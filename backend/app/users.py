@@ -81,6 +81,8 @@ def compute_taste_signals(
         day = ts.astimezone(KST).strftime("%Y-%m-%d")
         recent_hit = (now - ts) <= timedelta(hours=36)
         for cat in keys:
+            if ev.get("undone"):
+                continue
             if action == "nope":
                 nope_days[cat].add(day)
             elif action == "lets_go":
@@ -283,24 +285,6 @@ class UserStore:
             u["swipe_logs"] = logs[-500:]
             # 거절을 장기 비선호로 바로 누적하지 않는다.
             # 일자별 신호는 2단계에서 swipe_logs를 읽어 계산한다.
-            u["updated_at"] = _now()
-            self._save()
-            return deepcopy(u)
-
-    def undo_last_nope(self, uid: str, menu_id: str) -> dict[str, Any]:
-        """직전 거절 로그만 되돌린다. 같은 카드에 페널티가 두 번 쌓이지 않게."""
-        menu_id = str(menu_id or "")
-        with _LOCK:
-            u = self._users.get(uid)
-            if not u:
-                raise KeyError("user_not_found")
-            logs = u.get("swipe_logs") or []
-            for i in range(len(logs) - 1, -1, -1):
-                row = logs[i]
-                if row.get("action") == "nope" and str(row.get("menu_id") or "") == menu_id:
-                    logs.pop(i)
-                    break
-            u["swipe_logs"] = logs[-500:]
             u["updated_at"] = _now()
             self._save()
             return deepcopy(u)

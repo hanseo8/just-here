@@ -1,6 +1,7 @@
 """세션 · 랭킹 · 허브/전국 2티어 인벤토리."""
 from __future__ import annotations
 
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -47,6 +48,7 @@ class Session:
     adjust_needed: bool = False
     adjust_filters: dict = field(default_factory=dict)
     last_radius_m: int = 0
+    last_pack_size: int = 3
     long_hate_cats: dict[str, float] = field(default_factory=dict)
     long_prefer_cats: dict[str, float] = field(default_factory=dict)
     recent_repeat_cats: set[str] = field(default_factory=set)
@@ -54,9 +56,47 @@ class Session:
     exclude_cats: set[str] = field(default_factory=set)
     has_history: bool = False
     meal_context: str = "meal"
+    epoch: int = 0
+    action_results: dict[str, dict] = field(default_factory=dict)
 
 
 SESSIONS: dict[str, Session] = {}
+_SESS_LOCKS: dict[str, threading.Lock] = {}
+_SESS_LOCKS_MU = threading.Lock()
+
+
+def lock_session(session_id: str) -> threading.Lock:
+    with _SESS_LOCKS_MU:
+        lock = _SESS_LOCKS.get(session_id)
+        if lock is None:
+            lock = threading.Lock()
+            _SESS_LOCKS[session_id] = lock
+        return lock
+
+
+def bump_epoch(session: Session) -> int:
+    session.epoch += 1
+    return session.epoch
+
+
+def normalize_action_id(raw: str | None) -> str:
+    return str(raw or "").strip()[:80]
+
+
+def peek_action(session: Session, action_id: str | None) -> dict | None:
+    aid = normalize_action_id(action_id)
+    if not aid:
+        return None
+    return session.action_results.get(aid)
+
+
+def store_action(session: Session, action_id: str | None, record: dict) -> None:
+    aid = normalize_action_id(action_id)
+    if not aid:
+        return
+    session.action_results[aid] = record
+    while len(session.action_results) > 48:
+        session.action_results.pop(next(iter(session.action_results)))
 
 
 def _fetch_kakao(lat: float, lng: float, radius: int) -> list[dict]:
@@ -419,11 +459,44 @@ def _track_category(session: Session, place: dict) -> None:
         session.herbivore_streak = 0
 
 
+def current_pack_card(session: Session) -> dict | None:
+    if session.adjust_needed or not session.pack_cards:
+        return None
+    return session.pack_cards[0]
+
+
+def accept_action(
+    session: Session,
+    *,
+    menu_id: str | None = None,
+    pack_id: str | None = None,
+    meal_context: str | None = None,
+    epoch: int | None = None,
+    require_card: bool = False,
+) -> bool:
+    """늦게 온 이전 요청이 새 묶음·새 상황에 손대지 못하게 한다."""
+    if epoch is not None and int(epoch) != session.epoch:
+        return False
+    if meal_context and normalize_meal_context(meal_context) != session.meal_context:
+        return False
+    if pack_id and pack_id != session.pack_id:
+        return False
+    if require_card:
+        top = current_pack_card(session)
+        if not top or str(top.get("menu_id") or "") != str(menu_id or ""):
+            return False
+    return True
+
+
 def apply_nope(session: Session, place: dict) -> bool:
     """이번 식사에서만 약한 감점. 장기 hate에 연결하지 않는다.
 
     묶음이 비면 True — 호출측이 조정 선택지를 띄운다. 골드 카드는 더 이상 없다.
     """
+    top = current_pack_card(session)
+    if top and str(top.get("menu_id") or "") != str(place.get("menu_id") or ""):
+        return False
+    bump_epoch(session)
     session.consecutive_nopes += 1
     session.left_swipe_count += 1
     session.seen_menu_ids.add(place["menu_id"])
@@ -447,6 +520,7 @@ def apply_nope(session: Session, place: dict) -> bool:
 
 
 def apply_lets_go(session: Session, place: dict) -> dict:
+    bump_epoch(session)
     session.consecutive_nopes = 0
     session.right_swipe_count += 1
     session.seen_menu_ids.add(place["menu_id"])
@@ -656,7 +730,7 @@ def build_visit_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
 
 
 PACK_SIZE = 3
-LOGIC_VERSION = "meal-context-v1"
+LOGIC_VERSION = "meal-context-v2"
 
 TASTE_KO = {
     "korean": "한식",
@@ -712,6 +786,7 @@ def card_menu_name(place: dict) -> str:
 
 
 def reset_pack(session: Session) -> None:
+    bump_epoch(session)
     session.pack_id = ""
     session.pack_cards = []
     session.adjust_needed = False
@@ -842,7 +917,9 @@ def start_pack(session: Session) -> int:
         c["meal_context"] = session.meal_context
         c["why"] = _why(session, c)
         session.pack_cards.append(c)
+    session.last_pack_size = len(session.pack_cards)
     session.adjust_needed = False
+    bump_epoch(session)
     if session.pack_cards:
         mark_deck_shown(session)
     elif had_nopes:
@@ -977,6 +1054,7 @@ def apply_undo(session: Session) -> bool:
             session.nope_tags.pop(tag, None)
     if session.category_path and session.category_path[-1] == cat:
         session.category_path.pop()
+    bump_epoch(session)
     mark_deck_shown(session)
     return True
 
@@ -986,12 +1064,49 @@ def pack_meta(session: Session) -> dict:
     return {
         "pack_id": session.pack_id,
         "pack_rank": int(current["pack_rank"]) if current else 0,
-        "pack_size": int(current["pack_size"]) if current else PACK_SIZE,
+        "pack_size": int(current["pack_size"]) if current else session.last_pack_size,
         "adjust_needed": bool(session.adjust_needed),
         "can_undo": bool(session.undo_stack),
         "logic_version": LOGIC_VERSION,
         "adjust_options": adjust_options(session) if session.adjust_needed else [],
         "meal_context": session.meal_context,
+        "epoch": session.epoch,
+    }
+
+
+def empty_guide(session: Session) -> dict:
+    """후보 0장일 때 이유와 다음 행동. 조정 화면과는 구분한다."""
+    if session.adjust_needed or session.pack_cards:
+        return {
+            "empty": False,
+            "empty_reason": "",
+            "empty_title": "",
+            "empty_actions": [],
+        }
+    if session.meal_context == "late_night":
+        reason = "야식 조건으로 이 위치에서 보여줄 곳이 없어요."
+    elif session.meal_context == "anju":
+        reason = "술안주 조건으로 이 위치에서 보여줄 곳이 없어요."
+    elif session.intent == "delivery":
+        reason = "지금 배달로 이어줄 브랜드가 없어요."
+    else:
+        reason = "이 위치에서 조건에 맞는 가게를 못 찾았어요."
+    actions = [
+        {"id": "relocate", "label": "위치 다시 확인"},
+        {"id": "retry", "label": "다시 시도"},
+        {
+            "id": "switch_intent",
+            "label": "방문으로 바꿔 보기" if session.intent == "delivery" else "배달로 바꿔 보기",
+        },
+    ]
+    if session.meal_context != "meal":
+        actions.append({"id": "switch_meal", "label": "한 끼로 다시 보기"})
+    return {
+        "empty": True,
+        "empty_reason": "no_candidates",
+        "empty_title": "지금 보여줄 곳이 없어요",
+        "empty_copy": reason,
+        "empty_actions": actions,
     }
 
 
