@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>송도 후보 카드 검수 · 그냥여기</title>
+  <link rel="stylesheet" href="/static/styles.css?v=20260924-ui3" />
+  <style>
+    body { height: auto; background: #0d0c0b; color: #f0eae4; padding: 24px 16px 64px; }
+    .wrap { max-width: 420px; margin: 0 auto; }
+    .lead, .meta { color: #a69c93; font-size: 14px; margin: 0 0 16px; }
+    .meta { font-size: 12px; }
+    .sec { margin: 28px 0 12px; font-size: 13px; color: #776e66; letter-spacing: 0.02em; }
+    .grid { display: flex; flex-direction: column; gap: 16px; }
+    .user-shell { position: relative; }
+    .user-shell .card { position: relative; display: block; }
+    .user-shell .note {
+      display: block;
+      -webkit-line-clamp: unset;
+      overflow: visible;
+    }
+    .internal {
+      margin: 8px 0 0;
+      font-size: 12px;
+      color: #776e66;
+    }
+    .note-list { margin: 0; padding: 0; list-style: none; }
+    .note-list li {
+      padding: 12px 0;
+      border-bottom: 1px solid #302a25;
+      color: #a69c93;
+      font-size: 13px;
+    }
+    .note-list strong { display: block; color: #f0eae4; margin-bottom: 4px; }
+    .err { color: #ffb089; }
+  </style>
+</head>
+<body class="allow-scroll">
+  <div class="wrap">
+    <p class="wordmark">그냥여기</p>
+    <h1 class="screen-title">첫 완성 후보</h1>
+    <p class="lead">운영 추천이 아닙니다. 로더와 업어 함수 결과만 보여 줍니다. 이 정보로 메뉴와 가게를 고를 수 있는지만 봐 주세요.</p>
+    <p class="meta" id="meta">불러오는 중…</p>
+
+    <p class="sec">사용자 카드 · 지점 판매 확인 · 사진 없는 레이아웃</p>
+    <div class="grid" id="users"></div>
+
+    <p class="sec">첫 묶음 · 매장당 최대 1장</p>
+    <div class="grid" id="pack"></div>
+
+    <p class="sec">같은 매장 검증 메뉴 · 구매 후보</p>
+    <div class="grid" id="menus"></div>
+
+    <p class="sec">취향 선택 테스트 · 플래터 / 타코 / 브리또</p>
+    <div class="grid" id="picks"></div>
+
+    <p class="sec">내부 조사 · 구매 가능한 메뉴 후보 아님</p>
+    <ul class="note-list" id="notes"></ul>
+  </div>
+  <script src="/static/review-songdo.js?v=20260924-review"></script>
+</body>
+</html>

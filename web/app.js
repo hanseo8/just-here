@@ -1632,6 +1632,9 @@ function applyFeed(data, opts = {}) {
         pack_id: card.pack_id || state.packId,
         menu_id: card.menu_id,
         candidate_id: card.menu_id,
+        verified_menu_id: card.verified_menu_id || "",
+        place_id: card.place_id || "",
+        menu_name: card.menu_name || "",
         rank: card.pack_rank || state.packRank,
         logic_version: card.logic_version || state.logicVersion,
         intent: state.intent,
@@ -1782,9 +1785,20 @@ function formatPrice(krw) {
 
 function priceFact(card) {
   const src = card?.price_source;
+  const label = String(card?.price_label || "").trim();
+  const menuPretty = formatPrice(card?.price_menu_krw);
+  const perPersonPretty = formatPrice(card?.price_per_person_krw);
+  if (src === "catchtable_listed" || src === "listed_menu") {
+    if (menuPretty) return `${label || "메뉴 가격"} ${menuPretty}`.trim();
+    return label || "가격 미확인";
+  }
+  if (card?.price_unit === "menu" && !card?.portion_confirmed) {
+    if (menuPretty) return `${label || "메뉴 가격"} ${menuPretty}`.trim();
+    return "가격 미확인";
+  }
   const band = String(card?.price_band || "").trim();
-  const listed = src === "listed" || src === "confirmed" || card?.menu_verified;
-  const pretty = band || formatPrice(card?.price_krw);
+  const listed = src === "listed" || src === "confirmed";
+  const pretty = band || perPersonPretty || formatPrice(card?.price_krw);
   if (!pretty) return "가격 미확인";
   if (listed) return pretty.replace(/^예상\s*/, "");
   return pretty.startsWith("예상") ? pretty : `예상 ${pretty}`;
@@ -2227,6 +2241,9 @@ async function swipe(action) {
       track("swipe_go", {
         category: card.category || "",
         pack_id: card.pack_id || state.packId,
+        menu_id: card.menu_id,
+        verified_menu_id: card.verified_menu_id || "",
+        place_id: card.place_id || "",
         rank: card.pack_rank || state.packRank,
         logic_version: card.logic_version || state.logicVersion,
       });
@@ -2235,6 +2252,8 @@ async function swipe(action) {
         intent: state.intent,
         persona: data.persona?.id || "",
         pack_id: card.pack_id || state.packId,
+        menu_id: card.menu_id,
+        verified_menu_id: card.verified_menu_id || "",
         logic_version: card.logic_version || state.logicVersion,
       });
       showMatchThenHandoff({
@@ -2252,6 +2271,9 @@ async function swipe(action) {
     track("swipe_nope", {
       category: card.category || "",
       pack_id: card.pack_id || state.packId,
+      menu_id: card.menu_id,
+      verified_menu_id: card.verified_menu_id || "",
+      place_id: card.place_id || "",
       rank: card.pack_rank || state.packRank,
       logic_version: card.logic_version || state.logicVersion,
     });

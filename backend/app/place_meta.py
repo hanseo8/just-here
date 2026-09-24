@@ -13,9 +13,45 @@ CATEGORY_PRICE_KRW = {
 }
 
 
+def _positive_int(value) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if value <= 0:
+        return None
+    return int(value)
+
+
+def per_person_budget_krw(place: dict) -> int | None:
+    """1인 예산·가격 순위·고가 칭호에만 쓴다.
+
+    메뉴 전체 가격은 인분이 확인되기 전에는 여기 넣지 않는다.
+    이용 채널 미확인 가격은 배달 가격으로 쓰지 않는다.
+    """
+    if place.get("intent") == "delivery" and (
+        place.get("price_channel") == "unspecified" or place.get("price_for_delivery") is False
+    ):
+        return None
+    per_person = _positive_int(place.get("price_per_person_krw"))
+    if per_person:
+        return per_person
+    if place.get("price_unit") == "menu" and not place.get("portion_confirmed"):
+        return None
+    if place.get("price_unit") == "per_person" or place.get("portion_confirmed"):
+        return _positive_int(place.get("price_krw"))
+    if place.get("price_source") in ("catchtable_listed", "listed_menu"):
+        return None
+    return _positive_int(place.get("price_krw"))
+
+
 def estimated_price_krw(place: dict) -> int:
     if isinstance(place.get("estimated_price_per_person"), (int, float)):
         return int(place["estimated_price_per_person"])
+    budget = per_person_budget_krw(place)
+    if budget:
+        return budget
+    if place.get("price_unit") == "menu" and not place.get("portion_confirmed"):
+        cat = place.get("category") or "korean"
+        return CATEGORY_PRICE_KRW.get(cat, 12000)
     if isinstance(place.get("price_krw"), (int, float)):
         return int(place["price_krw"])
     cat = place.get("category") or "korean"

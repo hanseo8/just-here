@@ -23,10 +23,11 @@
    - 로컬 기본: 레포 `data/verified-menus.json` (gitignore, 추정 시드 금지)
    - 운영: Render 영구 디스크 **`/data/verified-menus.json`** (`DATA_DIR=/data`)
    - 예시 파일(`*.example.json`)은 이 경로가 아니며 추천에 넣지 않는다
-3. 로더: `backend/app/verified_menus.py` — 필수 필드가 있는 행만 `menu_verified=True`. **랭킹 미연결**
-4. 검사: `python scripts/check-verified-menus.py`
+3. 로더: `backend/app/verified_menus.py` — 지점 판매가 확인된 행만 `menu_verified=True`. 브랜드 공식만 확인되면 `이 지점 판매 여부 확인 필요`.
+4. 방문 연결: `VERIFIED_MENUS_VISIT=on`일 때, 거리·조건 필터를 통과한 카카오 매장에만 검증 메뉴를 붙인다. 반경·순위를 바꾸지 않는다. 배달에는 쓰지 않는다. 끄면 기존 실상호 추천으로 돌아간다.
+5. 검사: `python scripts/check-verified-menus.py` / `python scripts/check-verified-wire.py`
 
-랭킹·피드에는 **아직 연결하지 않는다.**
+운영 연결은 방문만. `DATA_DIR/verified-menus.json`이 영구 디스크에 있을 때만 운영 완료로 본다. 검수 페이지(`/review-songdo`, `/v1/review/songdo`)는 운영에서 공개하지 않는다.
 
 ---
 
@@ -36,7 +37,9 @@
 
 | 필드 | 검증으로 쓰는 조건 | 비고 |
 |------|-------------------|------|
-| `menu_name` | 필수 | 가게에서 확인한 판매명 |
+| `menu_scope` | 필수에 가깝게 | `brand` = 브랜드 공식 메뉴, `branch` = 해당 송도 지점 판매 확인 |
+| `branch_sale_confirmed` | `branch`일 때만 true | false면 `menu_verified`를 켜지 않음 |
+| `menu_name` | 필수 | 확인된 판매명. 브랜드만 확인되면 지점 판매로 쓰지 않음 |
 | `place_name` | 필수 | 상호 |
 | `address` | 필수 | 도로명 또는 지번 |
 | `source` | 필수 | `visit` / `receipt` / `official` / `owner` |
@@ -60,3 +63,21 @@
 2. 양식을 복사해 한 행씩 채운다. 모르는 칸은 비운다.
 3. `python scripts/check-verified-menus.py`로 통과 행 수를 본다.
 4. 20개가 넘어도 피드에 자동 연결하지 않는다. 연결은 별도 결정이다.
+
+---
+
+## 2026-09-24 상태
+
+| | |
+|--|--|
+| 후보 가게 | `data/songdo1-prospects.json` — 앵커 700m 카카오 30곳 + 인근 2곳 |
+| 우선 5곳 | `data/verified-menus.songdo.priority.json` |
+| 브랜드만 | 기존 6행 + 움버거 3행. `menu_verified=false` |
+| 지점 판매 | 띠오데산타바바라 3행. 근거는 캐치테이블 지점 페이지 게시. 매장 직접 확인 아님 |
+| 가격 단위 | 플래터 58,000원은 메뉴 전체·인분 미확인. 1인 예산·순위·고가 칭호에 쓰지 않음. 이용 채널 미확인이라 배달 가격 아님 |
+| 카드 검수 | `/review-songdo` → `/v1/review/songdo`. 로더·업어 결과. 도보 기준 37.3925, 126.6450 |
+| 추천 연결 | 방문만. `VERIFIED_MENUS_VISIT`로 켜고 끈다. 배달·영업중·배달가능으로 확대하지 않음 |
+
+다이닝코드·블로그·배달앱 가격은 넣지 않는다. 가격·메뉴 사진은 그 매장 메뉴판·영수증·공식 지점 페이지가 있을 때만 채운다.
+
+연결 준비: `verified_menus.match_place` / `apply_verified` / `overlay_inventory`. 카카오 실상호에만 붙이고, 좌표 없는 가상 매장은 만들지 않는다.

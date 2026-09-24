@@ -479,7 +479,7 @@ check(pm["revisit_rate"] == 50.0, "재방문 1/2 기기")
 check("handoff_open" in analytics.ALLOWED_EVENTS, "handoff_open 수집")
 
 print("\n[상황] meal_context는 종류와 별개다")
-check(engine.LOGIC_VERSION == "meal-context-v2", f"로직 버전={engine.LOGIC_VERSION}")
+check(engine.LOGIC_VERSION == "meal-context-v2.visit-menu", f"로직 버전={engine.LOGIC_VERSION}")
 check(suggest_meal_context(23) == "late_night", "늦은 시간은 야식을 제안한다")
 check(suggest_meal_context(12) == "meal", "점심은 한 끼를 제안한다")
 ctx_night = client.get("/v1/context", params={"hour": 23})
@@ -812,10 +812,9 @@ check("switch_meal" in ids, "야식이면 한 끼로 다시 보기가 있다")
 print("\n[검증메뉴] 예시는 추천에 안 넣고 출처가 있어야 한다")
 from app import verified_menus  # noqa: E402
 
-check("verified_menus" not in Path(engine.__file__).read_text(encoding="utf-8"), "엔진이 검증 메뉴를 불러오지 않는다")
 ex = verified_menus.load_catalog(Path(__file__).resolve().parents[1] / "data" / "verified-menus.songdo.example.json")
 check(ex["count"] == 0, "예시 파일 0행")
-check(ex.get("wired_to_ranking") is False, "랭킹 미연결")
+check("overlay_visit_cards" in Path(engine.__file__).read_text(encoding="utf-8"), "방문 오버레이 연결 함수가 있다")
 check(verified_menus.catalog_path().name == "verified-menus.json", "실제 입력은 verified-menus.json")
 row_ok = {
     "menu_name": "테스트국밥",

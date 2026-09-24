@@ -46,6 +46,35 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def hide_internal_review(request: Request, call_next):
+    path = request.url.path.lower()
+    review = (
+        path.startswith("/review-songdo")
+        or path.startswith("/v1/review/songdo")
+        or path.endswith("/review-songdo.html")
+        or path.endswith("/review-songdo.js")
+    )
+    if not review:
+        return await call_next(request)
+    from .verified_menus import review_exposed
+
+    token = request.query_params.get("token") or request.headers.get("x-admin-token")
+    if review_exposed() or analytics.admin_token_ok(token):
+        return await call_next(request)
+    return JSONResponse({"detail": "not found"}, status_code=404)
+
+
+@app.on_event("startup")
+def _bootstrap_verified_menus() -> None:
+    try:
+        from .verified_menus import bootstrap_persistent_catalog
+
+        bootstrap_persistent_catalog()
+    except Exception:
+        return
+
+
 class SwipeBody(BaseModel):
     session_id: str
     card_id: str
@@ -144,6 +173,15 @@ def _optional_uid(request: Request, uid: str | None) -> str | None:
     if not uid:
         return None
     return _require_uid(request, uid)
+
+
+def _verified_menu_status() -> dict:
+    try:
+        from .verified_menus import overlay_status
+
+        return overlay_status()
+    except Exception:
+        return {"visit_overlay": False, "operational": False}
 
 
 def _strip(cards: list[dict]) -> list[dict]:
@@ -252,6 +290,23 @@ def analytics_summary(
     return analytics.summarize(since_days=days)
 
 
+@app.get("/v1/review/songdo")
+def review_songdo(
+    taste: str = "",
+    meal_context: str = "meal",
+    prefer: str = "",
+):
+    """검수용. 운영 추천 랭킹에는 연결하지 않는다."""
+    from .verified_menus import review_payload
+
+    tastes = [part.strip() for part in taste.split(",") if part.strip()]
+    return review_payload(
+        taste=tastes or None,
+        meal_context=meal_context or "meal",
+        prefer=prefer or None,
+    )
+
+
 @app.get("/v1/meta")
 def meta():
     return {
@@ -279,6 +334,8 @@ def meta():
         },
         "taste_pairs": sample_taste_pairs(4),
         "personas": titles.catalog(),
+        "logic_version": engine.LOGIC_VERSION,
+        "verified_menus": _verified_menu_status(),
     }
 
 
@@ -711,6 +768,8 @@ def _swipe_locked(body: SwipeBody, request: Request):
                     "weather": s.weather,
                     "pack_id": s.pack_id,
                     "logic_version": engine.LOGIC_VERSION,
+                    "verified_menu_id": place.get("verified_menu_id") or "",
+                    "menu_verified": bool(place.get("menu_verified")),
                 },
             )
         except KeyError:
@@ -762,8 +821,10 @@ def _swipe_locked(body: SwipeBody, request: Request):
         "menu_id": place.get("menu_id") or body.menu_id,
         "category": place.get("category") or "",
         "kind": place.get("kind") or engine._visit_kind(place),
-        "menu_verified": False,
-        "menu_source": "typical" if s.intent == "delivery" else "inferred",
+        "menu_verified": bool(place.get("menu_verified")),
+        "menu_source": place.get("menu_source")
+        or ("typical" if s.intent == "delivery" else "inferred"),
+        "verified_menu_id": place.get("verified_menu_id") or "",
         "pack_id": s.pack_id,
         "logic_version": engine.LOGIC_VERSION,
         "receipt": share.share_payload(receipt, str(request.base_url)),
@@ -886,6 +947,13 @@ if WEB_DIR.is_dir():
         path = WEB_DIR / "analytics.html"
         if not path.exists():
             raise HTTPException(404, "analytics page missing")
+        return FileResponse(path)
+
+    @app.get("/review-songdo")
+    def review_songdo_page():
+        path = WEB_DIR / "review-songdo.html"
+        if not path.exists():
+            raise HTTPException(404, "review page missing")
         return FileResponse(path)
 
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")

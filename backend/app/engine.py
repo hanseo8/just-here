@@ -469,12 +469,9 @@ def _context_boost(place: dict, session: Session) -> float:
 
 
 def _listed_price(card: dict) -> int | None:
-    raw = card.get("price_krw")
-    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
-        return None
-    if raw <= 0:
-        return None
-    return int(raw)
+    from .place_meta import per_person_budget_krw
+
+    return per_person_budget_krw(card)
 
 
 def _score(place: dict, distance_m: float, session: Session) -> float:
@@ -779,13 +776,34 @@ def build_visit_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
                 "_score": round(sc, 2),
             }
         )
+    cards = _attach_verified_visit_menus(session, cards)
     if cards:
         mark_deck_shown(session)
     return cards, pool_r, False
 
 
+def _attach_verified_visit_menus(session: Session, cards: list[dict]) -> list[dict]:
+    """방문만. 실패해도 기존 실상호 추천을 유지한다."""
+    if session.intent != "visit" or not cards:
+        return cards
+    try:
+        from .verified_menus import overlay_visit_cards
+
+        return overlay_visit_cards(
+            cards,
+            intent=session.intent,
+            taste=list(session.taste or []),
+            meal_context=session.meal_context,
+            salt=session.id,
+            adjust=session.adjust_filters or {},
+            places=session.places,
+        )
+    except Exception:
+        return cards
+
+
 PACK_SIZE = 3
-LOGIC_VERSION = "meal-context-v2"
+LOGIC_VERSION = "meal-context-v2.visit-menu"
 
 TASTE_KO = {
     "korean": "한식",
@@ -834,7 +852,9 @@ def _visit_kind(place: dict) -> str:
 
 
 def card_menu_name(place: dict) -> str:
-    """영수증·완료 화면에 쓸 표시명. 방문은 검증된 메뉴가 아니라 추정 종류."""
+    """영수증·완료 화면에 쓸 표시명. 방문은 검증 메뉴가 있을 때만 판매명을 쓴다."""
+    if place.get("menu_verified") and place.get("menu_name"):
+        return str(place["menu_name"])
     if place.get("brand_id") or str(place.get("menu_id") or "").startswith("brand:"):
         return str(place.get("menu_name") or "")
     return category_ko(place.get("category") or "")
@@ -856,19 +876,30 @@ def _pack_key(card: dict) -> str:
 def _pick_diverse_pack(cards: list[dict], n: int = PACK_SIZE) -> list[dict]:
     picked: list[dict] = []
     used: set[str] = set()
+    used_places: set[str] = set()
     for c in cards:
+        pid = str(c.get("place_id") or "")
+        if pid and pid in used_places:
+            continue
         k = _pack_key(c)
         if k in used:
             continue
         picked.append(c)
         used.add(k)
+        if pid:
+            used_places.add(pid)
         if len(picked) >= n:
             return picked
     ids = {c["menu_id"] for c in picked}
     for c in cards:
+        pid = str(c.get("place_id") or "")
         if c["menu_id"] in ids:
             continue
+        if pid and pid in used_places:
+            continue
         picked.append(c)
+        if pid:
+            used_places.add(pid)
         if len(picked) >= n:
             break
     return picked
@@ -1203,16 +1234,49 @@ def build_handoff(place: dict) -> dict:
 
 
 def find_place(session: Session, menu_id: str) -> dict | None:
+    overlay = None
+    for card in list(session.pack_cards) + list(session.undo_stack):
+        if str(card.get("menu_id") or "") == str(menu_id):
+            overlay = card
+            break
     if str(menu_id).startswith("brand:"):
         brand = brands.find_brand_place(menu_id)
         if not brand:
             return None
         # 페르소나 계산이 좌표를 요구한다 — 브랜드는 거리 개념이 없으므로 0으로 둔다
-        return {**brand, "lat": session.lat, "lng": session.lng}
-    for p in session.places:
-        if p["menu_id"] == menu_id:
-            return p
-    return None
+        found = {**brand, "lat": session.lat, "lng": session.lng}
+    else:
+        found = None
+        for p in session.places:
+            if p["menu_id"] == menu_id:
+                found = dict(p)
+                break
+        if found is None:
+            found = dict(overlay) if overlay else None
+    if not found:
+        return None
+    if overlay:
+        for key in (
+            "verified_menu_id",
+            "menu_verified",
+            "menu_name",
+            "menu_source",
+            "price_source",
+            "price_krw",
+            "price_menu_krw",
+            "price_per_person_krw",
+            "price_unit",
+            "price_label",
+            "price_channel",
+            "price_for_delivery",
+            "portion_confirmed",
+            "evidence_kind",
+            "hours",
+            "hours_verified",
+        ):
+            if key in overlay:
+                found[key] = overlay[key]
+    return found
 
 
 def session_meta(session: Session) -> dict:

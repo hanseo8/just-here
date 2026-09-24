@@ -176,10 +176,16 @@ def _is_heat_menu(place: dict) -> bool:
 
 
 def _price(place: dict) -> float | None:
-    for key in ("price_krw", "estimated_price_per_person"):
-        v = place.get(key)
-        if isinstance(v, (int, float)):
-            return float(v)
+    from .place_meta import per_person_budget_krw
+
+    budget = per_person_budget_krw(place)
+    if budget:
+        return float(budget)
+    if place.get("price_unit") == "menu" and not place.get("portion_confirmed"):
+        return None
+    v = place.get("estimated_price_per_person")
+    if isinstance(v, (int, float)) and v > 0:
+        return float(v)
     return None
 
 
