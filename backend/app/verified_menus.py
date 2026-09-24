@@ -27,10 +27,22 @@ REVIEW_ANCHOR = {
     "label": "송도1동 앵커 (센트럴파크·컨벤시아)",
     "walk_m_per_min": 80,
 }
+PRIORITY_FILE = "verified-menus.songdo.priority.json"
 
 
 def catalog_path() -> Path:
     return data_dir() / "verified-menus.json"
+
+
+def bundled_priority_path() -> Path:
+    return Path(__file__).resolve().parents[2] / "data" / PRIORITY_FILE
+
+
+def is_production() -> bool:
+    public = (os.getenv("PUBLIC_BASE_URL") or "").lower()
+    if "justthis.co.kr" in public:
+        return True
+    return (os.getenv("RENDER") or "").strip().lower() in {"1", "true"}
 
 
 def _clean(row: dict[str, Any]) -> dict[str, Any] | None:
@@ -125,6 +137,12 @@ def _clean(row: dict[str, Any]) -> dict[str, Any] | None:
 
 def load_catalog(path: Path | None = None) -> dict[str, Any]:
     target = path or catalog_path()
+    source = "data_dir" if path is None else "explicit"
+    if path is None and not target.exists():
+        bundled = bundled_priority_path()
+        if bundled.exists():
+            target = bundled
+            source = "bundled"
     if not target.exists():
         return {
             "ok": True,
@@ -136,6 +154,7 @@ def load_catalog(path: Path | None = None) -> dict[str, Any]:
         "wired_to_ranking": visit_overlay_enabled(),
         "example_file": False,
         "persistent": bool((os.getenv("DATA_DIR") or "").strip()),
+        "catalog_source": "missing",
         "menus": [],
         "reason": "catalog_missing",
         }
@@ -161,13 +180,13 @@ def load_catalog(path: Path | None = None) -> dict[str, Any]:
         "wired_to_ranking": visit_overlay_enabled(),
         "example_file": "example" in target.name,
         "persistent": bool((os.getenv("DATA_DIR") or "").strip()),
+        "catalog_source": source,
         "menus": menus,
         "reason": "not_wired_to_ranking",
     }
 
 
 EXPERIMENT_TARGET = 20
-PRIORITY_FILE = "verified-menus.songdo.priority.json"
 
 
 def visit_overlay_enabled() -> bool:
@@ -181,7 +200,7 @@ def review_exposed() -> bool:
         return True
     if raw in {"0", "false", "off", "no"}:
         return False
-    return not bool((os.getenv("DATA_DIR") or "").strip())
+    return not is_production()
 
 
 # 방문 오버레이 스위치. 배달에는 쓰지 않는다.
@@ -545,7 +564,7 @@ def bootstrap_persistent_catalog() -> dict[str, Any]:
             "persistent": False,
             "reason": "not_persistent",
         }
-    src = Path(__file__).resolve().parents[2] / "data" / PRIORITY_FILE
+    src = bundled_priority_path()
     if not src.exists():
         return {
             "bootstrapped": False,
@@ -566,20 +585,22 @@ def bootstrap_persistent_catalog() -> dict[str, Any]:
 
 def overlay_status() -> dict[str, Any]:
     persistent = bool((os.getenv("DATA_DIR") or "").strip())
-    exists = catalog_path().exists()
+    dest_exists = catalog_path().exists()
     try:
         cat = load_catalog()
         branch = int(cat.get("branch_confirmed") or 0)
+        source = cat.get("catalog_source") or ("data_dir" if dest_exists else "missing")
     except Exception:
         branch = 0
-        exists = False
+        source = "missing"
     enabled = visit_overlay_enabled()
     return {
         "visit_overlay": enabled,
         "persistent": persistent,
-        "catalog_exists": exists,
+        "catalog_exists": dest_exists or source == "bundled",
+        "catalog_source": source,
         "branch_confirmed": branch,
-        "operational": bool(enabled and persistent and exists and branch > 0),
+        "operational": bool(enabled and persistent and dest_exists and branch > 0),
     }
 
 

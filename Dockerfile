@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir -r /app/backend/requirements.txt
 
 COPY backend /app/backend
 COPY web /app/web
+COPY data /app/data
 
 WORKDIR /app/backend
 ENV PYTHONUNBUFFERED=1
