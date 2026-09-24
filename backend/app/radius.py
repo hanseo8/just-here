@@ -75,6 +75,25 @@ def suggest_intent(weather: Weather, hour: int | None = None) -> Intent:
     return "visit"
 
 
+MealContext = Literal["meal", "late_night", "anju"]
+
+
+def suggest_meal_context(hour: int | None = None) -> MealContext:
+    """시간 힌트. 사용자 선택을 바꾸지 않는다."""
+    if hour is None:
+        hour = datetime.now(KST).hour
+    hour = int(hour) % 24
+    if hour >= 22 or hour < 6:
+        return "late_night"
+    return "meal"
+
+
+def suggest_meal_reason(hour: int, suggested: MealContext) -> str:
+    if suggested == "late_night":
+        return "늦은 시간이면 야식도 있어요. 고르지 않으면 한 끼로 시작해요."
+    return ""
+
+
 def suggest_intent_reason(weather: Weather, hour: int, intent: Intent) -> str:
     if weather in ("rain", "snow") and intent == "delivery":
         return "날씨 때문에 배달로 맞춰 뒀어요"

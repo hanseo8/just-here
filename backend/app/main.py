@@ -23,7 +23,13 @@ from . import share
 from . import titles
 from . import users
 from . import weather as weather_api
-from .radius import KST, suggest_intent, suggest_intent_reason
+from .radius import (
+    KST,
+    suggest_intent,
+    suggest_intent_reason,
+    suggest_meal_context,
+    suggest_meal_reason,
+)
 from .seed import CENTER_LAT, CENTER_LNG, sample_taste_pairs
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
@@ -54,6 +60,7 @@ class SessionStartBody(BaseModel):
     intent: Literal["visit", "delivery"] = "visit"
     weather: Literal["clear", "rain", "snow", "hot", "cold"] = "clear"
     taste: list[str] = Field(default_factory=list)
+    meal_context: Literal["meal", "late_night", "anju"] = "meal"
     uid: str | None = None
 
 
@@ -134,15 +141,24 @@ def _strip(cards: list[dict]) -> list[dict]:
 def _feed_payload(s: engine.Session, cards: list[dict], radius: int, gold: bool = False) -> dict:
     meta = engine.session_meta(s)
     pack = engine.pack_meta(s)
-    if s.intent == "delivery":
-        copy = "고르면 이 브랜드 주문 화면으로 이어져요"
-    elif pack["adjust_needed"]:
+    if pack["adjust_needed"]:
         copy = "어떤 쪽으로 다시 골라볼까요?"
+    elif s.intent == "delivery" and s.meal_context == "late_night":
+        copy = "야식, 고르면 이 브랜드 주문 화면으로 이어져요"
+    elif s.intent == "delivery" and s.meal_context == "anju":
+        copy = "술안주, 고르면 이 브랜드 주문 화면으로 이어져요"
+    elif s.intent == "delivery":
+        copy = "고르면 이 브랜드 주문 화면으로 이어져요"
+    elif s.meal_context == "late_night":
+        copy = "야식, 한 장씩 골라볼게요"
+    elif s.meal_context == "anju":
+        copy = "술안주로 한 장씩 골라볼게요"
     else:
         copy = "오늘 뭐 먹을지, 한 장씩 골라볼게요"
     return {
         "session_id": s.id,
         "intent": s.intent,
+        "meal_context": s.meal_context,
         "weather": s.weather,
         "effective_radius_m": radius,
         "perfect_slots_left": s.perfect_slots_left,
@@ -417,6 +433,8 @@ def context(
         "local_time": now.isoformat(),
         "suggested_intent": intent,
         "reason": suggest_intent_reason(flag, h, intent),
+        "suggested_meal_context": suggest_meal_context(h),
+        "meal_reason": suggest_meal_reason(h, suggest_meal_context(h)),
         "weather_meta": {
             "source": wx_meta.get("source"),
             "ok": wx_meta.get("ok", True),
@@ -444,7 +462,14 @@ def start_session(body: SessionStartBody, request: Request):
             signals = users.STORE.taste_signals(uid)
         except KeyError:
             signals = None
-    s = engine.create_session(body.lat, body.lng, body.intent, body.weather, taste)
+    s = engine.create_session(
+        body.lat,
+        body.lng,
+        body.intent,
+        body.weather,
+        taste,
+        meal_context=body.meal_context,
+    )
     engine.apply_profile(s, signals, stored_taste=taste)
     cards, radius, gold = engine.present_feed(s)
     return _feed_payload(s, cards, radius, gold)
@@ -455,6 +480,7 @@ def feed(
     session_id: str = Query(...),
     intent: Literal["visit", "delivery"] | None = None,
     weather: Literal["clear", "rain", "snow", "hot", "cold"] | None = None,
+    meal_context: Literal["meal", "late_night", "anju"] | None = None,
     lat: float | None = None,
     lng: float | None = None,
 ):
@@ -469,6 +495,8 @@ def feed(
     if intent and intent != s.intent:
         # 방문은 카카오 재고, 배달은 프랜차이즈 카탈로그 — 둘 다 이미 있어 재조회 X
         engine.apply_intent(s, intent)
+    if meal_context and meal_context != s.meal_context:
+        engine.apply_meal_context(s, meal_context)
     if weather and weather != s.weather:
         s.weather = weather
         if not moved:
@@ -609,6 +637,7 @@ def swipe(body: SwipeBody, request: Request):
                     "kind": place.get("kind") or engine._visit_kind(place),
                     "tags": place.get("tags") or [],
                     "intent": s.intent,
+                    "meal_context": s.meal_context,
                     "weather": s.weather,
                     "pack_id": s.pack_id,
                     "logic_version": engine.LOGIC_VERSION,
@@ -672,6 +701,7 @@ class AdjustBody(BaseModel):
 
 class UndoBody(BaseModel):
     session_id: str
+    uid: str | None = None
 
 
 @app.post("/v1/adjust")
@@ -691,12 +721,19 @@ def adjust(body: AdjustBody):
 
 
 @app.post("/v1/undo")
-def undo(body: UndoBody):
+def undo(body: UndoBody, request: Request):
     s = engine.get_session(body.session_id)
     if not s:
         raise HTTPException(404, "session not found")
+    card = s.undo_stack[-1] if s.undo_stack else None
     if not engine.apply_undo(s):
         raise HTTPException(400, "nothing to undo")
+    uid = _optional_uid(request, body.uid)
+    if uid and card:
+        try:
+            users.STORE.undo_last_nope(uid, str(card.get("menu_id") or ""))
+        except KeyError:
+            pass
     cards, radius, gold = engine.present_feed(s)
     return _feed_payload(s, cards, radius, gold)
 

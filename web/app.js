@@ -8,6 +8,8 @@ const state = {
   intent: "visit",
   weather: "clear",
   intentReason: "",
+  mealContext: "meal",
+  mealHint: "",
   lat: null,
   lng: null,
   locationReady: false,
@@ -124,6 +126,9 @@ function track(event, props = {}) {
     const merged = { ...(props || {}) };
     if (state.sessionId && merged.session_id == null) {
       merged.session_id = state.sessionId;
+    }
+    if (state.mealContext && merged.meal_context == null) {
+      merged.meal_context = state.mealContext;
     }
     const body = {
       event,
@@ -259,6 +264,27 @@ function setToggleUI(intent) {
   }
 }
 
+function setMealUI(ctx) {
+  const next = ctx || state.mealContext || "meal";
+  state.mealContext = next;
+  document.querySelectorAll(".meal-tog").forEach((b) => {
+    const on = b.dataset.meal === next;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  const hint = next === "meal" ? state.mealHint || "" : "";
+  ["onboard-meal-reason", "meal-reason"].forEach((id) => {
+    const el = $(id);
+    if (!el) return;
+    if (hint) {
+      el.textContent = hint;
+      el.classList.remove("hidden");
+    } else {
+      el.classList.add("hidden");
+    }
+  });
+}
+
 function haversineM(lat1, lng1, lat2, lng2) {
   const r = 6371000;
   const toR = (d) => (d * Math.PI) / 180;
@@ -378,7 +404,9 @@ async function applySmartIntent() {
     state.weather = ctx.weather || state.weather || "clear";
     state.intent = ctx.suggested_intent || state.intent;
     state.intentReason = ctx.reason || "";
+    state.mealHint = ctx.meal_reason || "";
     setToggleUI(state.intent);
+    setMealUI(state.mealContext);
     const ws = $("weather-status");
     if (ws) {
       const label = {
@@ -399,7 +427,9 @@ async function applySmartIntent() {
   } catch (err) {
     console.warn("smart intent skipped", err);
     state.intentReason = "";
+    state.mealHint = "";
     setToggleUI(state.intent);
+    setMealUI(state.mealContext);
     const ws = $("weather-status");
     if (ws) ws.textContent = "날씨 확인 실패 — 맑음 기준으로 진행";
   }
@@ -752,6 +782,7 @@ function saveKakaoResume() {
     lat: state.lat,
     lng: state.lng,
     intent: state.intent,
+    mealContext: state.mealContext,
     weather: state.weather,
     locationReady: state.locationReady,
     redirectUri: kakaoRedirectUri(),
@@ -798,6 +829,7 @@ function restoreFromResume(resume) {
   if (resume.lat != null) state.lat = resume.lat;
   if (resume.lng != null) state.lng = resume.lng;
   if (resume.intent) state.intent = resume.intent;
+  if (resume.mealContext) state.mealContext = resume.mealContext;
   if (resume.weather) state.weather = resume.weather;
   if (resume.locationReady) state.locationReady = true;
   if (resume.lastReceipt) state.lastReceipt = resume.lastReceipt;
@@ -1109,6 +1141,9 @@ async function init() {
   $("btn-go").onclick = () => swipe("lets_go");
   const undoBtn = $("btn-undo");
   if (undoBtn) undoBtn.onclick = () => undoCard();
+  document.querySelectorAll(".meal-tog").forEach((btn) => {
+    btn.onclick = () => selectMealContext(btn.dataset.meal);
+  });
   const mealYes = $("btn-meal-yes");
   if (mealYes) mealYes.onclick = () => submitMeal(true);
   const mealSkip = $("btn-meal-skip");
@@ -1141,6 +1176,7 @@ async function init() {
             lng: state.lng,
             intent: state.intent,
             weather: state.weather,
+            meal_context: state.mealContext,
             taste: state.tasteChoices,
             uid: state.uid || undefined,
           }),
@@ -1372,6 +1408,7 @@ async function startSession() {
       lng: state.lng,
       intent: state.intent,
       weather: state.weather,
+      meal_context: state.mealContext,
       taste: state.tasteChoices,
       uid: state.uid || undefined,
     }),
@@ -1389,6 +1426,7 @@ async function startSession() {
   applyFeed(data);
   show("screen-feed");
   setToggleUI(state.intent);
+  setMealUI(state.mealContext);
   renderCard();
 }
 
@@ -1399,6 +1437,7 @@ async function refreshFeed() {
     session_id: state.sessionId,
     intent: state.intent,
     weather: state.weather,
+    meal_context: state.mealContext,
     lat: String(state.lat),
     lng: String(state.lng),
   });
@@ -1406,7 +1445,34 @@ async function refreshFeed() {
   applyFeed(data);
 }
 
-function applyFeed(data) {
+async function selectMealContext(next) {
+  if (!next || next === state.mealContext) return;
+  if (state.swiping || state.modeSwitching) return;
+  const prev = state.mealContext;
+  state.mealContext = next;
+  setMealUI(next);
+  if (!state.sessionId) return;
+  state.modeSwitching = true;
+  document.querySelectorAll(".meal-tog").forEach((b) => {
+    b.disabled = true;
+  });
+  try {
+    await refreshFeed();
+    renderCard();
+  } catch (err) {
+    console.error(err);
+    state.mealContext = prev;
+    setMealUI(prev);
+    setFeedHint("상황을 바꾸지 못했어요. 잠시 후 다시 눌러 주세요.", "error");
+  } finally {
+    state.modeSwitching = false;
+    document.querySelectorAll(".meal-tog").forEach((b) => {
+      b.disabled = false;
+    });
+  }
+}
+
+function applyFeed(data, opts = {}) {
   state.sessionId = data.session_id;
   state.cards = data.cards || [];
   state.perfect = data.perfect_slots_left;
@@ -1423,6 +1489,7 @@ function applyFeed(data) {
     renderExcludeRow();
   }
   if (data.intent) state.intent = data.intent;
+  if (data.meal_context) setMealUI(data.meal_context);
   $("feed-copy").textContent = data.copy || "오늘 뭐 먹을지, 한 장씩 골라볼게요";
   const brandMode = state.intent === "delivery";
   $("radius-key").textContent = brandMode ? "범위" : "반경";
@@ -1447,7 +1514,7 @@ function applyFeed(data) {
   }
   syncUndoBtn();
   const card = currentCard();
-  if (card) {
+  if (card && !opts.fromUndo) {
     track("recommend_shown", {
       pack_id: card.pack_id || state.packId,
       menu_id: card.menu_id,
@@ -1455,7 +1522,7 @@ function applyFeed(data) {
       logic_version: card.logic_version || state.logicVersion,
       intent: state.intent,
     });
-  } else if (state.adjustNeeded) {
+  } else if (state.adjustNeeded && !opts.fromUndo) {
     track("pack_exhausted", {
       pack_id: state.packId,
       logic_version: state.logicVersion,
@@ -1724,13 +1791,16 @@ async function undoCard() {
   try {
     const data = await api("/v1/undo", {
       method: "POST",
-      body: JSON.stringify({ session_id: state.sessionId }),
+      body: JSON.stringify({
+        session_id: state.sessionId,
+        uid: state.uid || undefined,
+      }),
     });
     track("undo", {
       pack_id: data.pack_id || state.packId,
       logic_version: data.logic_version || state.logicVersion,
     });
-    applyFeed(data);
+    applyFeed(data, { fromUndo: true });
     renderCard();
   } catch (err) {
     console.error(err);

@@ -53,6 +53,7 @@ class Session:
     frequent_cats: list[str] = field(default_factory=list)
     exclude_cats: set[str] = field(default_factory=set)
     has_history: bool = False
+    meal_context: str = "meal"
 
 
 SESSIONS: dict[str, Session] = {}
@@ -125,6 +126,51 @@ def load_inventory(
     return kakao_block, tier, "kakao"
 
 
+MEAL_CONTEXTS = ("meal", "late_night", "anju")
+
+LATE_NIGHT_KEYS = {
+    "chicken",
+    "meat",
+    "snack",
+    "chinese",
+    "western",
+    "pizza",
+    "치킨",
+    "피자",
+    "분식",
+    "중식",
+}
+ANJU_KEYS = {
+    "meat",
+    "chicken",
+    "snack",
+    "korean",
+    "western",
+    "pizza",
+    "고기",
+    "치킨",
+    "분식",
+    "한식",
+    "피자",
+}
+
+
+def normalize_meal_context(raw: str | None) -> str:
+    val = str(raw or "meal").strip()
+    return val if val in MEAL_CONTEXTS else "meal"
+
+
+def apply_meal_context(session: Session, meal_context: str) -> None:
+    """상황이 바뀌면 이전 묶음을 버린다. 방문/배달 토글과 같은 규칙."""
+    nxt = normalize_meal_context(meal_context)
+    if nxt == session.meal_context:
+        return
+    session.meal_context = nxt
+    session.seen_menu_ids.clear()
+    session.consecutive_nopes = 0
+    reset_pack(session)
+
+
 def apply_intent(session: Session, intent: str) -> None:
     """모드만 바꿀 때 — 덱 소스가 갈리므로 재조회가 필요 없다.
 
@@ -141,7 +187,12 @@ def apply_intent(session: Session, intent: str) -> None:
 
 
 def create_session(
-    lat: float, lng: float, intent: str, weather: str, taste: list[str] | None = None
+    lat: float,
+    lng: float,
+    intent: str,
+    weather: str,
+    taste: list[str] | None = None,
+    meal_context: str = "meal",
 ) -> Session:
     places, tier, source = load_inventory(lat, lng, intent, weather, taste)
     s = Session(
@@ -156,6 +207,7 @@ def create_session(
         places=places,
         inventory_source=source,
         pool_radius_m=session_radius_m("visit", weather),  # type: ignore[arg-type]
+        meal_context=normalize_meal_context(meal_context),
     )
     SESSIONS[s.id] = s
     return s
@@ -302,12 +354,39 @@ def _deal_for(place: dict, session: Session) -> dict | None:
     return deals.match(place, hub_id=session.hub_id)
 
 
+def _context_keys(place: dict) -> set[str]:
+    keys = {str(place.get("category") or ""), str(place.get("kind") or "")}
+    for tag in place.get("tags") or []:
+        keys.add(str(tag).replace("#", "").replace("_", ""))
+    return {k for k in keys if k}
+
+
+def _context_boost(place: dict, session: Session) -> float:
+    """음식 종류와 별개인 상황 가산. 영업·배달 가능을 단정하지 않는다."""
+    ctx = session.meal_context
+    if ctx == "late_night" and _context_keys(place) & LATE_NIGHT_KEYS:
+        return 0.8
+    if ctx == "anju" and _context_keys(place) & ANJU_KEYS:
+        return 0.8
+    return 0.0
+
+
+def _listed_price(card: dict) -> int | None:
+    raw = card.get("price_krw")
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+        return None
+    if raw <= 0:
+        return None
+    return int(raw)
+
+
 def _score(place: dict, distance_m: float, session: Session) -> float:
     """방문 카드 점수 — 가까울수록, 평점·취향이 맞을수록 높다."""
     score = 10.0 - distance_m / 100.0
     score += place.get("rating", 4.0)
     score += _taste_boost(place, session.taste)
     score += _profile_delta(place, session)
+    score += _context_boost(place, session)
     score += deals.score_boost(_deal_for(place, session))
     for tag in place.get("tags", []):
         score -= session.nope_tags.get(tag, 0.0)
@@ -320,6 +399,7 @@ def _brand_score(place: dict, session: Session) -> float:
     score = float(place.get("rating", 4.0))
     score += _taste_boost(place, session.taste)
     score += _profile_delta(place, session)
+    score += _context_boost(place, session)
     score += deals.score_boost(_deal_for(place, session))
     for tag in place.get("tags", []):
         score -= session.nope_tags.get(tag, 0.0)
@@ -353,11 +433,12 @@ def apply_nope(session: Session, place: dict) -> bool:
         session.nope_tags[tag] = session.nope_tags.get(tag, 0.0) + 0.4
     cat = place.get("category") or "other"
     session.nope_categories[cat] = session.nope_categories.get(cat, 0.0) + 0.3
-    if session.pack_cards and session.pack_cards[0].get("menu_id") == place["menu_id"]:
+    if session.pack_cards:
         card = session.pack_cards.pop(0)
-        session.undo_stack.append(card)
-    elif session.pack_cards:
-        card = session.pack_cards.pop(0)
+        card["_undo"] = {
+            "tags": list(place.get("tags") or []),
+            "category": cat,
+        }
         session.undo_stack.append(card)
     if not session.pack_cards:
         session.adjust_needed = True
@@ -575,7 +656,7 @@ def build_visit_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
 
 
 PACK_SIZE = 3
-LOGIC_VERSION = "menu-metrics-v1"
+LOGIC_VERSION = "meal-context-v1"
 
 TASTE_KO = {
     "korean": "한식",
@@ -666,6 +747,10 @@ def _pick_diverse_pack(cards: list[dict], n: int = PACK_SIZE) -> list[dict]:
 def _why(session: Session, card: dict) -> str:
     f = session.adjust_filters or {}
     if f.get("cheaper"):
+        if f.get("price_unusable"):
+            return "가격을 확인한 곳이 없어 조건 그대로 다시 골랐어요."
+        if f.get("price_estimated"):
+            return "예상 가격이 더 낮은 쪽으로 다시 골랐어요."
         return "조금 더 저렴한 쪽으로 다시 골랐어요."
     if f.get("exclude_cats"):
         return "다른 종류로 다시 골랐어요."
@@ -694,6 +779,10 @@ def _why(session: Session, card: dict) -> str:
         return f"선택한 {shown} 취향을 반영했어요."
     if card.get("deal"):
         return "확인된 혜택이 있는 곳이에요."
+    if session.meal_context == "late_night":
+        return "야식 상황으로 맞춰 골랐어요."
+    if session.meal_context == "anju":
+        return "술안주 쪽으로 골랐어요."
     if session.intent == "delivery":
         return "고르면 이 브랜드 주문 화면으로 바로 이어져요."
     return "지금 위치에서 걸어갈 수 있는 곳이에요."
@@ -711,12 +800,15 @@ def _apply_adjust_filters(session: Session, cards: list[dict]) -> list[dict]:
         ]
         if filtered:
             out = filtered
-    if f.get("cheaper"):
+    if f.get("cheaper") and not f.get("price_unusable"):
         cap = int(f.get("price_cap") or 15000)
-        filtered = [c for c in out if (c.get("price_krw") or 10**9) <= cap]
+        filtered = [
+            c
+            for c in out
+            if (p := _listed_price(c)) is not None and p <= cap
+        ]
         if filtered:
-            out = filtered
-        out = sorted(out, key=lambda c: c.get("price_krw") or 10**9)
+            out = sorted(filtered, key=lambda c: _listed_price(c) or 10**9)
     if f.get("closer") and session.intent == "visit":
         cap = int(f.get("distance_cap") or 400)
         filtered = [
@@ -747,6 +839,7 @@ def start_pack(session: Session) -> int:
         c["pack_rank"] = i + 1
         c["pack_size"] = len(picked)
         c["logic_version"] = LOGIC_VERSION
+        c["meal_context"] = session.meal_context
         c["why"] = _why(session, c)
         session.pack_cards.append(c)
     session.adjust_needed = False
@@ -828,9 +921,18 @@ def adjust_options(session: Session) -> list[dict]:
 def apply_adjust(session: Session, option: str) -> None:
     last = session.undo_stack[-PACK_SIZE:] or session.undo_stack
     if option == "cheaper":
-        prices = [int(c["price_krw"]) for c in last if c.get("price_krw")]
-        cap = sorted(prices)[len(prices) // 2] if prices else 15000
-        session.adjust_filters = {"cheaper": True, "price_cap": int(cap)}
+        prices = [p for c in last if (p := _listed_price(c)) is not None]
+        if prices:
+            cap = sorted(prices)[len(prices) // 2]
+            session.adjust_filters = {
+                "cheaper": True,
+                "price_cap": int(cap),
+                "price_estimated": any(
+                    c.get("price_source") == "estimated" for c in last
+                ),
+            }
+        else:
+            session.adjust_filters = {"cheaper": True, "price_unusable": True}
     elif option == "different":
         cats = []
         for c in last:
@@ -859,13 +961,22 @@ def apply_undo(session: Session) -> bool:
     if not session.undo_stack:
         return False
     card = session.undo_stack.pop()
+    meta = card.pop("_undo", None) or {}
     session.seen_menu_ids.discard(card["menu_id"])
     session.pack_cards.insert(0, card)
     session.adjust_needed = False
     session.consecutive_nopes = max(0, session.consecutive_nopes - 1)
     session.left_swipe_count = max(0, session.left_swipe_count - 1)
-    cat = card.get("category") or "other"
+    cat = str(meta.get("category") or card.get("category") or "other")
     session.nope_categories[cat] = max(0.0, session.nope_categories.get(cat, 0.0) - 0.3)
+    if session.nope_categories.get(cat, 0) == 0:
+        session.nope_categories.pop(cat, None)
+    for tag in meta.get("tags") or []:
+        session.nope_tags[tag] = max(0.0, session.nope_tags.get(tag, 0.0) - 0.4)
+        if session.nope_tags.get(tag, 0) == 0:
+            session.nope_tags.pop(tag, None)
+    if session.category_path and session.category_path[-1] == cat:
+        session.category_path.pop()
     mark_deck_shown(session)
     return True
 
@@ -880,6 +991,7 @@ def pack_meta(session: Session) -> dict:
         "can_undo": bool(session.undo_stack),
         "logic_version": LOGIC_VERSION,
         "adjust_options": adjust_options(session) if session.adjust_needed else [],
+        "meal_context": session.meal_context,
     }
 
 

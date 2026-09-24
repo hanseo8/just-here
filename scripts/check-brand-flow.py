@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app import analytics, brands, deals, engine, kakao  # noqa: E402
 from app.main import app  # noqa: E402
+from app.radius import suggest_meal_context  # noqa: E402
 from app.users import compute_taste_signals  # noqa: E402
 
 LAT, LNG = 37.3826, 126.6432  # 송도
@@ -474,6 +475,105 @@ check(pm["choose_after_adjust_rate"] == 100.0, "조정 후 선택 100%")
 check(pm["match_to_handoff_rate"] == 50.0, "선택→클릭 50% (주문 완료 아님)")
 check(pm["revisit_rate"] == 50.0, "재방문 1/2 기기")
 check("handoff_open" in analytics.ALLOWED_EVENTS, "handoff_open 수집")
+
+print("\n[상황] meal_context는 종류와 별개다")
+check(engine.LOGIC_VERSION == "meal-context-v1", f"로직 버전={engine.LOGIC_VERSION}")
+check(suggest_meal_context(23) == "late_night", "늦은 시간은 야식을 제안한다")
+check(suggest_meal_context(12) == "meal", "점심은 한 끼를 제안한다")
+ctx_night = client.get("/v1/context", params={"hour": 23})
+check(ctx_night.status_code == 200, "context API")
+check(ctx_night.json().get("suggested_meal_context") == "late_night", "API도 야식을 제안한다")
+started = client.post(
+    "/v1/session",
+    json={"lat": LAT, "lng": LNG, "intent": "delivery"},
+)
+check(started.status_code == 200, "세션 시작")
+check(started.json().get("meal_context") == "meal", "기본값은 한 끼, 시간 제안을 덮어쓰지 않는다")
+anju_sess = client.post(
+    "/v1/session",
+    json={"lat": LAT, "lng": LNG, "intent": "delivery", "meal_context": "anju"},
+)
+check(anju_sess.json().get("meal_context") == "anju", "술안주를 고르면 세션에 남는다")
+check("술안주" in (anju_sess.json().get("copy") or ""), "술안주 문구")
+
+s_meal = engine.create_session(LAT, LNG, "delivery", "clear")
+engine.present_feed(s_meal)
+old_pack = s_meal.pack_id
+first = s_meal.pack_cards[0]
+engine.apply_nope(s_meal, engine.find_place(s_meal, first["menu_id"]))
+check(bool(s_meal.undo_stack), "거절하면 직전 후보가 쌓인다")
+engine.apply_meal_context(s_meal, "late_night")
+check(s_meal.meal_context == "late_night", "상황이 바뀐다")
+check(s_meal.undo_stack == [], "상황 변경 시 이전 후보를 버린다")
+engine.present_feed(s_meal)
+check(s_meal.pack_id != old_pack, "상황 변경 후 새 묶음")
+check(all(c.get("meal_context") == "late_night" for c in s_meal.pack_cards), "새 묶음에 상황이 찍힌다")
+
+plain_ctx = engine.create_session(LAT, LNG, "delivery", "clear", meal_context="meal")
+night_ctx = engine.create_session(LAT, LNG, "delivery", "clear", meal_context="late_night")
+
+
+def _kind_score(sess, kind):
+    cards, _, _ = engine.build_cards(sess)
+    hit = next((c for c in cards if c.get("kind") == kind or c.get("category") == "chicken"), None)
+    return hit["_score"] if hit else None
+
+
+plain_ch = _kind_score(plain_ctx, "치킨")
+night_ch = _kind_score(night_ctx, "치킨")
+check(plain_ch is not None and night_ch is not None, "치킨 점수를 비교한다")
+check(night_ch > plain_ch, f"야식은 치킨을 올린다 ({night_ch} > {plain_ch})")
+
+print("\n[되돌리기] 거절 페널티를 한 번만 적용한다")
+s_undo = engine.create_session(LAT, LNG, "delivery", "clear")
+engine.present_feed(s_undo)
+undo_card = s_undo.pack_cards[0]
+place = engine.find_place(s_undo, undo_card["menu_id"])
+before_tags = dict(s_undo.nope_tags)
+before_cats = dict(s_undo.nope_categories)
+engine.apply_nope(s_undo, place)
+check(s_undo.nope_tags != before_tags or s_undo.nope_categories != before_cats, "거절 페널티가 붙는다")
+check(engine.apply_undo(s_undo), "직전 후보로 돌아간다")
+check(s_undo.nope_tags == before_tags, "태그 페널티를 되돌린다")
+check(s_undo.nope_categories == before_cats, "종류 페널티를 되돌린다")
+engine.apply_nope(s_undo, place)
+after_one = dict(s_undo.nope_categories)
+engine.apply_undo(s_undo)
+engine.apply_nope(s_undo, place)
+check(s_undo.nope_categories == after_one, "되돌린 뒤 다시 거절해도 페널티는 한 번만")
+
+print("\n[조정] 가격 미확인은 저렴한 것으로 치지 않는다")
+s_price = engine.create_session(LAT, LNG, "delivery", "clear")
+for _ in range(3):
+    deck, _, _ = engine.present_feed(s_price)
+    engine.apply_nope(s_price, engine.find_place(s_price, deck[0]["menu_id"]))
+for c in s_price.undo_stack:
+    c.pop("price_krw", None)
+    c["price_source"] = None
+engine.apply_adjust(s_price, "cheaper")
+check(s_price.adjust_filters.get("price_unusable"), "확인된 가격이 없으면 cheaper를 쓰지 않는다")
+cheap_feed, _, _ = engine.present_feed(s_price)
+cheap_why = (cheap_feed[0].get("why") if cheap_feed else "") or ""
+check("가격을 확인한 곳이 없어" in cheap_why, f"미확인 가격 why → {cheap_why}")
+
+s_est = engine.create_session(LAT, LNG, "delivery", "clear")
+for _ in range(3):
+    deck, _, _ = engine.present_feed(s_est)
+    engine.apply_nope(s_est, engine.find_place(s_est, deck[0]["menu_id"]))
+engine.apply_adjust(s_est, "cheaper")
+est_feed, _, _ = engine.present_feed(s_est)
+est_why = (est_feed[0].get("why") if est_feed else "") or ""
+check(s_est.adjust_filters.get("price_estimated") or s_est.adjust_filters.get("price_unusable"), "예상 가격이면 표시한다")
+if s_est.adjust_filters.get("price_estimated"):
+    check("예상 가격" in est_why, f"예상 가격 why → {est_why}")
+
+print("\n[메뉴→가게] 검증 메뉴가 없으면 전면 적용하지 않는다")
+check(not hasattr(engine, "stores_for_menu"), "메뉴 판매점 3곳 API를 넣지 않았다")
+s_visit_menu = engine.create_session(LAT, LNG, "visit", "clear")
+visit_cards, _, _ = engine.build_cards(s_visit_menu)
+if visit_cards:
+    check(all(c.get("menu_verified") is False for c in visit_cards), "방문 메뉴는 미검증")
+    check(all(c.get("menu_source") == "inferred" for c in visit_cards), "추정 종류만 쓴다")
 
 print()
 if fails:
