@@ -30,6 +30,7 @@ const state = {
   reqSeq: 0,
   epoch: 0,
   shownKeys: {},
+  inventorySource: "",
   lastAction: null,
   lastReceipt: null,
   lastDone: null,
@@ -37,6 +38,7 @@ const state = {
   excludeCats: [],
   forceRetaste: false,
   goldUnlocked: false,
+  designPreview: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -127,7 +129,15 @@ async function api(path, opts = {}) {
 }
 
 /** 소프트런치 퍼널 이벤트 — 실패해도 UX 방해 없음 */
+function isDesignPreview() {
+  return (
+    !!state.designPreview ||
+    String(state.sessionId || "").toLowerCase().startsWith("design")
+  );
+}
+
 function track(event, props = {}) {
+  if (isDesignPreview()) return;
   try {
     const merged = { ...(props || {}) };
     if (state.sessionId && merged.session_id == null) {
@@ -174,16 +184,46 @@ function useFallbackLocation(reason) {
   if (startBtn) startBtn.disabled = false;
 }
 
-let feedHintDefault = null;
+const SWIPE_HINT_KEY = "jh_swipe_hint_seen";
+const SWIPE_HINT_COPY = "카드를 좌우로 밀어도 같아요.";
+
+function swipeHintSeen() {
+  try {
+    return !!localStorage.getItem(SWIPE_HINT_KEY);
+  } catch {
+    return false;
+  }
+}
+
+function markSwipeHintSeen() {
+  try {
+    localStorage.setItem(SWIPE_HINT_KEY, "1");
+  } catch (_) {}
+}
 
 /** 피드 하단 한 줄을 안내·진행·실패 메시지로 함께 쓴다 */
 function setFeedHint(text, tone = "") {
   const el = $("feed-hint");
   if (!el) return;
-  if (feedHintDefault === null) feedHintDefault = el.textContent;
-  el.textContent = text || feedHintDefault;
   el.classList.toggle("is-error", tone === "error");
   el.classList.toggle("is-busy", tone === "busy");
+  if (tone === "error" || tone === "busy") {
+    el.textContent = text || "";
+    el.classList.remove("hidden");
+    return;
+  }
+  if (text) {
+    el.textContent = text;
+    el.classList.remove("hidden");
+    return;
+  }
+  if (!swipeHintSeen() && currentCard() && !state.adjustNeeded) {
+    el.textContent = SWIPE_HINT_COPY;
+    el.classList.remove("hidden");
+    return;
+  }
+  el.textContent = "";
+  el.classList.add("hidden");
 }
 
 /** 카드 액션 진행 중: 중복 탭 차단 + 무슨 일이 일어나는지 표시 */
@@ -1083,6 +1123,7 @@ async function linkKakaoAccount() {
 }
 
 async function init() {
+  if (openDesignPreview()) return;
   state.meta = await api("/v1/meta");
   try {
     if (window.JustHereAuth) {
@@ -1316,6 +1357,7 @@ async function init() {
 
   setupSwipeGestures();
   setupLongPress();
+  setupCardKeys();
   setupInstallPwa();
 }
 
@@ -1572,28 +1614,13 @@ function applyFeed(data, opts = {}) {
   }
   if (data.intent) state.intent = data.intent;
   if (data.meal_context) setMealUI(data.meal_context);
-  $("feed-copy").textContent = data.copy || "오늘 뭐 먹을지, 한 장씩 골라볼게요";
-  const brandMode = state.intent === "delivery";
-  $("radius-key").textContent = brandMode ? "범위" : "반경";
-  $("radius-label").textContent = brandMode ? "전국" : `${state.radius}m`;
-  $("slots-label").textContent = state.adjustNeeded
-    ? "다시 고르기"
-    : state.packRank
-      ? `${state.packRank}/${state.packSize}`
-      : "—";
-  if ($("source-label")) {
-    const srcMap = {
-      hub_seed: "송도 큐레이션",
-      hub_seed_anchored: "송도 · 내위치",
-      "hub+kakao": "주변 실상호",
-      kakao: "주변 실상호",
-      seed_fallback: "라이트",
-      empty: "결과 없음",
-    };
-    $("source-label").textContent = brandMode
-      ? "공식 주문"
-      : srcMap[data.inventory_source] || data.inventory_source || "—";
+  state.inventorySource = data.inventory_source || "";
+  const copy = $("feed-copy");
+  if (copy) {
+    copy.textContent = "";
+    copy.classList.add("hidden");
   }
+  renderFeedChrome();
   syncUndoBtn();
   const card = currentCard();
   if (card && !opts.fromUndo) {
@@ -1624,25 +1651,209 @@ function currentCard() {
   return state.cards[0] || null;
 }
 
-/* 카카오 장소에는 상호 사진이 없다. 실제 사진이 확인된 경우에만 띄우고,
-   그 외에는 카드 전체를 판단 정보로 채운다. */
+const SOURCE_LABELS = {
+  hub_seed: "송도 큐레이션",
+  hub_seed_anchored: "송도 · 내위치",
+  "hub+kakao": "주변 실상호",
+  kakao: "주변 실상호",
+  seed_fallback: "라이트",
+  empty: "결과 없음",
+  brand: "공식 주문",
+};
+
+function progressLabel(rank, size) {
+  const n = Number(rank) || 1;
+  const s = Number(size) || 3;
+  return `추천 ${n}/${s}`;
+}
+
+function renderFeedChrome() {
+  const progress = $("feed-progress");
+  if (progress) {
+    progress.textContent = state.adjustNeeded
+      ? "다른 메뉴를 찾아볼까요?"
+      : progressLabel(state.packRank, state.packSize);
+  }
+  const radius = $("visit-radius");
+  if (radius) {
+    const show = state.intent === "visit" && state.radius && !state.adjustNeeded;
+    radius.textContent = show ? `· ${state.radius}m 안` : "";
+    radius.classList.toggle("hidden", !show);
+  }
+}
+
+function cardPresentation(card) {
+  if (card?.menu_verified && card.menu_name) {
+    return {
+      type: "menu",
+      title: card.menu_name,
+      sub: card.place_name || "",
+      pass: "다른 메뉴",
+      go: "이거 먹을래",
+    };
+  }
+  if (card?.is_brand) {
+    return {
+      type: "brand",
+      title: card.place_name || "",
+      sub: card.kind || categoryLabel(card),
+      pass: "다른 후보",
+      go: "여기로 할게",
+    };
+  }
+  return {
+    type: "visit",
+    title: card?.place_name || "",
+    sub: categoryLabel(card),
+    pass: "다른 가게",
+    go: "여기로 할게",
+  };
+}
+
+const EXAMPLE_PHOTO_CAP = "음식 종류 예시";
+
+function photoRole(card) {
+  if (card?.photo_role) return card.photo_role;
+  if (card?.photo_is_product || card?.photo_is_menu) {
+    return card.is_brand ? "product" : "menu";
+  }
+  if (card?.photo_is_example || card?.photo_kind === "example") return "example";
+  const url = String(card?.image_url || "");
+  if (/unsplash\.com|picsum\.photos|example-photos/.test(url)) return "example";
+  if (card?.is_brand) return url ? "example" : "";
+  if (card?.menu_verified && url) return "menu";
+  if (card?.has_photo && url) return "store";
+  return "";
+}
+
+function isExamplePhoto(card, role) {
+  if (!card) return false;
+  if (card.photo_is_product || card.photo_is_menu) return false;
+  if (role === "product" || role === "menu" || role === "store") return false;
+  if (card.photo_is_example || role === "example") return true;
+  return !!card.is_brand && !!String(card.image_url || "").trim();
+}
+
+function usablePhoto(card) {
+  if (!card) return null;
+  const url = String(card.image_url || "").trim();
+  if (!url || url.includes("picsum.photos") || card.has_photo === false) return null;
+  const role = photoRole(card);
+  const example = isExamplePhoto(card, role);
+  if (card.is_brand) {
+    if (!role) return null;
+    return { url, role, example };
+  }
+  if (example) return null;
+  if (role === "menu" || role === "store") return { url, role, example: false };
+  return null;
+}
+
+function showExampleCaption(on) {
+  const wrap = $("card-media");
+  let cap = $("card-photo-cap");
+  if (on && wrap && !cap) {
+    cap = document.createElement("span");
+    cap.id = "card-photo-cap";
+    cap.className = "photo-cap";
+    wrap.appendChild(cap);
+  }
+  if (!cap) return;
+  if (on) {
+    cap.textContent = EXAMPLE_PHOTO_CAP;
+    cap.classList.remove("hidden");
+    cap.hidden = false;
+    cap.setAttribute("data-photo-kind", "example");
+  } else {
+    cap.classList.add("hidden");
+    cap.removeAttribute("data-photo-kind");
+  }
+}
+
+function formatPrice(krw) {
+  const n = Number(krw);
+  if (!n) return "";
+  if (n < 10000) return `${Math.round(n / 1000)}천원`;
+  const man = Math.floor(n / 10000);
+  const rest = n % 10000;
+  if (rest === 0) return `${man}만원`;
+  return `${man}만${Math.round(rest / 1000)}천원`;
+}
+
+function priceFact(card) {
+  const src = card?.price_source;
+  const band = String(card?.price_band || "").trim();
+  const listed = src === "listed" || src === "confirmed" || card?.menu_verified;
+  const pretty = band || formatPrice(card?.price_krw);
+  if (!pretty) return "가격 미확인";
+  if (listed) return pretty.replace(/^예상\s*/, "");
+  return pretty.startsWith("예상") ? pretty : `예상 ${pretty}`;
+}
+
+function displayWhy(card) {
+  const raw = String(card?.why || "").trim();
+  if (!raw) return "";
+  if (
+    /확인된 메뉴|공식 주문|주문 페이지|주문 화면|출처|가격은 아직 확인|데이터가 확인/.test(
+      raw
+    )
+  ) {
+    return "";
+  }
+  return raw;
+}
+
+function detailChipLabel(card, photo) {
+  const bits = [];
+  if (photo) bits.push("사진");
+  if (!card?.is_brand && card?.address && card.address !== "주소 확인 중") bits.push("주소");
+  if (card?.is_brand) bits.push("주문", "가격");
+  else bits.push("가게 정보");
+  return bits.join("·");
+}
+
+/* 실제 사진이 확인된 경우에만 띄운다. 방문 카드에 음식 예시 사진을 붙이지 않는다. */
 function setCardPhoto(card) {
   const el = $("card");
-  const photo = $("card-media");
+  const wrap = $("card-media");
+  const img = $("card-photo-img");
+  if (!el || !wrap || !img) return;
   el.classList.remove("has-photo");
-  photo.style.backgroundImage = "";
+  wrap.style.backgroundImage = "";
+  img.onload = null;
+  img.onerror = null;
+  img.removeAttribute("src");
+  showExampleCaption(false);
 
-  const url = (card.image_url || "").trim();
-  if (!url || url.includes("picsum.photos") || card.has_photo === false) return;
-
-  const probe = new Image();
-  probe.onload = () => {
-    // 로딩 중 카드가 넘어갔으면 다음 카드에 덧칠하지 않는다
-    if (currentCard()?.card_id !== card.card_id) return;
-    photo.style.backgroundImage = `url('${url}')`;
+  const photo = usablePhoto(card);
+  if (!photo) {
+    wrap.classList.add("hidden");
+    return;
+  }
+  wrap.classList.remove("hidden");
+  img.alt = photo.example ? EXAMPLE_PHOTO_CAP : cardPresentation(card).title;
+  img.style.objectPosition = card.photo_focus || "50% 40%";
+  showExampleCaption(!!photo.example);
+  const token = card.card_id;
+  img.onload = () => {
+    if (currentCard()?.card_id !== token) return;
     el.classList.add("has-photo");
   };
-  probe.src = url;
+  img.onerror = () => {
+    if (currentCard()?.card_id !== token) return;
+    wrap.classList.add("hidden");
+    el.classList.remove("has-photo");
+    img.removeAttribute("src");
+    showExampleCaption(false);
+    const chip = $("btn-card-detail");
+    if (chip) chip.textContent = detailChipLabel(card, null);
+  };
+  img.src = photo.url;
+  const next = usablePhoto(state.cards[1]);
+  if (next) {
+    const pre = new Image();
+    pre.src = next.url;
+  }
 }
 
 function distanceLabel(m) {
@@ -1739,6 +1950,8 @@ function renderCard() {
     empty.classList.add("hidden");
     $("feed-hint")?.classList.add("hidden");
     if (actions) actions.classList.add("hidden");
+    $("screen-feed")?.classList.add("is-adjust");
+    $("screen-feed")?.classList.remove("is-nophoto");
     renderAdjustSheet();
     syncUndoBtn();
     return;
@@ -1772,50 +1985,64 @@ function renderCard() {
     const locBtn = $("btn-empty-locate");
     if (locBtn) locBtn.classList.remove("hidden");
     $("feed-hint")?.classList.add("hidden");
+    $("screen-feed")?.classList.remove("is-nophoto", "is-adjust");
     syncUndoBtn();
     return;
   }
-  $("feed-hint")?.classList.remove("hidden");
   setFeedHint("");
   empty.classList.add("hidden");
   if (actions) actions.classList.remove("hidden");
   el.classList.remove("hidden");
   el.classList.remove("gold");
-  $("gold-badge").classList.add("hidden");
+  $("gold-badge")?.classList.add("hidden");
+  const view = cardPresentation(card);
+  const photo = usablePhoto(card);
   setCardPhoto(card);
-  $("card-place").textContent = card.place_name;
-  $("card-menu").textContent = kindLabel(card);
-  const hero = heroMetric(card);
-  $("card-hero-num").textContent = hero.num;
-  $("card-hero-cap").textContent = hero.cap;
-
+  $("card-title").textContent = view.title;
+  $("card-sub").textContent = view.sub;
+  $("card-place").textContent = card.place_name || "";
+  $("card-menu").textContent = view.sub;
   const where = $("card-where");
-  const sub = card.is_brand
-    ? card.review || ""
-    : card.address && card.address !== "주소 확인 중"
-      ? card.address
-      : "";
-  where.textContent = sub;
-  where.classList.toggle("hidden", !sub);
-
-  if (card.is_brand) {
-    $("card-fact1-key").textContent = "종류";
-    $("card-fact1-val").textContent = categoryLabel(card);
-    $("card-fact2-key").textContent = "주문";
-    $("card-fact2-val").textContent = card.order_channel || "공식 주문";
-  } else {
-    $("card-fact1-key").textContent = "거리";
-    $("card-fact1-val").textContent = distanceLabel(card.distance_m);
-    $("card-fact2-key").textContent = "예상 1인";
-    $("card-fact2-val").textContent = card.price_band
-      ? `예상 ${card.price_band}`
-      : "가격 미확인";
+  if (where) {
+    where.textContent = "";
+    where.classList.add("hidden");
   }
+  const pass = $("btn-nope");
+  const go = $("btn-go");
+  if (pass) pass.textContent = view.pass;
+  if (go) go.textContent = view.go;
+
+  const fact2 = $("card-fact2-key")?.parentElement;
+  if (view.type === "brand") {
+    $("card-fact1-key").textContent = "가격";
+    $("card-fact1-val").textContent = priceFact(card);
+    if (fact2) fact2.classList.add("hidden");
+  } else {
+    if (fact2) fact2.classList.remove("hidden");
+    const mins = walkMinutes(card.distance_m);
+    const walk =
+      mins != null
+        ? `도보 약 ${mins}분`
+        : String(card.eta_label || "").replace(/^도보\s+(?!약)/, "도보 약 ");
+    $("card-fact1-key").textContent = "거리";
+    $("card-fact1-val").textContent = walk
+      ? `${distanceLabel(card.distance_m)} · ${walk}`
+      : distanceLabel(card.distance_m);
+    $("card-fact2-key").textContent = "가격";
+    $("card-fact2-val").textContent = priceFact(card);
+  }
+  const chip = $("btn-card-detail");
+  if (chip) chip.textContent = detailChipLabel(card, photo);
 
   const note = $("card-note");
-  const noteText = card.why || "";
+  const noteText = displayWhy(card);
   note.textContent = noteText;
   note.classList.toggle("hidden", !noteText);
+  const feed = $("screen-feed");
+  if (feed) {
+    feed.classList.toggle("is-nophoto", !photo);
+    feed.classList.toggle("is-adjust", false);
+  }
 
   const tagEl = $("card-tag");
   const deal = card.deal;
@@ -1842,15 +2069,25 @@ function renderAdjustSheet() {
   const box = $("adjust-options");
   if (!sheet || !box) return;
   box.innerHTML = "";
-  (state.adjustOptions || []).forEach((opt) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "btn ghost adjust-opt";
-    btn.dataset.option = opt.id;
-    btn.textContent = opt.label;
-    btn.onclick = () => submitAdjust(opt.id);
-    box.appendChild(btn);
-  });
+  const opts = state.adjustOptions || [];
+  opts
+    .filter((opt) => opt.id !== "again")
+    .forEach((opt) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn ghost adjust-opt";
+      btn.dataset.option = opt.id;
+      btn.textContent = opt.label;
+      btn.onclick = () => submitAdjust(opt.id);
+      box.appendChild(btn);
+    });
+  const again = $("btn-adjust-again");
+  const againOpt = opts.find((opt) => opt.id === "again");
+  if (again) {
+    again.textContent = againOpt?.label || "조건 그대로 다시";
+    again.classList.toggle("hidden", !againOpt);
+    again.onclick = againOpt ? () => submitAdjust("again") : null;
+  }
   sheet.classList.remove("hidden");
 }
 
@@ -1859,10 +2096,12 @@ function syncUndoBtn() {
   if (!btn) return;
   const show = !!state.canUndo && !state.swiping;
   btn.classList.toggle("hidden", !show);
+  const host = state.adjustNeeded ? $("adjust-undo-slot") : $("feed-undo-slot");
+  if (host && btn.parentElement !== host) host.appendChild(btn);
 }
 
 async function submitAdjust(option) {
-  if (!state.sessionId || state.swiping) return;
+  if (isDesignPreview() || !state.sessionId || state.swiping) return;
   const req = beginReq();
   const actionId = actionIdFor(`adjust:${option}:${state.packId}`);
   state.swiping = true;
@@ -1893,6 +2132,7 @@ async function submitAdjust(option) {
 }
 
 async function undoCard() {
+  if (isDesignPreview()) return;
   if (!state.sessionId || !state.canUndo || state.swiping) return;
   const req = beginReq();
   const actionId = actionIdFor(`undo:${state.packId}:${state.packRank}`);
@@ -1958,7 +2198,7 @@ function showMatchThenHandoff(data) {
 /** @returns {Promise<boolean>} 카드가 실제로 넘어갔는지 */
 async function swipe(action) {
   const card = currentCard();
-  if (!card || state.swiping) return false;
+  if (isDesignPreview() || !card || state.swiping) return false;
   const req = beginReq();
   const actionId = actionIdFor(`swipe:${action}:${card.menu_id}:${card.pack_id || state.packId}`);
   state.swiping = true;
@@ -1982,6 +2222,7 @@ async function swipe(action) {
       return false;
     }
     settleAction();
+    markSwipeHintSeen();
     if (action === "lets_go") {
       track("swipe_go", {
         category: card.category || "",
@@ -1996,7 +2237,16 @@ async function swipe(action) {
         pack_id: card.pack_id || state.packId,
         logic_version: card.logic_version || state.logicVersion,
       });
-      showMatchThenHandoff(data);
+      showMatchThenHandoff({
+        ...data,
+        image_url: data.image_url || card.image_url || "",
+        has_photo: data.has_photo ?? card.has_photo,
+        is_brand: data.is_brand ?? card.is_brand,
+        photo_role: data.photo_role || card.photo_role,
+        photo_focus: data.photo_focus || card.photo_focus,
+        menu_verified: data.menu_verified ?? card.menu_verified,
+        place_name: data.place_name || card.place_name,
+      });
       return true;
     }
     track("swipe_nope", {
@@ -2117,8 +2367,21 @@ function buildShareText(receipt) {
   );
 }
 
+function setReceiptExpanded(open) {
+  const card = $("receipt");
+  const body = $("receipt-body");
+  const label = $("receipt-toggle-label");
+  const tog = $("btn-receipt-toggle");
+  if (!card) return;
+  card.classList.toggle("is-collapsed", !open);
+  if (body) body.hidden = !open;
+  if (label) label.textContent = open ? "접기" : "펼치기";
+  if (tog) tog.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
 async function shareReceipt() {
   try {
+    setReceiptExpanded(true);
     const receipt = state.lastReceipt;
     if (!receipt?.share_url) {
       setShareStatus("아직 공유할 영수증이 없어요.");
@@ -2180,6 +2443,7 @@ async function makeStoryImage() {
   btn.disabled = true;
   btn.textContent = "만드는 중…";
   try {
+    setReceiptExpanded(true);
     if (state.lastDone) await ensureReceipt(state.lastDone);
     const receipt = {
       ...(state.lastReceipt || {}),
@@ -2230,6 +2494,22 @@ async function unlockStoryGold() {
 function showDone(data) {
   state.lastDone = data;
   show("screen-done");
+  const thumb = $("done-thumb");
+  const photo = usablePhoto(data);
+  if (thumb) {
+    if (photo) {
+      thumb.src = photo.url;
+      thumb.alt = data.place_name || "";
+      thumb.classList.remove("hidden");
+      thumb.onerror = () => {
+        thumb.removeAttribute("src");
+        thumb.classList.add("hidden");
+      };
+    } else {
+      thumb.removeAttribute("src");
+      thumb.classList.add("hidden");
+    }
+  }
   $("done-sub").textContent = `${data.place_name} · ${displayMenuName(data)}`;
   const persona = data.persona || {};
   const title = data.receipt_title || persona.title || "본능 100% 그냥이거 마스터";
@@ -2248,10 +2528,16 @@ function showDone(data) {
     data.receipt?.theme ||
     "bg_basic";
   const card = $("receipt");
-  card.className = `receipt-card theme-${theme}${state.goldUnlocked ? " is-gold" : ""}`;
+  card.className = `receipt-card theme-${theme} is-collapsed${state.goldUnlocked ? " is-gold" : ""}`;
+  setReceiptExpanded(false);
+  const tog = $("btn-receipt-toggle");
+  if (tog) tog.onclick = () => setReceiptExpanded(card.classList.contains("is-collapsed"));
   const link = $("handoff-link");
   link.href = data.handoff.url;
-  link.textContent = data.handoff.cta || "지도에서 보기";
+  const delivery = data.handoff.intent === "delivery" || data.is_brand;
+  link.textContent = delivery
+    ? "공식 주문 페이지 열기"
+    : "지도에서 확인";
   link.onclick = () => {
     track("handoff_open", {
       intent: data.handoff?.intent || state.intent,
@@ -2274,6 +2560,11 @@ function showDone(data) {
   updateKakaoLinkButton();
   updateStoryReward();
   refreshTitleBadge();
+  if (isDesignPreview()) {
+    setShareStatus("");
+    $("meal-prompt")?.classList.add("hidden");
+    return;
+  }
   renderMealPrompt(data);
   ensureReceipt(data)
     .then(() => setShareStatus("공유할 준비됐어요"))
@@ -2335,51 +2626,124 @@ async function submitMeal(eaten) {
   }
 }
 
+function setSwipeDir(dx) {
+  const dir = $("swipe-dir");
+  const el = $("card");
+  if (!dir || !el) return;
+  el.classList.remove("is-pass", "is-go");
+  dir.classList.remove("is-pass", "is-go");
+  if (Math.abs(dx) < 28) {
+    dir.classList.add("hidden");
+    dir.textContent = "";
+    return;
+  }
+  const go = dx > 0;
+  const view = cardPresentation(currentCard() || {});
+  dir.textContent = go ? view.go : view.pass;
+  dir.classList.remove("hidden");
+  dir.classList.add(go ? "is-go" : "is-pass");
+  el.classList.add(go ? "is-go" : "is-pass");
+}
+
 function setupSwipeGestures() {
   const el = $("card");
   let startX = 0;
+  let startY = 0;
   let dx = 0;
+  let dy = 0;
   let active = false;
+  let axis = "";
 
   const resetCard = () => {
     el.style.transform = "";
     el.style.opacity = "1";
+    setSwipeDir(0);
   };
-  const onStart = (x) => {
+  const blocked = (target) =>
+    !!(target?.closest && target.closest("#btn-card-detail, #detail, button, a"));
+  const onStart = (x, y, target) => {
     if ($("detail") && !$("detail").classList.contains("hidden")) return;
     if (state.swiping || state.modeSwitching) return;
+    if (blocked(target)) return;
     active = true;
+    axis = "";
     startX = x;
+    startY = y;
     dx = 0;
+    dy = 0;
   };
-  const onMove = (x) => {
+  const onMove = (x, y) => {
     if (!active) return;
     dx = x - startX;
-    el.style.transform = `translateX(${dx}px) rotate(${dx / 40}deg)`;
-    el.style.opacity = String(Math.max(0.4, 1 - Math.abs(dx) / 300));
+    dy = y - startY;
+    if (!axis) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      axis = Math.abs(dy) > Math.abs(dx) ? "y" : "x";
+    }
+    if (axis === "y") {
+      setSwipeDir(0);
+      return;
+    }
+    if (prefersReducedMotion()) {
+      setSwipeDir(dx);
+      return;
+    }
+    el.style.transition = "none";
+    el.style.transform = `translateX(${dx}px)`;
+    el.style.opacity = String(Math.max(0.55, 1 - Math.abs(dx) / 360));
+    setSwipeDir(dx);
   };
   const onEnd = async () => {
     if (!active) return;
     active = false;
-    if (Math.abs(dx) <= 100) {
+    const horizontal = axis === "x";
+    axis = "";
+    el.style.transition = "";
+    if (!horizontal || Math.abs(dx) <= 100) {
       resetCard();
       return;
     }
-    // 실패하면 카드가 밀려난 채로 남지 않도록 원위치시킨다
+    markSwipeHintSeen();
     const moved = await swipe(dx > 0 ? "lets_go" : "nope");
     if (!moved) resetCard();
+    else resetCard();
   };
 
-  el.addEventListener("touchstart", (e) => onStart(e.touches[0].clientX), {
-    passive: true,
-  });
-  el.addEventListener("touchmove", (e) => onMove(e.touches[0].clientX), {
-    passive: true,
-  });
+  el.addEventListener(
+    "touchstart",
+    (e) => onStart(e.touches[0].clientX, e.touches[0].clientY, e.target),
+    { passive: true }
+  );
+  el.addEventListener(
+    "touchmove",
+    (e) => onMove(e.touches[0].clientX, e.touches[0].clientY),
+    { passive: true }
+  );
   el.addEventListener("touchend", onEnd);
-  el.addEventListener("mousedown", (e) => onStart(e.clientX));
-  window.addEventListener("mousemove", (e) => onMove(e.clientX));
+  el.addEventListener("mousedown", (e) => onStart(e.clientX, e.clientY, e.target));
+  window.addEventListener("mousemove", (e) => onMove(e.clientX, e.clientY));
   window.addEventListener("mouseup", onEnd);
+}
+
+function setupCardKeys() {
+  document.addEventListener("keydown", (e) => {
+    const feed = $("screen-feed");
+    if (!feed || feed.classList.contains("hidden")) return;
+    if (e.key === "Escape") {
+      hideDetailModal();
+      return;
+    }
+    const tag = (e.target && e.target.tagName) || "";
+    if (/INPUT|TEXTAREA|SELECT/.test(tag)) return;
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      $("btn-nope")?.focus();
+    }
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      $("btn-go")?.focus();
+    }
+  });
 }
 
 function escapeHtml(s) {
@@ -2401,6 +2765,12 @@ function renderDetailModal(card) {
     card.sensitivity_tip ||
     "식으면 맛이 얼마나 달라지는지예요. 배달 거리를 알 수는 없어요.";
   /* 브랜드는 지점이 아니라 브랜드다 — 주소·거리를 채워 넣으면 거짓이 된다 */
+  const sourceLabel = card.is_brand
+    ? "공식 주문"
+    : SOURCE_LABELS[state.inventorySource] ||
+      SOURCE_LABELS[card.source] ||
+      card.source ||
+      "—";
   const visitKind = [
     ["종류", kindLabel(card)],
     card.inferred_kind && card.inferred_kind !== categoryLabel(card)
@@ -2409,14 +2779,17 @@ function renderDetailModal(card) {
     ["주소", card.address || "주소 확인 중"],
     ["영업시간", card.hours || "카카오맵에서 확인"],
     ["거리", `${distanceLabel(card.distance_m)} · ${card.eta_label || "—"}`],
-    ["1인 예상", card.price_band ? `예상 ${card.price_band}` : "가격 미확인"],
+    ["반경", state.radius ? `${state.radius}m` : "—"],
+    ["가격", priceFact(card)],
+    ["출처", sourceLabel],
   ].filter(Boolean);
   const rows = card.is_brand
     ? [
-        ["종류", categoryLabel(card)],
+        ["종류", card.kind || categoryLabel(card)],
         ["대표 메뉴", card.menu_name || "—"],
         ["주문 채널", card.order_channel || "공식 주문"],
-        ["1인 예상", card.price_band ? `예상 ${card.price_band}` : "가격 미확인"],
+        ["가격", priceFact(card)],
+        ["출처", sourceLabel],
       ]
     : visitKind;
   const kindName = excludeLabel(card.kind || card.category);
@@ -2597,6 +2970,189 @@ function setupInstallPwa() {
       console.warn("SW register failed", err);
     });
   }
+}
+
+const EXAMPLE_PHOTOS = {
+  doenjang: {
+    id: "doenjang-jjigae",
+    url: "/static/example-photos/doenjang-jjigae.jpg",
+    credit: "Alpha (Flickr)",
+    license: "CC BY-SA 2.0",
+    source_url: "https://commons.wikimedia.org/wiki/File:Korean_stew-Doenjang_jjigae-01.jpg",
+    representative: true,
+    is_menu_photo: true,
+    menu_match: "된장찌개",
+    use: "verified_menu_or_preview",
+    caption: "",
+  },
+  chicken: {
+    id: "chicken",
+    url: "/static/example-photos/chicken.jpg",
+    remote_url: "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=1200&q=80",
+    credit: "Unsplash",
+    license: "Unsplash License",
+    source_url: "https://unsplash.com/photos/fried-chicken-on-white-ceramic-plate-2s6ORaJNNm0",
+    representative: true,
+    is_menu_photo: false,
+    menu_match: "",
+    use: "brand_example_only",
+    caption: "음식 종류 예시",
+  },
+};
+
+function designCard(kind) {
+  const doenjang = EXAMPLE_PHOTOS.doenjang;
+  const chicken = EXAMPLE_PHOTOS.chicken;
+  if (kind === "photo") {
+    return {
+      card_id: "design-photo",
+      menu_id: "design-menu",
+      place_name: "송도 뚝배기집",
+      menu_name: "된장찌개",
+      menu_verified: true,
+      price_krw: 12000,
+      price_band: "1.2만원",
+      price_source: "listed",
+      distance_m: 240,
+      eta_label: "도보 약 3분",
+      category: "korean",
+      kind: "한식",
+      address: "인천 연수구 컨벤시아대로 165",
+      hours: "11:00–21:00",
+      why: "지금 위치에서 걸어갈 수 있는 곳이에요.",
+      image_url: doenjang.url,
+      has_photo: true,
+      photo_role: "menu",
+      photo_is_menu: true,
+      photo_focus: "50% 42%",
+      pack_rank: 1,
+    };
+  }
+  if (kind === "brand") {
+    return {
+      card_id: "design-brand",
+      menu_id: "brand:kyochon",
+      place_name: "교촌치킨",
+      menu_name: "교촌 오리지날",
+      is_brand: true,
+      kind: "치킨",
+      category: "meat",
+      order_channel: "교촌 공식 주문",
+      price_krw: 20000,
+      price_band: "2만원",
+      price_source: "estimated",
+      why: "",
+      image_url: chicken.url,
+      has_photo: true,
+      photo_role: "example",
+      photo_is_menu: false,
+      photo_focus: "50% 35%",
+      pack_rank: 1,
+    };
+  }
+  if (kind === "nophoto") {
+    return {
+      card_id: "design-nophoto",
+      menu_id: "design-store",
+      place_name: "센트럴파크 한식당",
+      menu_name: "한식",
+      category: "korean",
+      kind: "한식",
+      distance_m: 180,
+      eta_label: "도보 약 2분",
+      price_source: "unknown",
+      address: "인천 연수구 센트럴로 123",
+      hours: "11:00–21:30",
+      why: "지금 위치에서 걸어갈 수 있는 곳이에요.",
+      has_photo: false,
+      pack_rank: 1,
+    };
+  }
+  return {
+    card_id: "design-long",
+    menu_id: "design-long",
+    place_name: "송도국제도시 센트럴파크 옆 아주아주긴이름의 저녁밥상 한정식",
+    menu_name: "한식",
+    category: "korean",
+    kind: "한식",
+    distance_m: 640,
+    eta_label: "도보 약 8분",
+    price_source: "unknown",
+    address: "인천 연수구 송도과학로 123-45 1층",
+    why: "",
+    has_photo: false,
+    pack_rank: 2,
+  };
+}
+
+function openDesignPreview() {
+  const params = new URLSearchParams(window.location.search);
+  const kind = params.get("design");
+  if (!kind) return false;
+  const intro = $("intro");
+  if (intro) intro.remove();
+  state.designPreview = true;
+  state.uid = "";
+  state.intent = kind === "brand" || kind === "done-delivery" ? "delivery" : "visit";
+  state.mealContext = "meal";
+  state.radius = 700;
+  state.packSize = 3;
+  state.inventorySource = state.intent === "delivery" ? "brand" : "kakao";
+  state.sessionId = "design-preview";
+  setToggleUI(state.intent);
+  setMealUI(state.mealContext);
+  setupSwipeGestures();
+  setupLongPress();
+  setupCardKeys();
+
+  if (kind === "adjust") {
+    state.adjustNeeded = true;
+    state.canUndo = true;
+    state.packRank = 3;
+    state.adjustOptions = [
+      { id: "cheaper", label: "더 저렴하게" },
+      { id: "different", label: "다른 종류로" },
+      { id: "closer", label: "더 가까운 곳" },
+      { id: "again", label: "조건 그대로 다시" },
+    ];
+    show("screen-feed");
+    renderFeedChrome();
+    renderCard();
+    return true;
+  }
+
+  if (kind === "done" || kind === "done-delivery") {
+    const card = designCard(kind === "done-delivery" ? "brand" : "photo");
+    showDone({
+      ...card,
+      receipt_title: "본능 100% 그냥이거 마스터",
+      persona: { sub_text: "근처에서 바로 골랐어요", sticker: "🛋️", theme: "bg_basic" },
+      receipt: { match_reason: "확인된 메뉴와 거리가 맞았어요" },
+      handoff:
+        kind === "done-delivery"
+          ? {
+              intent: "delivery",
+              url: "https://www.kyochon.com/order",
+              cta: "공식 주문 페이지 열기",
+              note: "교촌 공식 주문으로 이동해요. 배달앱에서 다시 찾지 않아도 돼요.",
+            }
+          : {
+              intent: "visit",
+              url: "https://map.kakao.com/",
+              cta: "지도에서 확인",
+            },
+    });
+    return true;
+  }
+
+  const card = designCard(kind);
+  state.cards = [card];
+  state.packRank = card.pack_rank || 1;
+  state.canUndo = kind !== "photo";
+  show("screen-feed");
+  renderFeedChrome();
+  renderCard();
+  return true;
 }
 
 init()

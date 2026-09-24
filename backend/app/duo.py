@@ -215,7 +215,7 @@ def _resolve_pick(room: DuoRoom) -> dict[str, Any] | None:
         "menu_name": p.get("menu_name", ""),
         "image_url": p.get("image_url", ""),
         "distance_m": int(dist),
-        "eta_label": f"도보 {walk_minutes(dist)}분",
+        "eta_label": f"도보 약 {walk_minutes(dist)}분",
         "category": p.get("category"),
         "intersection": sorted(inter),
         "union": sorted(union),

@@ -298,6 +298,13 @@ body.allow-scroll {
   border-radius: var(--r-sm);
   background: var(--surface);
 }
+.feed-chrome .meal-seg,
+.meal-seg.compact {
+  padding: 0;
+  border: none;
+  background: transparent;
+  gap: 2px;
+}
 .meal-tog {
   flex: 1 1 0;
   min-width: 0;
@@ -317,11 +324,12 @@ body.allow-scroll {
   background: var(--surface-2);
   color: var(--text);
   font-weight: 600;
-  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 .feed-context .meal-seg { margin-top: 8px; }
-.feed-context .meal-tog {
-  min-height: 36px;
+.feed-context .meal-tog,
+.meal-seg.compact .meal-tog {
+  min-height: 32px;
+  padding: 6px 8px;
   font-size: 13px;
 }
 
@@ -482,28 +490,54 @@ body.allow-scroll {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  touch-action: pan-y;
+  padding-bottom: 0;
 }
-.feed-bar {
+.feed-chrome {
   flex-shrink: 0;
-  height: var(--bar-h);
+  padding: 8px 16px 6px;
+}
+.feed-toggles {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 12px 0 10px;
-  border-bottom: 1px solid var(--border);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.feed-meta {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.visit-radius {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+.feed-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 .seg {
   display: inline-flex;
-  padding: 2px;
-  border: 1px solid var(--border);
+  width: max-content;
+  padding: 0;
+  border: none;
   border-radius: var(--r-sm);
-  background: var(--surface);
+  background: transparent;
+  gap: 2px;
 }
 .tog {
-  min-width: 58px;
-  padding: 6px 12px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 6px 10px;
   border: none;
   border-radius: 4px;
   background: transparent;
@@ -518,7 +552,12 @@ body.allow-scroll {
   background: var(--surface-2);
   color: var(--text);
   font-weight: 600;
-  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+.seg.compact .tog {
+  min-width: 0;
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 13px;
 }
 
 .feed-context {
@@ -554,47 +593,79 @@ body.allow-scroll {
 }
 
 .card-stage {
-  flex: 1 1 auto;
-  min-height: 0;
   position: relative;
-  padding: 6px 16px 8px;
+  padding: 12px 16px 16px;
 }
+.swipe-dir {
+  position: absolute;
+  top: 18px;
+  z-index: 2;
+  margin: 0;
+  padding: 4px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  pointer-events: none;
+}
+.swipe-dir.is-pass { left: 24px; color: var(--text-2); }
+.swipe-dir.is-go { right: 24px; color: var(--accent); }
 .card {
-  height: 100%;
   position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-left: 4px solid var(--accent);
   border-radius: var(--r-lg);
   background: var(--surface);
   box-shadow: var(--shadow-card);
-  transition: transform 0.14s ease, opacity 0.14s ease;
-  touch-action: none;
+  transition: transform 180ms ease, opacity 180ms ease;
+  touch-action: pan-y;
 }
-.card.gold { border-color: var(--gold); border-left-color: var(--gold); }
+.card.is-pass { box-shadow: inset 3px 0 0 var(--text-2), var(--shadow-card); }
+.card.is-go { box-shadow: inset -3px 0 0 var(--accent), var(--shadow-card); }
+.card.gold { border-color: var(--gold); }
 
-/* 카카오 장소에는 사진이 없다. 실제 사진이 있을 때만 띄우고,
-   없으면 카드 전체를 판단에 필요한 정보로 채운다. */
-.card-photo { display: none; }
-.card.has-photo .card-photo {
-  display: block;
-  flex: 0 0 46%;
-  min-height: 0;
-  background-size: cover;
-  background-position: center;
-  background-color: var(--surface-2);
-  border-bottom: 1px solid var(--border);
+/* 사진과 텍스트를 위아래로 분리한다. 주요 정보는 사진 위에 겹치지 않는다. */
+.card-photo {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: var(--surface-2);
+  overflow: hidden;
 }
+@media (max-height: 700px) {
+  .card-photo {
+    aspect-ratio: auto;
+    height: 200px;
+    max-height: 200px;
+  }
+}
+.card-photo.hidden { display: none !important; }
+.card-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 40%;
+}
+.photo-cap {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: rgba(13, 12, 11, 0.62);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 500;
+}
+.photo-cap[data-photo-kind="example"] { display: block; }
 
 .card-face {
-  flex: 1 1 auto;
-  min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 20px 18px 16px;
-  overflow: hidden;
+  gap: 8px;
+  padding: 16px 16px 12px;
 }
 .card-head {
   display: flex;
@@ -629,22 +700,24 @@ body.allow-scroll {
   white-space: normal;
   max-width: 16em;
 }
+.card-title,
 .card-face .place {
-  margin: 10px 0 0;
+  margin: 0;
   font-family: "Black Han Sans", "IBM Plex Sans KR", sans-serif;
-  font-size: 30px;
+  font-size: 24px;
   font-weight: 400;
-  line-height: 1.2;
+  line-height: 1.25;
   letter-spacing: -0.02em;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.card-sub,
 .card-face .where {
-  margin: 8px 0 0;
-  font-size: 13.5px;
-  line-height: 1.5;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.4;
   color: var(--text-2);
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -652,69 +725,38 @@ body.allow-scroll {
   overflow: hidden;
 }
 
-/* 이 카드의 주인공: 음식까지 몇 분인가. 가짜 사진/지도 대신 쓴다. */
-.card-hero {
-  flex: 1 1 auto;
-  min-height: 88px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  margin: 8px 0 0;
-}
-.hero-num {
-  margin: 0;
-  font-family: "Black Han Sans", "IBM Plex Sans KR", sans-serif;
-  font-size: 72px;
-  font-weight: 400;
-  letter-spacing: -0.04em;
-  line-height: 0.95;
-}
-.hero-cap {
-  margin: 8px 0 0;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-2);
-}
-.card.has-photo .card-hero { flex: 0 0 auto; min-height: 0; padding: 10px 0 0; }
-.card.has-photo .hero-num { font-size: 40px; }
-.card.has-photo .hero-cap { margin-top: 4px; font-size: 13px; }
-@media (max-height: 700px) {
-  .hero-num { font-size: 56px; }
-  .card.has-photo .hero-num { font-size: 32px; }
-}
-
-/* 시간은 위에 크게 있으니, 여기선 거리와 지출만 */
 .card-facts {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 8px;
   margin: 0;
-  padding: 14px 0 0;
-  border-top: 1px solid var(--border);
+  padding: 0;
 }
 .card-facts div { min-width: 0; }
 .card-facts dt {
   margin: 0;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-3);
 }
 .card-facts dd {
-  margin: 3px 0 0;
+  margin: 2px 0 0;
   font-size: 15px;
   font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 .card-face .note {
-  margin: 12px 0 0;
-  font-size: 12.5px;
-  line-height: 1.5;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
   color: var(--text-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .detail-chip {
   align-self: flex-start;
-  margin: 12px 0 0;
+  margin: 0;
   padding: 4px 0;
   border: none;
   border-radius: 0;
@@ -743,12 +785,11 @@ body.allow-scroll {
 
 /* 빈 상태: 왜 비었는지 + 다음에 뭘 할 수 있는지 */
 .empty {
-  position: absolute;
-  inset: 6px 16px 8px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 6px;
+  min-height: 240px;
   padding: 24px 18px;
   border: 1px dashed var(--border-strong);
   border-radius: var(--r-lg);
@@ -772,12 +813,21 @@ body.allow-scroll {
 }
 .empty-actions .btn { min-height: 46px; font-size: 15px; }
 
+#screen-feed.is-nophoto .feed-scroll,
+#screen-feed.is-adjust .feed-scroll {
+  flex: 0 1 auto;
+}
+#screen-feed.is-nophoto .bottom.actions,
+#screen-feed.is-adjust .bottom.actions {
+  padding-top: 12px;
+}
+
 .adjust-sheet {
-  margin: 16px 16px 0;
-  padding: 20px 16px 8px;
+  margin: 8px 0 0;
+  padding: 16px 4px 8px;
   border-radius: var(--r);
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: transparent;
+  border: none;
 }
 .adjust-sheet.hidden { display: none; }
 .adjust-sub {
@@ -811,6 +861,17 @@ body.allow-scroll {
   padding: 0 14px;
 }
 .adjust-opt:hover { background: var(--surface); }
+.adjust-again {
+  display: block;
+  width: 100%;
+  margin: 10px 0 0;
+  min-height: 40px;
+  text-align: center;
+}
+.adjust-again.hidden { display: none; }
+#adjust-undo-slot .undo-btn {
+  margin: 4px 0 0;
+}
 .undo-row {
   display: flex;
   justify-content: center;
@@ -819,7 +880,7 @@ body.allow-scroll {
 .undo-btn {
   flex-shrink: 0;
   min-height: 40px;
-  margin: 0 16px 6px;
+  margin: 0 16px calc(6px + env(safe-area-inset-bottom, 0px));
   border: 0;
   background: transparent;
   color: var(--text-2);
@@ -836,20 +897,22 @@ body.allow-scroll {
   flex-shrink: 0;
   display: flex;
   gap: 10px;
-  padding: 6px 16px 0;
+  padding: 16px 16px 0;
 }
-.bottom.actions { align-items: stretch; }
-/* 좌우 비대칭: 통과가 기본 동작이라 더 넓게 */
+.bottom.actions {
+  align-items: stretch;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+}
 .act {
-  min-height: 54px;
-  border-radius: var(--r);
+  min-height: 48px;
+  border-radius: 10px;
   font: inherit;
   font-size: 16px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 .act.pass {
-  flex: 0 0 108px;
+  flex: 0 0 40%;
   border: 1px solid var(--border-strong);
   background: transparent;
   color: var(--text-2);
@@ -857,7 +920,7 @@ body.allow-scroll {
 }
 .act.pass:hover { background: var(--surface-2); color: var(--text); }
 .act.go {
-  flex: 1 1 auto;
+  flex: 1 1 60%;
   border: none;
   background: var(--accent);
   color: #fff;
@@ -986,6 +1049,21 @@ body.allow-scroll {
   max-width: 380px;
   margin: 0 auto;
 }
+.done-pick {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+.done-thumb {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.done-pick-text h2,
 .done-box h2 {
   margin: 0 0 4px;
   font-size: 22px;
@@ -1003,12 +1081,40 @@ body.allow-scroll {
 .receipt-card {
   display: block;
   margin: 18px 0 18px;
-  padding: 18px 18px 14px;
+  padding: 0;
   border-radius: var(--r-lg);
   text-align: center;
-  color: #fff;
+  color: #fff8f2;
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
 }
+.receipt-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.receipt-summary .receipt-title {
+  margin: 0;
+  font-size: 18px;
+}
+.receipt-toggle {
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  opacity: 0.95;
+}
+.receipt-body { padding: 0 16px 16px; }
+.receipt-card.is-collapsed .receipt-body { display: none; }
 /* 페르소나 20선 — 영수증은 수집물이라 컬러를 유지 */
 .receipt-card.theme-bg_destiny { background: linear-gradient(165deg, #FF6B6B 0%, #FF8E8B 100%); color: #1a120e; }
 .receipt-card.theme-bg_ironwall { background: linear-gradient(165deg, #4A4A4A 0%, #2C3E50 100%); }
@@ -1029,7 +1135,7 @@ body.allow-scroll {
 .receipt-card.theme-bg_value { background: linear-gradient(165deg, #26A69A 0%, #004D40 100%); }
 .receipt-card.theme-bg_carb { background: linear-gradient(165deg, #FFB74D 0%, #EF6C00 100%); color: #2a1600; }
 .receipt-card.theme-bg_hangover { background: linear-gradient(165deg, #4DB6AC 0%, #00695C 100%); }
-.receipt-card.theme-bg_basic { background: linear-gradient(165deg, #FF5A00 0%, #E62E00 100%); }
+.receipt-card.theme-bg_basic { background: linear-gradient(165deg, #D64510 0%, #B02400 100%); color: #fff8f2; }
 
 .receipt-card.is-gold {
   position: relative;
@@ -1057,7 +1163,8 @@ body.allow-scroll {
   margin: 0 0 4px;
   font-size: 11px;
   letter-spacing: 0.12em;
-  opacity: 0.8;
+  font-weight: 700;
+  opacity: 0.95;
 }
 .receipt-title {
   margin: 0 0 8px;
@@ -1095,7 +1202,7 @@ body.allow-scroll {
   font-size: 13px;
   text-align: left;
 }
-.receipt-row span { flex-shrink: 0; opacity: 0.72; }
+.receipt-row span { flex-shrink: 0; opacity: 0.92; }
 .receipt-row strong {
   text-align: right;
   font-weight: 600;
@@ -1417,14 +1524,15 @@ body:has(.duo-wrap) {
 
 /* 작은 화면: 카드 높이를 먼저 지킨다 */
 @media (max-height: 700px) {
-  .feed-context { padding: 6px 16px 4px; }
-  .stat-row { display: none; }
-  /* 안내 문구는 접되, 진행·실패 메시지는 작은 화면에서도 반드시 보여준다 */
-  .swipe-hint { display: none; }
+  .feed-chrome { padding: 6px 16px 4px; }
+  .feed-meta { margin-top: 6px; }
+  .swipe-hint:not(.is-busy):not(.is-error) { display: none; }
   .swipe-hint.is-busy,
   .swipe-hint.is-error { display: block; }
   .onboard { padding-top: 16px; }
   .screen-title { font-size: 23px; }
   .screen-desc { margin-bottom: 16px; }
-  .feed-context .meal-tog { min-height: 32px; padding: 6px 4px; font-size: 12.5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card { transition: none; }
 }

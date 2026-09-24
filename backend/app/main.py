@@ -614,6 +614,8 @@ class ShareReceiptBody(BaseModel):
 
 @app.post("/v1/share/receipt")
 def create_share_receipt(body: ShareReceiptBody, request: Request):
+    if engine.is_preview_session_id(body.session_id):
+        raise HTTPException(400, "design preview is isolated")
     r = share.create_receipt(
         title=body.title,
         place_name=body.place_name,
@@ -664,7 +666,13 @@ def swipe(body: SwipeBody, request: Request):
         return _swipe_locked(body, request)
 
 
+def _reject_preview(session_id: str | None):
+    if engine.is_preview_session_id(session_id):
+        raise HTTPException(400, "design preview is isolated")
+
+
 def _swipe_locked(body: SwipeBody, request: Request):
+    _reject_preview(body.session_id)
     s = engine.get_session(body.session_id)
     if not s:
         raise HTTPException(404, "session not found")
@@ -790,6 +798,7 @@ class UndoBody(BaseModel):
 @app.post("/v1/adjust")
 def adjust(body: AdjustBody):
     with engine.lock_session(body.session_id):
+        _reject_preview(body.session_id)
         s = engine.get_session(body.session_id)
         if not s:
             raise HTTPException(404, "session not found")
@@ -819,6 +828,7 @@ def adjust(body: AdjustBody):
 @app.post("/v1/undo")
 def undo(body: UndoBody, request: Request):
     with engine.lock_session(body.session_id):
+        _reject_preview(body.session_id)
         s = engine.get_session(body.session_id)
         if not s:
             raise HTTPException(404, "session not found")

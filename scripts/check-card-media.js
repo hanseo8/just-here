@@ -151,7 +151,7 @@ async function main() {
   const visitState = await ev(`(() => JSON.stringify({
     empty: !document.getElementById('empty')?.classList.contains('hidden'),
     adjust: !document.getElementById('adjust-sheet')?.classList.contains('hidden'),
-    slots: document.getElementById('slots-label')?.textContent.trim(),
+    progress: document.getElementById('feed-progress')?.textContent.trim(),
   }))()`);
   const vs = JSON.parse(visitState);
   if (vs.empty) {
@@ -161,29 +161,31 @@ async function main() {
       const s = await ev(`(() => {
         const photo = document.getElementById('card-media');
         return JSON.stringify({
-          place: document.getElementById('card-place')?.textContent.trim(),
-          kind: document.getElementById('card-menu')?.textContent.trim(),
-          hero: document.getElementById('card-hero-num')?.textContent.trim(),
-          cap: document.getElementById('card-hero-cap')?.textContent.trim(),
+          title: document.getElementById('card-title')?.textContent.trim(),
+          sub: document.getElementById('card-sub')?.textContent.trim(),
           dist: document.getElementById('card-fact1-val')?.textContent.trim(),
+          price: document.getElementById('card-fact2-val')?.textContent.trim(),
           pin: !!document.querySelector('.map-pin'),
           photoOn: document.getElementById('card')?.classList.contains('has-photo'),
-          photoDisplay: photo ? getComputedStyle(photo).display : 'missing',
-          slots: document.getElementById('slots-label')?.textContent.trim(),
+          photoHidden: photo?.classList.contains('hidden'),
+          hero: document.getElementById('card-hero-num')?.textContent || '',
+          progress: document.getElementById('feed-progress')?.textContent.trim(),
+          pass: document.getElementById('btn-nope')?.textContent.trim(),
         });
       })()`);
       const o = JSON.parse(s);
       const ticketOk =
-        o.place &&
-        /^\d+분$/.test(o.hero) &&
+        o.title &&
         o.dist &&
         o.dist !== "—" &&
         !o.pin &&
-        (o.photoOn || o.photoDisplay === "none") &&
-        o.slots === `${i + 1}/3`;
+        !o.hero &&
+        (o.photoHidden || o.photoOn) &&
+        o.progress.includes(`${i + 1}/3`) &&
+        /다른 가게|다른 메뉴/.test(o.pass);
       if (!ticketOk) bad++;
       console.log(
-        `${ticketOk ? "OK  " : "실패"} 방문 ${i + 1}/3: ${o.kind} · ${o.place} · ${o.hero} ${o.cap} · ${o.dist} · ${o.slots}`
+        `${ticketOk ? "OK  " : "실패"} 방문 ${i + 1}/3: ${o.sub} · ${o.title} · ${o.dist} · ${o.price} · ${o.progress}`
       );
       if (i === 0) {
         const r = await send("Page.captureScreenshot", { format: "png" });
@@ -203,31 +205,31 @@ async function main() {
   await ev(`document.querySelector('.tog[data-intent="delivery"]')?.click(); true`);
   for (let i = 0; i < 25; i++) {
     await sleep(400);
-    const k = await ev(`document.getElementById('card-fact2-key')?.textContent.trim()`);
-    if (k === "주문") break;
+    const ready = await ev(
+      `document.getElementById('btn-nope')?.textContent.trim() === '다른 후보'`
+    );
+    if (ready) break;
   }
   const delivery = await ev(`(() => JSON.stringify({
-    place: document.getElementById('card-place')?.textContent.trim(),
-    menu: document.getElementById('card-menu')?.textContent.trim(),
-    hero: document.getElementById('card-hero-num')?.textContent.trim(),
-    cap: document.getElementById('card-hero-cap')?.textContent.trim(),
+    title: document.getElementById('card-title')?.textContent.trim(),
+    sub: document.getElementById('card-sub')?.textContent.trim(),
     f1k: document.getElementById('card-fact1-key')?.textContent.trim(),
     f1v: document.getElementById('card-fact1-val')?.textContent.trim(),
-    f2k: document.getElementById('card-fact2-key')?.textContent.trim(),
-    f2v: document.getElementById('card-fact2-val')?.textContent.trim(),
-    radius: document.getElementById('radius-label')?.textContent.trim(),
+    pass: document.getElementById('btn-nope')?.textContent.trim(),
+    go: document.getElementById('btn-go')?.textContent.trim(),
+    radiusHidden: document.getElementById('visit-radius')?.classList.contains('hidden'),
   }))()`);
   const d = JSON.parse(delivery);
   const deliveryOk =
-    d.place &&
-    d.f1k === "종류" &&
-    d.f2k === "주문" &&
-    d.f2v &&
-    d.cap === "예상 1인" &&
-    d.radius === "전국";
+    d.title &&
+    d.f1k === "가격" &&
+    /예상/.test(d.f1v) &&
+    d.pass === "다른 후보" &&
+    d.go === "여기로 할게" &&
+    d.radiusHidden;
   if (!deliveryOk) bad++;
   console.log(
-    `${deliveryOk ? "OK  " : "실패"} 배달 카드: ${d.place} · ${d.menu} · ${d.hero}(${d.cap}) · ${d.f1v} · ${d.f2v} · 범위 ${d.radius}`
+    `${deliveryOk ? "OK  " : "실패"} 배달 카드: ${d.title} · ${d.sub} · ${d.f1v} · ${d.f2v}`
   );
   const r2 = await send("Page.captureScreenshot", { format: "png" });
   fs.writeFileSync(path.join(OUT, "card-delivery.png"), Buffer.from(r2.result.data, "base64"));

@@ -1,0 +1,45 @@
+{
+  "photos": [
+    {
+      "id": "doenjang-jjigae",
+      "file": "example-photos/doenjang-jjigae.jpg",
+      "credit": "Alpha (Flickr)",
+      "license": "CC BY-SA 2.0",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Korean_stew-Doenjang_jjigae-01.jpg",
+      "representative": true,
+      "is_menu_photo": true,
+      "menu_match": "된장찌개",
+      "use": "verified_menu_or_preview",
+      "caption": "",
+      "notes": "파일 설명이 된장찌개다. 차돌된장찌개 전용 사진이 아니므로 메뉴명을 된장찌개로 맞춘다."
+    },
+    {
+      "id": "chicken",
+      "file": "example-photos/chicken.jpg",
+      "credit": "Unsplash",
+      "license": "Unsplash License",
+      "source_url": "https://unsplash.com/photos/fried-chicken-on-white-ceramic-plate-2s6ORaJNNm0",
+      "image_url": "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec",
+      "representative": true,
+      "is_menu_photo": false,
+      "menu_match": "",
+      "use": "brand_example_only",
+      "caption": "음식 종류 예시",
+      "notes": "배달 브랜드 카드의 음식 종류 예시. 교촌 제품 사진이 아니다."
+    },
+    {
+      "id": "stew-tomato",
+      "file": "example-photos/stew.jpg",
+      "credit": "Unsplash",
+      "license": "Unsplash License",
+      "source_url": "https://unsplash.com/photos/cooked-food-on-white-ceramic-plate-2kc8bigeqE0",
+      "image_url": "https://images.unsplash.com/photo-1547592166-23ac45744acd",
+      "representative": false,
+      "is_menu_photo": false,
+      "menu_match": "",
+      "use": "unused",
+      "caption": "",
+      "notes": "토마토 수프. 된장찌개·방문 카드에 쓰지 않는다."
+    }
+  ]
+}

@@ -60,6 +60,21 @@ def append_event(
     name = (name or "").strip()
     if name not in ALLOWED_EVENTS:
         raise ValueError(f"unknown_event:{name}")
+    props = props or {}
+    sid = str(props.get("session_id") or "")
+    if (
+        sid.lower().startswith("design")
+        or props.get("design_preview")
+        or str(uid or "").lower().startswith("design")
+    ):
+        return {
+            "ts": _now_iso(),
+            "event": name,
+            "ignored": True,
+            "uid": "",
+            "device_id": "",
+            "props": {},
+        }
     row = {
         "ts": _now_iso(),
         "event": name,

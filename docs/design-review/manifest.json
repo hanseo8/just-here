@@ -1,0 +1,86 @@
+[
+  {
+    "file": "photo-390x844.png",
+    "viewport": "390x844",
+    "dpr": 2,
+    "method": "CDP Emulation.setDeviceMetricsOverride + Page.captureScreenshot clip",
+    "bytes": 694188
+  },
+  {
+    "file": "brand-390x844.png",
+    "viewport": "390x844",
+    "dpr": 2,
+    "method": "CDP Emulation.setDeviceMetricsOverride + Page.captureScreenshot clip",
+    "bytes": 687714
+  },
+  {
+    "file": "nophoto-390x844.png",
+    "viewport": "390x844",
+    "dpr": 2,
+    "method": "CDP Emulation.setDeviceMetricsOverride + Page.captureScreenshot clip",
+    "bytes": 42010
+  },
+  {
+    "file": "longname-390x844.png",
+    "viewport": "390x844",
+    "dpr": 2,
+    "method": "CDP Emulation.setDeviceMetricsOverride + Page.captureScreenshot clip",
+    "bytes": 44103
+  },
+  {
+    "file": "adjust-390x844.png",
+    "viewport": "390x844",
+    "dpr": 2,
+    "method": "CDP Emulation.setDeviceMetricsOverride + Page.captureScreenshot clip",
+    "bytes": 34644
+  },
+  {
+    "file": "done-390x844.png",
+    "viewport": "390x844",
+    "dpr": 2,
+    "method": "CDP Emulation.setDeviceMetricsOverride + Page.captureScreenshot clip",
+    "bytes": 150213
+  },
+  {
+    "file": "photo-360x640.png",
+    "viewport": "360x640",
+    "dpr": 2,
+    "method": "CDP Emulation.setDeviceMetricsOverride + Page.captureScreenshot clip",
+    "bytes": 497173
+  },
+  {
+    "file": "brand-360x640.png",
+    "viewport": "360x640",
+    "dpr": 2,
+    "method": "CDP Emulation.setDeviceMetricsOverride + Page.captureScreenshot clip",
+    "bytes": 502033
+  },
+  {
+    "file": "nophoto-360x640.png",
+    "viewport": "360x640",
+    "dpr": 2,
+    "method": "CDP Emulation.setDeviceMetricsOverride + Page.captureScreenshot clip",
+    "bytes": 37735
+  },
+  {
+    "file": "longname-360x640.png",
+    "viewport": "360x640",
+    "dpr": 2,
+    "method": "CDP Emulation.setDeviceMetricsOverride + Page.captureScreenshot clip",
+    "bytes": 39811
+  },
+  {
+    "file": "adjust-360x640.png",
+    "viewport": "360x640",
+    "dpr": 2,
+    "method": "CDP Emulation.setDeviceMetricsOverride + Page.captureScreenshot clip",
+    "bytes": 32599
+  },
+  {
+    "file": "done-360x640.png",
+    "viewport": "360x640",
+    "dpr": 2,
+    "method": "CDP Emulation.setDeviceMetricsOverride + Page.captureScreenshot clip",
+    "bytes": 144532
+  }
+]

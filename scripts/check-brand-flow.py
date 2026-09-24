@@ -829,6 +829,43 @@ check(verified_menus._clean(row_ok) is not None, "출처 기록이 있으면 통
 row_bad = {**row_ok, "source_note": "", "source_url": ""}
 check(verified_menus._clean(row_bad) is None, "출처 링크/기록 없으면 버린다")
 
+print("\n[사진] 예시와 실제 메뉴 사진을 구분한다")
+empty = engine.card_photo_fields({}, is_brand=True)
+check(empty["has_photo"] is False and empty["photo_is_example"] is False, "사진 없으면 예시 아님")
+visit_stock = engine.card_photo_fields(
+    {"image_url": "https://images.unsplash.com/photo-x", "has_photo": True},
+    is_brand=False,
+)
+check(visit_stock["has_photo"] is False, "방문 카드에 음식 예시 사진을 붙이지 않는다")
+brand_ex = engine.card_photo_fields(
+    {"image_url": "/static/example-photos/chicken.jpg"},
+    is_brand=True,
+)
+check(brand_ex["photo_role"] == "example" and brand_ex["photo_is_example"] is True, "브랜드 스톡은 예시")
+brand_prod = engine.card_photo_fields(
+    {"image_url": "https://cdn.example/kyochon.jpg", "photo_is_product": True},
+    is_brand=True,
+)
+check(brand_prod["photo_role"] == "product" and brand_prod["photo_is_example"] is False, "제품 사진은 예시가 아니다")
+s_photo = engine.create_session(LAT, LNG, "delivery", "clear", taste=["chicken"])
+b_cards, _, _ = engine.build_cards(s_photo)
+if b_cards:
+    check(all(c.get("photo_is_example") is False for c in b_cards if not c.get("image_url")), "빈 브랜드 카드는 예시를 켜지 않는다")
+    check("photo_role" in b_cards[0], "브랜드 카드에 photo_role이 있다")
+
+print("\n[미리보기] design 세션은 통계에 안 넣는다")
+from app import analytics  # noqa: E402
+
+ignored = analytics.append_event(
+    "recommend_shown",
+    uid="guest",
+    device_id="dev",
+    props={"session_id": "design-preview", "menu_id": "design-menu"},
+)
+check(ignored.get("ignored") is True, "design-preview 이벤트는 무시")
+check(engine.is_preview_session_id("design-preview"), "preview id 판별")
+check(not engine.is_preview_session_id("real-session"), "실제 세션은 통과")
+
 print()
 if fails:
     print(f"실패 {len(fails)}건")

@@ -17,6 +17,63 @@ from .radius import (
     walk_minutes,
 )
 
+EXAMPLE_PHOTO_MARKERS = (
+    "unsplash.com",
+    "picsum.photos",
+    "/static/example-photos/",
+    "example-photos/",
+)
+
+
+def is_preview_session_id(session_id: str | None) -> bool:
+    return str(session_id or "").lower().startswith("design")
+
+
+def card_photo_fields(
+    place: dict,
+    *,
+    is_brand: bool = False,
+    menu_verified: bool = False,
+) -> dict:
+    """메뉴 실사와 음식 종류 예시를 구분한다. 방문에는 예시를 붙이지 않는다."""
+    url = str(place.get("image_url") or "").strip()
+    explicit = str(place.get("photo_role") or "").strip()
+    is_menu = bool(place.get("photo_is_menu") or place.get("photo_is_product"))
+    if not url:
+        return {
+            "image_url": "",
+            "has_photo": False,
+            "photo_role": "",
+            "photo_is_example": False,
+        }
+    stock = any(m in url for m in EXAMPLE_PHOTO_MARKERS)
+    if explicit:
+        role = explicit
+    elif is_brand and is_menu:
+        role = "product"
+    elif is_brand or stock:
+        role = "example"
+    elif menu_verified and is_menu:
+        role = "menu"
+    elif place.get("has_photo") or url:
+        role = "store"
+    else:
+        role = ""
+    example = role == "example"
+    if not is_brand and example:
+        return {
+            "image_url": "",
+            "has_photo": False,
+            "photo_role": "",
+            "photo_is_example": False,
+        }
+    return {
+        "image_url": url,
+        "has_photo": True,
+        "photo_role": role,
+        "photo_is_example": example,
+    }
+
 
 @dataclass
 class Session:
@@ -602,8 +659,7 @@ def build_brand_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
                 "menu_id": p["menu_id"],
                 "place_name": p["name"],
                 "menu_name": p["menu_name"],
-                "image_url": "",
-                "has_photo": False,
+                **card_photo_fields(p, is_brand=True),
                 "distance_m": None,
                 "eta_label": "",
                 "category": p["category"],
@@ -691,10 +747,9 @@ def build_visit_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
                 "menu_id": p["menu_id"],
                 "place_name": p["name"],
                 "menu_name": cat_label,
-                "image_url": p.get("image_url") or "",
-                "has_photo": bool(p.get("has_photo", bool(p.get("image_url")))),
+                **card_photo_fields(p, is_brand=False, menu_verified=False),
                 "distance_m": int(dist),
-                "eta_label": f"도보 {walk_minutes(dist)}분",
+                "eta_label": f"도보 약 {walk_minutes(dist)}분",
                 "category": p.get("category") or "",
                 "kind": kind,
                 "inferred_kind": kind if kind and kind != cat_label else "",
@@ -859,7 +914,7 @@ def _why(session: Session, card: dict) -> str:
     if session.meal_context == "anju":
         return "술안주 쪽으로 골랐어요."
     if session.intent == "delivery":
-        return "고르면 이 브랜드 주문 화면으로 바로 이어져요."
+        return ""
     return "지금 위치에서 걸어갈 수 있는 곳이에요."
 
 
