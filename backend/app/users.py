@@ -159,9 +159,15 @@ class UserStore:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
             self._users = raw.get("users") or {}
             self._device_index = raw.get("device_index") or {}
-        except Exception:
+        except Exception as exc:
+            import logging
+
+            logging.getLogger("justhere.storage").error(
+                "users.json damaged path=%s error=%s", self.path, exc
+            )
             self._users = {}
             self._device_index = {}
+            self._load_error = str(exc)
 
     def _save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)

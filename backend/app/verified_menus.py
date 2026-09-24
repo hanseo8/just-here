@@ -136,6 +136,8 @@ def _clean(row: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def load_catalog(path: Path | None = None) -> dict[str, Any]:
+    from .storage import is_persistent_dir
+
     target = path or catalog_path()
     source = "data_dir" if path is None else "explicit"
     if path is None and not target.exists():
@@ -153,7 +155,7 @@ def load_catalog(path: Path | None = None) -> dict[str, Any]:
         "ready": False,
         "wired_to_ranking": visit_overlay_enabled(),
         "example_file": False,
-        "persistent": bool((os.getenv("DATA_DIR") or "").strip()),
+        "persistent": is_persistent_dir(),
         "catalog_source": "missing",
         "menus": [],
         "reason": "catalog_missing",
@@ -179,7 +181,7 @@ def load_catalog(path: Path | None = None) -> dict[str, Any]:
         "ready": False,
         "wired_to_ranking": visit_overlay_enabled(),
         "example_file": "example" in target.name,
-        "persistent": bool((os.getenv("DATA_DIR") or "").strip()),
+        "persistent": is_persistent_dir(),
         "catalog_source": source,
         "menus": menus,
         "reason": "not_wired_to_ranking",
@@ -551,48 +553,108 @@ def quality_report(catalog: dict[str, Any]) -> dict[str, Any]:
 
 
 def bootstrap_persistent_catalog() -> dict[str, Any]:
-    """영구 DATA_DIR에 카탈로그가 없으면 승인된 우선 파일을 복사한다. 기존 파일은 덮지 않는다."""
+    """대상 파일이 없을 때만 승인 파일을 복사한다. 운영 수정본은 덮지 않는다."""
+    from .storage import is_persistent_dir, log as storage_log, validate_json_file
+
     dest = catalog_path()
-    persistent = bool((os.getenv("DATA_DIR") or "").strip())
+    persistent = is_persistent_dir(dest.parent)
     if dest.exists():
-        return {"bootstrapped": False, "exists": True, "path": str(dest), "persistent": persistent}
+        check = validate_json_file(dest)
+        if not check["valid"]:
+            storage_log.error(
+                "verified-menus.json exists but is damaged; not overwriting path=%s error=%s",
+                dest,
+                check["error"],
+            )
+        return {
+            "bootstrapped": False,
+            "exists": True,
+            "overwritten": False,
+            "path": str(dest),
+            "persistent": persistent,
+            "valid": check["valid"],
+            "error": check["error"],
+            "reason": "already_exists",
+        }
     if not persistent:
         return {
             "bootstrapped": False,
             "exists": False,
+            "overwritten": False,
             "path": str(dest),
             "persistent": False,
             "reason": "not_persistent",
         }
     src = bundled_priority_path()
     if not src.exists():
+        storage_log.error("approved catalog source missing path=%s", src)
         return {
             "bootstrapped": False,
             "exists": False,
+            "overwritten": False,
             "path": str(dest),
             "persistent": True,
             "reason": "source_missing",
         }
-    dest.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+        check = validate_json_file(dest)
+        if not check["valid"]:
+            storage_log.error("catalog copy wrote an unreadable file path=%s", dest)
+            return {
+                "bootstrapped": False,
+                "exists": True,
+                "overwritten": False,
+                "path": str(dest),
+                "persistent": True,
+                "valid": False,
+                "error": check["error"],
+                "reason": "copy_invalid",
+            }
+    except Exception as exc:
+        storage_log.error("catalog bootstrap write failed dest=%s error=%s", dest, exc)
+        return {
+            "bootstrapped": False,
+            "exists": dest.exists(),
+            "overwritten": False,
+            "path": str(dest),
+            "persistent": True,
+            "error": str(exc),
+            "reason": "write_failed",
+        }
     return {
         "bootstrapped": True,
         "exists": True,
+        "overwritten": False,
         "path": str(dest),
         "persistent": True,
         "source": str(src),
+        "valid": True,
     }
 
 
 def overlay_status() -> dict[str, Any]:
-    persistent = bool((os.getenv("DATA_DIR") or "").strip())
+    from .storage import is_persistent_dir
+
+    persistent = is_persistent_dir()
     dest_exists = catalog_path().exists()
     try:
         cat = load_catalog()
         branch = int(cat.get("branch_confirmed") or 0)
         source = cat.get("catalog_source") or ("data_dir" if dest_exists else "missing")
-    except Exception:
+    except Exception as exc:
         branch = 0
         source = "missing"
+        return {
+            "visit_overlay": visit_overlay_enabled(),
+            "persistent": persistent,
+            "catalog_exists": dest_exists,
+            "catalog_source": source,
+            "branch_confirmed": 0,
+            "operational": False,
+            "error": str(exc),
+        }
     enabled = visit_overlay_enabled()
     return {
         "visit_overlay": enabled,

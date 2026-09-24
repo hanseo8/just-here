@@ -184,6 +184,15 @@ def _verified_menu_status() -> dict:
         return {"visit_overlay": False, "operational": False}
 
 
+def _storage_status() -> dict:
+    try:
+        from . import storage
+
+        return {**storage.snapshot(), "memory": storage.memory_counts()}
+    except Exception as exc:
+        return {"persistent": False, "error": str(exc)}
+
+
 def _strip(cards: list[dict]) -> list[dict]:
     return [{k: v for k, v in c.items() if not k.startswith("_")} for c in cards]
 
@@ -261,6 +270,7 @@ def health():
         "service": "just-here-mvp",
         "kakao_enabled": kakao.kakao_configured(),
         "auth": "guest_first",
+        "storage": _storage_status(),
     }
 
 
@@ -336,6 +346,7 @@ def meta():
         "personas": titles.catalog(),
         "logic_version": engine.LOGIC_VERSION,
         "verified_menus": _verified_menu_status(),
+        "storage": _storage_status(),
     }
 
 
