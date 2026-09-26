@@ -8,7 +8,7 @@ from typing import Literal
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
@@ -18,6 +18,7 @@ from . import deals
 from . import duo
 from . import engine
 from . import guest_token
+from . import google_places
 from . import kakao
 from . import share
 from . import titles
@@ -272,6 +273,29 @@ def health():
         "auth": "guest_first",
         "storage": _storage_status(),
     }
+
+
+@app.get("/v1/google/place-photo")
+def google_place_photo(token: str = Query(..., min_length=20, max_length=1600)):
+    """현재 장소 사진을 서버에서 중계한다. 사진 파일은 서버에 저장하지 않는다."""
+    result = google_places.fetch_photo(token)
+    if not result:
+        raise HTTPException(404, "place photo unavailable")
+    content, media_type = result
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+    )
+
+
+@app.get("/v1/google/place-photo/meta")
+def google_place_photo_meta(token: str = Query(..., min_length=20, max_length=1600)):
+    """사진 출처 표기와 Google 지도 연결을 위한 일회성 메타데이터."""
+    result = google_places.metadata(token)
+    if not result:
+        raise HTTPException(404, "place photo unavailable")
+    return JSONResponse(result, headers={"Cache-Control": "no-store"})
 
 
 @app.post("/v1/analytics/event")

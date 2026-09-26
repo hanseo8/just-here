@@ -1831,6 +1831,7 @@ function setCardPhoto(card) {
   const el = $("card");
   const wrap = $("card-media");
   const img = $("card-photo-img");
+  const source = $("card-photo-source");
   if (!el || !wrap || !img) return;
   el.classList.remove("has-photo");
   wrap.style.backgroundImage = "";
@@ -1838,6 +1839,10 @@ function setCardPhoto(card) {
   img.onerror = null;
   img.removeAttribute("src");
   showExampleCaption(false);
+  if (source) {
+    source.textContent = "";
+    source.classList.add("hidden");
+  }
 
   const photo = usablePhoto(card);
   if (!photo) {
@@ -1848,6 +1853,10 @@ function setCardPhoto(card) {
   img.alt = photo.example ? EXAMPLE_PHOTO_CAP : cardPresentation(card).title;
   img.style.objectPosition = card.photo_focus || "50% 40%";
   showExampleCaption(!!photo.example);
+  if (source && card.photo_source === "google_places") {
+    source.textContent = card.photo_attribution || "Google 지도 사진";
+    source.classList.remove("hidden");
+  }
   const token = card.card_id;
   img.onload = () => {
     if (currentCard()?.card_id !== token) return;
@@ -1863,8 +1872,25 @@ function setCardPhoto(card) {
     if (chip) chip.textContent = detailChipLabel(card, null);
   };
   img.src = photo.url;
+  if (card.photo_meta_url && source) {
+    fetch(card.photo_meta_url, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((meta) => {
+        if (!meta || currentCard()?.card_id !== token) return;
+        const names = (meta.attributions || [])
+          .map((item) => String(item?.name || "").trim())
+          .filter(Boolean);
+        source.textContent = names.length
+          ? `사진: ${names.join(", ")} · Google`
+          : "Google 지도 사진";
+        source.classList.remove("hidden");
+        card.google_maps_url = meta.google_maps_url || card.google_maps_url || "";
+        card.photo_attribution = source.textContent;
+      })
+      .catch(() => {});
+  }
   const next = usablePhoto(state.cards[1]);
-  if (next) {
+  if (next && !next.meta_url && !next.photo_meta_url) {
     const pre = new Image();
     pre.src = next.url;
   }
@@ -2804,6 +2830,7 @@ function renderDetailModal(card) {
     ["반경", state.radius ? `${state.radius}m` : "—"],
     ["가격", priceFact(card)],
     ["출처", sourceLabel],
+    card.photo_attribution ? ["사진 출처", card.photo_attribution] : null,
   ].filter(Boolean);
   const rows = card.is_brand
     ? [
@@ -2829,6 +2856,11 @@ function renderDetailModal(card) {
         )
         .join("")}
     </div>
+    ${
+      card.google_maps_url
+        ? `<a class="detail-map-link" href="${escapeHtml(card.google_maps_url)}" target="_blank" rel="noopener">Google 지도에서 가게 보기</a>`
+        : ""
+    }
     ${
       card.is_brand
         ? `<div class="sens-box">

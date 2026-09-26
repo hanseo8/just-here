@@ -7,7 +7,7 @@ import uuid
 from dataclasses import dataclass, field
 from urllib.parse import quote
 
-from . import brands, deals, kakao
+from . import brands, deals, google_places, kakao
 from .geo import HUB_ID, resolve_tier, tier_copy, tier_label
 from .place_meta import enrich_place_fields
 from .radius import (
@@ -73,6 +73,14 @@ def card_photo_fields(
         "photo_role": role,
         "photo_is_example": example,
     }
+
+
+def google_place_photo_fields(place: dict) -> dict:
+    """운영 방문 카드에만 현재 Google 장소 사진을 지연 조회로 붙인다."""
+    try:
+        return google_places.photo_urls(place)
+    except (TypeError, ValueError, KeyError):
+        return {}
 
 
 @dataclass
@@ -745,6 +753,7 @@ def build_visit_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
                 "place_name": p["name"],
                 "menu_name": cat_label,
                 **card_photo_fields(p, is_brand=False, menu_verified=False),
+                **google_place_photo_fields(p),
                 "distance_m": int(dist),
                 "eta_label": f"도보 약 {walk_minutes(dist)}분",
                 "category": p.get("category") or "",
