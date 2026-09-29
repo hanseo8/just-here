@@ -1568,3 +1568,54 @@ body:has(.duo-wrap) {
 .instagram-detail p { font-size: 14px; line-height: 1.5; }
 .instagram-detail .instagram-media { min-width: 0 !important; max-width: 100% !important; width: 100% !important; }
 .instagram-detail a:focus-visible { outline: 2px solid #ff641f; outline-offset: 3px; }
+/* Food discovery: warm location surfaces and image choices. */
+#screen-onboard{background:#fbf7f0;color:#30281f;min-height:100dvh}
+#screen-onboard .app-bar{background:transparent;color:#30281f;border-color:#e6ddcf}
+#screen-onboard .wordmark{color:#30281f}
+#onboard-main .onboard{padding:32px 20px}
+.location-eyebrow,.taste-eyebrow{font-size:12px;letter-spacing:.12em;color:#a4542b;font-weight:700;margin:0 0 12px}
+#screen-onboard .screen-title,#screen-onboard .taste-prompt{color:#30281f;font-size:30px;line-height:1.3;margin:0 0 12px}
+#screen-onboard .screen-desc,#screen-onboard .taste-sub{color:#766858;line-height:1.6}
+#screen-onboard .setup{margin-top:30px;border:0;display:grid;gap:14px}
+#screen-onboard .setup-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px;border:0;border-radius:20px;padding:24px;background:#f0dcc7}
+#screen-onboard .setup-row:nth-child(2){background:#e4eddf}
+#screen-onboard .setup-row dt{font-weight:700;color:#554431;flex-basis:100%;font-size:15px}
+#screen-onboard .setup-row dd{margin:0;flex:1;font-size:17px;color:#30281f;line-height:1.5}
+#screen-onboard .setup-row small{font-size:11px;padding:3px 7px;border-radius:5px;background:#fff8;color:#53704c}
+#screen-onboard .row-btn{background:#fffbf5;color:#5e3b23;border-color:#d7bda1;min-height:44px;padding:8px 16px}
+#screen-onboard .onboard-cta{background:#fbf7f0;border-top:1px solid #e6ddcf}
+#screen-onboard .cta-hint{color:#766858}
+#screen-onboard .taste-stage{padding:24px 16px 28px}
+#screen-onboard .meal-picker{margin:18px 0 22px}
+#screen-onboard .meal-picker-label{display:none}
+#screen-onboard .meal-seg{background:#eee7dd;border:0}
+#screen-onboard .meal-tog{color:#766858}
+#screen-onboard .meal-tog.on{background:#fff;color:#a4481d;border-color:#d9c3af}
+#screen-onboard .taste-cats{display:block}
+.food-groups{display:flex;gap:14px;overflow-x:auto;padding:8px 0 18px;scrollbar-width:thin;border-bottom:1px solid #e6ddcf}
+.food-group{flex:0 0 74px;border:0;background:transparent;color:#746757;padding:0 0 9px;min-height:100px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;border-bottom:3px solid transparent}
+.food-group.active{color:#bd4b1b;border-bottom-color:#ed632b}
+.food-image{display:block;aspect-ratio:1;background-color:#f5eee3;background-image:url('/static/tastes/food-atlas.png');background-size:690% 690%;border-radius:50%;width:100%}
+.food-group .food-image{border-radius:20px;margin-bottom:8px}
+.food-section-heading{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:24px 0 16px}
+.food-section-heading h2{font-size:21px;margin:0}
+.food-section-heading>span{font-size:12px;color:#857765}
+.food-items{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 12px}
+#screen-onboard .food-items .taste-cat{position:relative;display:flex;flex-direction:column;gap:9px;align-items:center;min-height:0;padding:7px;border:2px solid transparent;background:transparent;border-radius:18px;color:#30281f}
+#screen-onboard .food-items .taste-cat.on{border-color:#ed632b;background:#fff1e6}
+#screen-onboard .taste-cat-name{font-size:14px;font-weight:600;line-height:1.4}
+.food-check{display:none;position:absolute;right:5px;top:5px;background:#ed632b;color:white;border-radius:50%;width:23px;height:23px}
+.taste-cat.on .food-check{display:block}
+.food-selected{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.food-selected button{background:#efe5d8;color:#69452e;border:0;border-radius:6px;padding:9px 12px;min-height:44px;font:inherit;font-size:13px}
+#screen-onboard .taste-progress,#screen-onboard .link-btn{color:#766858}
+#btn-taste-next{width:100%;margin-top:12px;min-height:48px}
+.food-group:focus-visible,.taste-cat:focus-visible,.food-selected button:focus-visible{outline:3px solid #247c91;outline-offset:3px}
+@media(min-width:700px){#screen-onboard .taste-stage{padding:30px 24px}.food-items{gap:20px}}
+
+.food-image-note{color:#857765;font-size:11px;margin:0 0 8px}
+.food-actions{position:sticky;bottom:-28px;background:#fbf7f0;padding:12px 0 max(12px,env(safe-area-inset-bottom));border-top:1px solid #e6ddcf;margin-top:20px;z-index:2}
+.food-actions .taste-progress{margin:0;font-size:12px}
+.food-actions .taste-back{display:inline-block;width:auto;margin:8px 16px 0 0;min-height:36px}
+.food-actions .taste-status{margin:0 0 8px}
+#screen-onboard .food-items .taste-cat:disabled{opacity:.6}

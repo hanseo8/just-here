@@ -416,6 +416,7 @@ def _taste_boost(place: dict, taste: list[str]) -> float:
         "pasta": ("western",),
         "burger": ("western",),
     }
+    mapping.update({key: (category,) for key, category in kakao.TASTE_CATEGORY.items() if key not in mapping})
     blob = f"{place.get('menu_name', '')} {place.get('name', '')} {' '.join(place.get('tags') or [])}"
     for t in taste:
         if t == cat:

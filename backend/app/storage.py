@@ -20,6 +20,17 @@ WATCH_FILES = (
     "deals.json",
     ".guest_secret",
 )
+BACKUP_FILES = (
+    "users.json",
+    "events.jsonl",
+    "verified-menus.json",
+    "deals.json",
+)
+JSON_CHECK_FILES = (
+    "users.json",
+    "verified-menus.json",
+    "deals.json",
+)
 
 
 def inspect_path(path: Path) -> dict[str, Any]:
@@ -126,6 +137,68 @@ def memory_counts() -> dict[str, int]:
         "sessions": len(engine.SESSIONS),
         "receipts": len(share.RECEIPTS),
         "duo_rooms": len(duo.ROOMS),
+    }
+
+
+def public_status() -> dict[str, bool]:
+    """공개 헬스용. 경로·파일명·식별자는 넣지 않는다."""
+    try:
+        used = configured_data_dir()
+        writable = used.exists() and used.is_dir() and os.access(used, os.W_OK)
+        damaged = False
+        for name in JSON_CHECK_FILES:
+            path = used / name
+            if path.exists() and not validate_json_file(path)["valid"]:
+                damaged = True
+        return {"ok": bool(writable and not damaged), "persistent": is_persistent_dir(used)}
+    except Exception:
+        log.exception("public storage status failed")
+        return {"ok": False, "persistent": False}
+
+
+def admin_snapshot() -> dict[str, Any]:
+    used = configured_data_dir()
+    checks = {name: validate_json_file(used / name) for name in JSON_CHECK_FILES}
+    events = inspect_path(used / "events.jsonl")
+    events_path = used / "events.jsonl"
+    events["lines"] = 0
+    if events_path.exists():
+        try:
+            with events_path.open(encoding="utf-8") as fh:
+                events["lines"] = sum(1 for _ in fh)
+        except OSError as exc:
+            events["read_error"] = str(exc)
+    return {
+        **snapshot(),
+        "memory": memory_counts(),
+        "json_checks": checks,
+        "events": events,
+        "public": public_status(),
+        "memory_only": ["receipts", "duo_rooms", "sessions"],
+    }
+
+
+def backup_payload() -> dict[str, Any]:
+    used = configured_data_dir()
+    files: dict[str, Any] = {}
+    missing: list[str] = []
+    errors: dict[str, str] = {}
+    for name in BACKUP_FILES:
+        path = used / name
+        if not path.exists():
+            missing.append(name)
+            continue
+        try:
+            files[name] = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            errors[name] = str(exc)
+            log.error("backup read failed path=%s error=%s", path, exc)
+    return {
+        "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "files": files,
+        "missing": missing,
+        "errors": errors,
+        "excluded": [".guest_secret"],
     }
 
 

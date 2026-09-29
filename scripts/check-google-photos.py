@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import os
 import sys
+from unittest.mock import patch
+import httpx
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
@@ -46,7 +48,26 @@ def main() -> None:
             "location": {"latitude": 37.3926, "longitude": 126.6451},
         },
     )
-    print("google places photo contract: ok")
+    calls = []
+    def handler(request):
+        calls.append(request)
+        if request.url.host == "places.googleapis.com":
+            return httpx.Response(302, headers={"location": "https://lh3.googleusercontent.com/photo"})
+        assert "x-goog-api-key" not in request.headers
+        return httpx.Response(200, content=b"photo", headers={"content-type": "image/jpeg"})
+    factory = httpx.Client
+    def client(**kwargs):
+        return factory(transport=httpx.MockTransport(handler), **kwargs)
+    matched = {"photos": [{"name": "places/test/photos/one"}]}
+    with patch.object(google_places, "_search", return_value=matched), patch.object(google_places.httpx, "Client", side_effect=client):
+        assert google_places.fetch_photo(token) == (b"photo", "image/jpeg")
+    assert len(calls) == 2
+    assert calls[0].headers["x-goog-api-key"] == "test-only"
+    def rejected(request):
+        return httpx.Response(302, headers={"location": "https://untrusted.example/photo"})
+    with patch.object(google_places, "_search", return_value=matched), patch.object(google_places.httpx, "Client", side_effect=lambda **kw: factory(transport=httpx.MockTransport(rejected), **kw)):
+        assert google_places.fetch_photo(token) is None
+    print("google places photo contract: ok (redirect key isolation included)")
 
 
 if __name__ == "__main__":

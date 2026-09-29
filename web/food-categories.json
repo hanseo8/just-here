@@ -1,0 +1,316 @@
+[
+  {
+    "key": "korean",
+    "label": "한식",
+    "image": 0,
+    "category": "korean",
+    "items": [
+      {
+        "key": "bibimbap",
+        "label": "비빔밥",
+        "image": 0
+      },
+      {
+        "key": "gukbap",
+        "label": "국밥",
+        "image": 20
+      },
+      {
+        "key": "kimchi_jjigae",
+        "label": "김치찌개",
+        "image": 18
+      },
+      {
+        "key": "doenjang",
+        "label": "된장찌개",
+        "image": 19
+      }
+    ]
+  },
+  {
+    "key": "stew",
+    "label": "찜·탕",
+    "image": 1,
+    "category": "korean",
+    "items": [
+      {
+        "key": "kimchi_jjigae",
+        "label": "김치찌개",
+        "image": 18
+      },
+      {
+        "key": "jjimdak",
+        "label": "찜닭",
+        "image": 21
+      },
+      {
+        "key": "gamjatang",
+        "label": "감자탕",
+        "image": 22
+      },
+      {
+        "key": "haemuljjim",
+        "label": "해물찜",
+        "image": 23
+      }
+    ]
+  },
+  {
+    "key": "sashimi",
+    "label": "회",
+    "image": 2,
+    "category": "japanese",
+    "items": [
+      {
+        "key": "sashimi",
+        "label": "회",
+        "image": 2
+      },
+      {
+        "key": "sushi",
+        "label": "초밥",
+        "image": 6
+      }
+    ]
+  },
+  {
+    "key": "fastfood",
+    "label": "패스트푸드",
+    "image": 3,
+    "category": "western",
+    "items": [
+      {
+        "key": "burger",
+        "label": "햄버거",
+        "image": 3
+      },
+      {
+        "key": "pizza",
+        "label": "피자",
+        "image": 17
+      }
+    ]
+  },
+  {
+    "key": "chicken",
+    "label": "치킨",
+    "image": 4,
+    "category": "meat",
+    "items": [
+      {
+        "key": "chicken",
+        "label": "치킨",
+        "image": 4
+      },
+      {
+        "key": "skewers",
+        "label": "닭꼬치",
+        "image": 13
+      }
+    ]
+  },
+  {
+    "key": "chinese",
+    "label": "중식",
+    "image": 5,
+    "category": "chinese",
+    "items": [
+      {
+        "key": "jjajang",
+        "label": "짜장면",
+        "image": 5
+      },
+      {
+        "key": "jjamppong",
+        "label": "짬뽕",
+        "image": 28
+      },
+      {
+        "key": "tangsuyuk",
+        "label": "탕수육",
+        "image": 29
+      }
+    ]
+  },
+  {
+    "key": "japanese",
+    "label": "일식",
+    "image": 6,
+    "category": "japanese",
+    "items": [
+      {
+        "key": "sushi",
+        "label": "초밥",
+        "image": 6
+      },
+      {
+        "key": "donkatsu",
+        "label": "돈까스",
+        "image": 24
+      },
+      {
+        "key": "curry",
+        "label": "카레",
+        "image": 25
+      },
+      {
+        "key": "ramen",
+        "label": "라멘",
+        "image": 26
+      },
+      {
+        "key": "udon",
+        "label": "우동",
+        "image": 27
+      }
+    ]
+  },
+  {
+    "key": "western",
+    "label": "양식",
+    "image": 7,
+    "category": "western",
+    "items": [
+      {
+        "key": "pasta",
+        "label": "파스타",
+        "image": 7
+      },
+      {
+        "key": "pizza",
+        "label": "피자",
+        "image": 17
+      },
+      {
+        "key": "steak",
+        "label": "스테이크",
+        "image": 32
+      }
+    ]
+  },
+  {
+    "key": "snack",
+    "label": "분식",
+    "image": 8,
+    "category": "korean",
+    "items": [
+      {
+        "key": "tteokbokki",
+        "label": "떡볶이",
+        "image": 8
+      },
+      {
+        "key": "gimbap",
+        "label": "김밥",
+        "image": 30
+      },
+      {
+        "key": "mandu",
+        "label": "만두",
+        "image": 31
+      }
+    ]
+  },
+  {
+    "key": "meat",
+    "label": "고기",
+    "image": 9,
+    "category": "meat",
+    "items": [
+      {
+        "key": "pork",
+        "label": "삼겹살",
+        "image": 9
+      },
+      {
+        "key": "jokbal",
+        "label": "족발",
+        "image": 15
+      },
+      {
+        "key": "bossam",
+        "label": "보쌈",
+        "image": 16
+      },
+      {
+        "key": "gopchang",
+        "label": "곱창",
+        "image": 14
+      }
+    ]
+  },
+  {
+    "key": "asian",
+    "label": "아시안",
+    "image": 10,
+    "category": "asian",
+    "items": [
+      {
+        "key": "pho",
+        "label": "쌀국수",
+        "image": 10
+      },
+      {
+        "key": "padthai",
+        "label": "팟타이",
+        "image": 33
+      }
+    ]
+  },
+  {
+    "key": "mexican",
+    "label": "멕시칸",
+    "image": 11,
+    "category": "western",
+    "items": [
+      {
+        "key": "taco",
+        "label": "타코",
+        "image": 11
+      },
+      {
+        "key": "burrito",
+        "label": "브리또",
+        "image": 34
+      },
+      {
+        "key": "quesadilla",
+        "label": "퀘사디아",
+        "image": 35
+      }
+    ]
+  },
+  {
+    "key": "late_night",
+    "label": "야식",
+    "image": 12,
+    "category": "meat",
+    "items": [
+      {
+        "key": "dakbal",
+        "label": "닭발",
+        "image": 12
+      },
+      {
+        "key": "skewers",
+        "label": "꼬치",
+        "image": 13
+      },
+      {
+        "key": "gopchang",
+        "label": "곱창",
+        "image": 14
+      },
+      {
+        "key": "jokbal",
+        "label": "족발",
+        "image": 15
+      },
+      {
+        "key": "bossam",
+        "label": "보쌈",
+        "image": 16
+      }
+    ]
+  }
+]

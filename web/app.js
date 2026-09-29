@@ -279,11 +279,11 @@ function setLocStatus(text, ok = false) {
 function syncStartState() {
   const btn = $("btn-start");
   const hint = $("start-hint");
-  if (!btn) return;
+  if (!btn || state.starting) return;
   const ready = !!state.locationReady;
   // 위치가 없어도 버튼은 살려 둔다 — 누르면 권한을 물어보고 이어서 진행한다
   btn.disabled = false;
-  btn.textContent = ready ? "시작하기" : "위치 확인하고 시작";
+  btn.textContent = ready ? "뭐가 땡기는지 고르기" : "위치 확인하고 다음";
   if (!hint) return;
   if (!ready) {
     hint.textContent = "위치 권한을 물어본 뒤 근처 가게를 찾아요.";
@@ -521,25 +521,12 @@ async function applySmartIntent() {
   }
 }
 
-const TASTE_CATEGORIES = [
-  { key: "korean", label: "한식" },
-  { key: "chinese", label: "중식" },
-  { key: "japanese", label: "일식" },
-  { key: "western", label: "양식" },
-  { key: "snack", label: "분식" },
-  { key: "meat", label: "고기" },
-  { key: "asian", label: "아시안" },
-  { key: "mexican", label: "멕시칸" },
-];
+const FOOD_GROUPS = [{"key": "korean", "label": "한식", "image": 0, "category": "korean", "items": [{"key": "bibimbap", "label": "비빔밥", "image": 0}, {"key": "gukbap", "label": "국밥", "image": 20}, {"key": "kimchi_jjigae", "label": "김치찌개", "image": 18}, {"key": "doenjang", "label": "된장찌개", "image": 19}]}, {"key": "stew", "label": "찜·탕", "image": 1, "category": "korean", "items": [{"key": "kimchi_jjigae", "label": "김치찌개", "image": 18}, {"key": "jjimdak", "label": "찜닭", "image": 21}, {"key": "gamjatang", "label": "감자탕", "image": 22}, {"key": "haemuljjim", "label": "해물찜", "image": 23}]}, {"key": "sashimi", "label": "회", "image": 2, "category": "japanese", "items": [{"key": "sashimi", "label": "회", "image": 2}, {"key": "sushi", "label": "초밥", "image": 6}]}, {"key": "fastfood", "label": "패스트푸드", "image": 3, "category": "western", "items": [{"key": "burger", "label": "햄버거", "image": 3}, {"key": "pizza", "label": "피자", "image": 17}]}, {"key": "chicken", "label": "치킨", "image": 4, "category": "meat", "items": [{"key": "chicken", "label": "치킨", "image": 4}, {"key": "skewers", "label": "닭꼬치", "image": 13}]}, {"key": "chinese", "label": "중식", "image": 5, "category": "chinese", "items": [{"key": "jjajang", "label": "짜장면", "image": 5}, {"key": "jjamppong", "label": "짬뽕", "image": 28}, {"key": "tangsuyuk", "label": "탕수육", "image": 29}]}, {"key": "japanese", "label": "일식", "image": 6, "category": "japanese", "items": [{"key": "sushi", "label": "초밥", "image": 6}, {"key": "donkatsu", "label": "돈까스", "image": 24}, {"key": "curry", "label": "카레", "image": 25}, {"key": "ramen", "label": "라멘", "image": 26}, {"key": "udon", "label": "우동", "image": 27}]}, {"key": "western", "label": "양식", "image": 7, "category": "western", "items": [{"key": "pasta", "label": "파스타", "image": 7}, {"key": "pizza", "label": "피자", "image": 17}, {"key": "steak", "label": "스테이크", "image": 32}]}, {"key": "snack", "label": "분식", "image": 8, "category": "korean", "items": [{"key": "tteokbokki", "label": "떡볶이", "image": 8}, {"key": "gimbap", "label": "김밥", "image": 30}, {"key": "mandu", "label": "만두", "image": 31}]}, {"key": "meat", "label": "고기", "image": 9, "category": "meat", "items": [{"key": "pork", "label": "삼겹살", "image": 9}, {"key": "jokbal", "label": "족발", "image": 15}, {"key": "bossam", "label": "보쌈", "image": 16}, {"key": "gopchang", "label": "곱창", "image": 14}]}, {"key": "asian", "label": "아시안", "image": 10, "category": "asian", "items": [{"key": "pho", "label": "쌀국수", "image": 10}, {"key": "padthai", "label": "팟타이", "image": 33}]}, {"key": "mexican", "label": "멕시칸", "image": 11, "category": "western", "items": [{"key": "taco", "label": "타코", "image": 11}, {"key": "burrito", "label": "브리또", "image": 34}, {"key": "quesadilla", "label": "퀘사디아", "image": 35}]}, {"key": "late_night", "label": "야식", "image": 12, "category": "meat", "items": [{"key": "dakbal", "label": "닭발", "image": 12}, {"key": "skewers", "label": "꼬치", "image": 13}, {"key": "gopchang", "label": "곱창", "image": 14}, {"key": "jokbal", "label": "족발", "image": 15}, {"key": "bossam", "label": "보쌈", "image": 16}]}];
+const TASTE_CATEGORIES = [...new Map(FOOD_GROUPS.flatMap(g => [g, ...g.items]).map(c => [c.key,c])).values()];
+let activeFoodGroup = "korean";
 
 const TASTE_CAT_MIN = 1;
 const TASTE_CAT_MAX = 3;
-
-function closeTasteFlow() {
-  $("taste-stage")?.classList.add("hidden");
-  $("onboard-main")?.classList.remove("hidden");
-  $("onboard-cta")?.classList.remove("hidden");
-}
 
 function openTasteFlow() {
   $("onboard-main")?.classList.add("hidden");
@@ -550,6 +537,7 @@ function openTasteFlow() {
   state.tasteIndex = 0;
   state.tasteChoices = [];
   state.forceRetaste = false;
+  activeFoodGroup = state.mealContext === "late_night" ? "late_night" : "korean";
   renderTasteCategories();
   try {
     $("taste-stage").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -578,23 +566,26 @@ function backToTasteCategories() {
   renderTasteCategories();
 }
 
+function foodImage(c) {
+  return `<span class="food-image" aria-hidden="true" style="background-position:${1.2 + (c.image % 6) * 19.5}% ${1.2 + Math.floor(c.image / 6) * 18.75}%"></span>`;
+}
 function renderTasteCategories() {
   const box = $("taste-cats");
   if (!box) return;
-  box.innerHTML = "";
-  const selected = new Set(
-    state.tasteChoices.filter((k) => TASTE_CATEGORIES.some((c) => c.key === k))
-  );
-  TASTE_CATEGORIES.forEach((c) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "taste-cat";
-    btn.dataset.key = c.key;
-    btn.setAttribute("aria-pressed", selected.has(c.key) ? "true" : "false");
-    btn.innerHTML = `<span class="taste-cat-name">${c.label}</span>`;
-    btn.onclick = () => toggleTasteCategory(c.key);
-    box.appendChild(btn);
-  });
+  const group = FOOD_GROUPS.find(g => g.key === activeFoodGroup) || FOOD_GROUPS[0];
+  box.innerHTML = `<div class="food-groups" role="group" aria-label="음식 분류">${FOOD_GROUPS.map(g =>
+    `<button type="button" class="food-group ${g.key === group.key ? 'active' : ''}" data-group="${g.key}" aria-pressed="${g.key === group.key}">${foodImage(g)}<span>${g.label}</span></button>`).join('')}</div>
+    <div class="food-section-heading"><h2>${group.label}</h2><span>끌리는 메뉴를 골라 주세요</span></div>
+    <div class="food-items">${[{...group,label:group.label+' 전체'},...group.items.filter(c=>c.key!==group.key)].map(c =>
+      `<button type="button" class="taste-cat" data-key="${c.key}" aria-pressed="false">${foodImage(c)}<span class="taste-cat-name">${c.label}</span><span class="food-check" aria-hidden="true">✓</span></button>`).join('')}</div>
+    <div id="food-selected" class="food-selected" aria-label="선택한 음식"></div>`;
+  box.querySelectorAll('[data-group]').forEach(btn => { btn.onclick=()=>{
+    const scroll=box.querySelector('.food-groups').scrollLeft;
+    activeFoodGroup=btn.dataset.group; renderTasteCategories();
+    box.querySelector('.food-groups').scrollLeft=scroll;
+    box.querySelector(`[data-group="${activeFoodGroup}"]`)?.focus({preventScroll:true});
+  }; });
+  box.querySelectorAll('.taste-cat').forEach(btn => {btn.onclick=()=>toggleTasteCategory(btn.dataset.key);});
   syncTasteCatUI();
 }
 
@@ -606,6 +597,7 @@ function toggleTasteCategory(key) {
   if (i >= 0) cats.splice(i, 1);
   else if (cats.length < TASTE_CAT_MAX) cats.push(key);
   state.tasteChoices = cats;
+  if (activeFoodGroup === "late_night" && i < 0) { state.mealContext = "late_night"; setMealUI("late_night"); }
   try {
     if (navigator.vibrate) navigator.vibrate(8);
   } catch (_) {}
@@ -626,6 +618,11 @@ function syncTasteCatUI() {
     btn.classList.toggle("is-capped", full && !on);
     btn.setAttribute("aria-pressed", on ? "true" : "false");
   });
+  const chips = $("food-selected");
+  if (chips) {
+    chips.innerHTML = [...selected].map(key => `<button type="button" data-remove="${key}" aria-label="${TASTE_CATEGORIES.find(c=>c.key===key)?.label} 선택 취소">${TASTE_CATEGORIES.find(c=>c.key===key)?.label} ×</button>`).join('');
+    chips.querySelectorAll('[data-remove]').forEach(btn=>{btn.onclick=()=>toggleTasteCategory(btn.dataset.remove);});
+  }
   syncTasteCatNext();
 }
 
@@ -649,17 +646,12 @@ function syncTasteCatNext() {
   if (!next) return;
   next.disabled = n < TASTE_CAT_MIN;
   next.classList.toggle("ready", n >= TASTE_CAT_MIN);
-  next.textContent = "다음";
+  next.textContent = n ? "이 취향으로 추천받기" : "메뉴를 골라 주세요";
 }
 
 function goTasteToneStep() {
-  const cats = state.tasteChoices.filter((k) =>
-    TASTE_CATEGORIES.some((c) => c.key === k)
-  );
-  if (cats.length < TASTE_CAT_MIN) return;
-  state.tasteChoices = cats;
-  $("taste-step-cat").classList.add("hidden");
-  $("taste-step-tone").classList.remove("hidden");
+  if (state.tasteChoices.length < TASTE_CAT_MIN) return;
+  finishTasteWithTone("");
 }
 
 async function finishTasteWithTone(tone) {
@@ -696,15 +688,18 @@ function setTasteStatus(text, tone = "") {
 function setTasteBusy(busy) {
   document
     .querySelectorAll(
-      ".taste-tone, #btn-taste-skip-tone, #btn-taste-back, #btn-taste-skip, #btn-taste-next, #btn-taste-cancel"
+      ".taste-cat, .food-group, .food-selected button, #taste-stage .meal-tog, .taste-tone, #btn-taste-skip-tone, #btn-taste-back, #btn-taste-skip, #btn-taste-next, #btn-taste-cancel"
     )
     .forEach((btn) => {
       btn.disabled = !!busy;
     });
-  setTasteStatus(busy ? "근처 가게를 찾는 중이에요. 몇 초 걸릴 수 있어요." : "");
+  if (busy) setTasteStatus("근처 가게를 찾는 중이에요. 몇 초 걸릴 수 있어요.");
+  else syncTasteCatNext();
 }
 
 async function onStartClick() {
+  if (state.starting) return;
+  state.starting = true;
   const btn = $("btn-start");
   try {
     btn.disabled = true;
@@ -728,21 +723,6 @@ async function onStartClick() {
     }
 
     // 저장된 취향이 있으면 스킵 (다시 고르기만 예외)
-    const reuse =
-      !state.forceRetaste &&
-      (state.savedTaste?.length >= 1 || state.tasteChoices?.length >= 1);
-    if (reuse) {
-      if (!state.tasteChoices?.length) {
-        state.tasteChoices = [...state.savedTaste];
-      }
-      // 세션이 열릴 때까지 버튼을 잠가 둔다 (중복 탭으로 세션이 두 번 생김)
-      btn.textContent = "가게 찾는 중…";
-      await startSession();
-      btn.disabled = false;
-      btn.textContent = "시작하기";
-      return;
-    }
-
     btn.disabled = false;
     btn.textContent = "시작하기";
     openTasteFlow();
@@ -757,6 +737,7 @@ async function onStartClick() {
         : "가게를 불러오지 못했어요. 잠시 후 다시 눌러 주세요.";
     }
   }
+  finally { state.starting = false; syncStartState(); }
 }
 
 async function locateAndSyncWeather(force = true) {
@@ -1239,8 +1220,6 @@ async function init() {
   $("btn-share").onclick = () => shareReceipt();
   const kakaoBtn = $("btn-kakao-link");
   if (kakaoBtn) kakaoBtn.onclick = () => onKakaoCta();
-  const duoBtn = $("btn-duo");
-  if (duoBtn) duoBtn.onclick = () => createDuoInvite();
   const duoDone = $("btn-duo-done");
   if (duoDone) duoDone.onclick = () => createDuoInvite();
   const storyImgBtn = $("btn-story-image");
@@ -1565,7 +1544,10 @@ async function selectMealContext(next) {
   const prev = state.mealContext;
   state.mealContext = next;
   setMealUI(next);
-  if (!state.sessionId) return;
+  if (!state.sessionId) {
+    if (next === "late_night") { activeFoodGroup = "late_night"; renderTasteCategories(); }
+    return;
+  }
   state.modeSwitching = true;
   document.querySelectorAll(".meal-tog").forEach((b) => {
     b.disabled = true;
@@ -1827,7 +1809,14 @@ function detailChipLabel(card, photo) {
 }
 
 /* 실제 사진이 확인된 경우에만 띄운다. 방문 카드에 음식 예시 사진을 붙이지 않는다. */
+let cardPhotoGeneration = 0;
+let cardPhotoRequest = null;
+
 function setCardPhoto(card) {
+  const generation = ++cardPhotoGeneration;
+  cardPhotoRequest?.abort();
+  cardPhotoRequest = new AbortController();
+  const signal = cardPhotoRequest.signal;
   const el = $("card");
   const wrap = $("card-media");
   const img = $("card-photo-img");
@@ -1859,13 +1848,16 @@ function setCardPhoto(card) {
   }
   const token = card.card_id;
   img.onload = () => {
-    if (currentCard()?.card_id !== token) return;
+    if (generation !== cardPhotoGeneration || currentCard()?.card_id !== token) return;
     el.classList.add("has-photo");
   };
   img.onerror = () => {
-    if (currentCard()?.card_id !== token) return;
+    if (generation !== cardPhotoGeneration || currentCard()?.card_id !== token) return;
     wrap.classList.add("hidden");
     el.classList.remove("has-photo");
+    $("screen-feed")?.classList.add("is-nophoto");
+    cardPhotoRequest?.abort();
+    if (source) { source.textContent = ""; source.classList.add("hidden"); }
     img.removeAttribute("src");
     showExampleCaption(false);
     const chip = $("btn-card-detail");
@@ -1873,10 +1865,10 @@ function setCardPhoto(card) {
   };
   img.src = photo.url;
   if (card.photo_meta_url && source) {
-    fetch(card.photo_meta_url, { cache: "no-store" })
+    fetch(card.photo_meta_url, { cache: "no-store", signal })
       .then((res) => (res.ok ? res.json() : null))
       .then((meta) => {
-        if (!meta || currentCard()?.card_id !== token) return;
+        if (!meta || signal.aborted || generation !== cardPhotoGeneration || currentCard()?.card_id !== token) return;
         const names = (meta.attributions || [])
           .map((item) => String(item?.name || "").trim())
           .filter(Boolean);
@@ -1890,7 +1882,7 @@ function setCardPhoto(card) {
       .catch(() => {});
   }
   const next = usablePhoto(state.cards[1]);
-  if (next && !next.meta_url && !next.photo_meta_url) {
+  if (next && state.cards[1]?.photo_source !== "google_places") {
     const pre = new Image();
     pre.src = next.url;
   }

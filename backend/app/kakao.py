@@ -109,6 +109,12 @@ TASTE_CATEGORY: dict[str, str] = {
 DIVERSITY_QUERIES = ["한식", "일식", "중식", "양식", "치킨", "분식", "국밥", "카페"]
 
 
+# Image picker menu preferences; search signals, not verified sales.
+for _key, _queries in {'bibimbap': ['비빔밥'], 'gukbap': ['국밥'], 'kimchi_jjigae': ['김치찌개'], 'doenjang': ['된장찌개'], 'stew': ['찜', '탕'], 'jjimdak': ['찜닭'], 'gamjatang': ['감자탕'], 'haemuljjim': ['해물찜'], 'sashimi': ['회'], 'sushi': ['초밥'], 'fastfood': ['햄버거', '피자'], 'burger': ['햄버거'], 'pizza': ['피자'], 'chicken': ['치킨'], 'skewers': ['꼬치'], 'jjajang': ['짜장면'], 'jjamppong': ['짬뽕'], 'tangsuyuk': ['탕수육'], 'donkatsu': ['돈까스'], 'curry': ['카레'], 'ramen': ['라멘'], 'udon': ['우동'], 'pasta': ['파스타'], 'steak': ['스테이크'], 'tteokbokki': ['떡볶이'], 'gimbap': ['김밥'], 'mandu': ['만두'], 'pork': ['삼겹살'], 'jokbal': ['족발'], 'bossam': ['보쌈'], 'gopchang': ['곱창'], 'pho': ['쌀국수'], 'padthai': ['팟타이'], 'taco': ['타코'], 'burrito': ['브리또'], 'quesadilla': ['퀘사디아'], 'late_night': ['닭발', '곱창'], 'dakbal': ['닭발']}.items():
+    TASTE_QUERIES.setdefault(_key, _queries)
+for _key, _category in {'bibimbap': 'korean', 'gukbap': 'korean', 'kimchi_jjigae': 'korean', 'doenjang': 'korean', 'stew': 'korean', 'jjimdak': 'korean', 'gamjatang': 'korean', 'haemuljjim': 'korean', 'sashimi': 'japanese', 'sushi': 'japanese', 'fastfood': 'western', 'burger': 'western', 'pizza': 'western', 'chicken': 'meat', 'skewers': 'meat', 'jjajang': 'chinese', 'jjamppong': 'chinese', 'tangsuyuk': 'chinese', 'donkatsu': 'japanese', 'curry': 'japanese', 'ramen': 'japanese', 'udon': 'japanese', 'pasta': 'western', 'steak': 'western', 'tteokbokki': 'korean', 'gimbap': 'korean', 'mandu': 'korean', 'pork': 'meat', 'jokbal': 'meat', 'bossam': 'meat', 'gopchang': 'meat', 'pho': 'asian', 'padthai': 'asian', 'taco': 'western', 'burrito': 'western', 'quesadilla': 'western', 'late_night': 'meat', 'dakbal': 'meat'}.items():
+    TASTE_CATEGORY.setdefault(_key, _category)
+
 def kakao_configured() -> bool:
     return bool(os.getenv("KAKAO_REST_API_KEY", "").strip())
 

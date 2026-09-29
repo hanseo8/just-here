@@ -26,7 +26,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=20260926-google1" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260930-food3" />
 </head>
 <body>
   <!-- 진입 인트로: 첫 페인트를 브랜드로 채우고, 그 사이 init()이 끝난다 -->
@@ -48,8 +48,8 @@
 
       <div id="onboard-main">
         <div class="onboard">
-          <h1 class="screen-title">오늘 뭐 먹지?</h1>
-          <p class="screen-desc">취향에 맞춰 하나씩 고를게요. 고르면 바로 갈 곳까지 이어져요.</p>
+          <p class="location-eyebrow">오늘의 한 끼 · 01</p><h1 class="screen-title">어디서 먹을까요?</h1>
+          <p class="screen-desc">지금 있는 곳과 날씨에 맞춰 찾아드릴게요.</p>
 
           <dl class="setup">
             <div class="setup-row">
@@ -58,20 +58,18 @@
               <button type="button" id="btn-locate" class="row-btn">확인</button>
             </div>
             <div class="setup-row">
-              <dt>날씨</dt>
+              <dt>날씨 <small>자동</small></dt>
               <dd id="weather-status">위치를 확인하면 자동으로 반영돼요</dd>
             </div>
-            <div class="setup-row">
-              <dt>취향</dt>
-              <dd id="taste-summary">아직 고르지 않았어요</dd>
-              <button type="button" id="btn-retaste" class="row-btn">고르기</button>
-            </div>
-            <div class="setup-row hidden" id="exclude-row">
-              <dt>빼 둠</dt>
-              <dd id="exclude-summary"></dd>
-            </div>
+            <div class="hidden" aria-hidden="true"><span id="taste-summary"></span><button id="btn-retaste" type="button" tabindex="-1">취향 고르기</button><div id="exclude-row" class="hidden"><span id="exclude-summary"></span></div></div>
           </dl>
-          <div class="meal-picker">
+
+        </div>
+      </div>
+
+      <div id="taste-stage" class="taste-stage hidden">
+        <div id="taste-step-cat">
+          <p class="taste-eyebrow">오늘의 한 끼 · 02</p><h1 class="taste-prompt">뭐가 땡겨?</h1>          <div class="meal-picker">
             <p class="meal-picker-label">지금은</p>
             <div class="meal-seg" role="tablist" aria-label="식사 상황">
               <button type="button" class="meal-tog on" data-meal="meal" role="tab" aria-selected="true">한 끼</button>
@@ -80,18 +78,12 @@
             </div>
             <p id="onboard-meal-reason" class="reason hidden"></p>
           </div>
-        </div>
-      </div>
-
-      <div id="taste-stage" class="taste-stage hidden">
-        <div id="taste-step-cat">
-          <p class="taste-prompt">뭐가 땡겨?</p>
-          <p class="taste-sub">1~3개만 고르면 돼요. 건너뛰어도 바로 시작할 수 있어요.</p>
-          <div id="taste-cats" class="taste-cats" role="group" aria-label="음식 종류"></div>
-          <p id="taste-cat-hint" class="taste-progress" aria-live="polite">0 / 3</p>
+          <p class="taste-sub">끌리는 메뉴를 3개까지 골라 주세요.</p>
+          <p class="food-image-note">음식 이미지는 종류 선택용 예시예요.</p><div id="taste-cats" class="taste-cats" role="group" aria-label="음식 종류"></div>
+<div class="food-actions">          <p id="taste-status" class="taste-status hidden" role="status"></p><p id="taste-cat-hint" class="taste-progress" aria-live="polite">0 / 3</p>
           <button type="button" id="btn-taste-next" class="btn primary" disabled>다음</button>
           <button type="button" id="btn-taste-skip" class="link-btn taste-back">건너뛰고 시작</button>
-          <button type="button" id="btn-taste-cancel" class="link-btn taste-back">돌아가기</button>
+          <button type="button" id="btn-taste-cancel" class="link-btn taste-back">돌아가기</button></div>
         </div>
         <div id="taste-step-tone" class="hidden">
           <p class="taste-prompt">매운 쪽? 담백한 쪽?</p>
@@ -102,7 +94,7 @@
           </div>
           <button type="button" id="btn-taste-skip-tone" class="btn ghost">건너뛰기</button>
           <button type="button" id="btn-taste-back" class="link-btn taste-back">종류 다시 고르기</button>
-          <p id="taste-status" class="taste-status hidden" role="status"></p>
+
         </div>
       </div>
 
@@ -279,6 +271,6 @@
   <script src="/static/auth.js?v=20260924-visit-menu"></script>
   <script src="/static/story.js?v=20260924-visit-menu"></script>
   <script src="/static/instagram.js?v=20260926-ig1"></script>
-  <script src="/static/app.js?v=20260926-google1"></script>
+  <script src="/static/app.js?v=20260930-food3"></script>
 </body>
 </html>

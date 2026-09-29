@@ -185,13 +185,42 @@ def _verified_menu_status() -> dict:
         return {"visit_overlay": False, "operational": False}
 
 
-def _storage_status() -> dict:
+def _public_storage_status() -> dict:
     try:
         from . import storage
 
-        return {**storage.snapshot(), "memory": storage.memory_counts()}
+        return storage.public_status()
+    except Exception:
+        return {"ok": False, "persistent": False}
+
+
+def _admin_storage_status() -> dict:
+    try:
+        from . import storage
+
+        return storage.admin_snapshot()
     except Exception as exc:
-        return {"persistent": False, "error": str(exc)}
+        return {"ok": False, "persistent": False, "error": str(exc)}
+
+
+_ADMIN_NO_STORE = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, private",
+    "Pragma": "no-cache",
+}
+
+
+def _require_admin(request: Request, token: str | None = None) -> None:
+    raw = token or request.query_params.get("token") or request.headers.get("x-admin-token")
+    if not analytics.admin_token_ok(raw):
+        raise HTTPException(
+            401,
+            "admin token required",
+            headers=_ADMIN_NO_STORE,
+        )
+
+
+def _admin_json(payload: dict) -> JSONResponse:
+    return JSONResponse(payload, headers=_ADMIN_NO_STORE)
 
 
 def _strip(cards: list[dict]) -> list[dict]:
@@ -271,7 +300,7 @@ def health():
         "service": "just-here-mvp",
         "kakao_enabled": kakao.kakao_configured(),
         "auth": "guest_first",
-        "storage": _storage_status(),
+        "storage": _public_storage_status(),
     }
 
 
@@ -324,6 +353,22 @@ def analytics_summary(
     return analytics.summarize(since_days=days)
 
 
+@app.get("/v1/admin/storage")
+def admin_storage(request: Request, token: str | None = Query(None)):
+    """경로·파일 상태·메모리 건수. 공개 /health에는 넣지 않는다."""
+    _require_admin(request, token)
+    return _admin_json(_admin_storage_status())
+
+
+@app.get("/v1/admin/storage/backup")
+def admin_storage_backup(request: Request, token: str | None = Query(None)):
+    """사용자·이벤트·메뉴 파일 백업. 시크릿은 제외한다."""
+    _require_admin(request, token)
+    from . import storage
+
+    return _admin_json(storage.backup_payload())
+
+
 @app.get("/v1/review/songdo")
 def review_songdo(
     taste: str = "",
@@ -370,7 +415,6 @@ def meta():
         "personas": titles.catalog(),
         "logic_version": engine.LOGIC_VERSION,
         "verified_menus": _verified_menu_status(),
-        "storage": _storage_status(),
     }
 
 

@@ -13,7 +13,7 @@ import json
 import math
 import os
 import re
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import httpx
 
@@ -184,14 +184,24 @@ def fetch_photo(token: str) -> tuple[bytes, str] | None:
     if not photo_name.startswith("places/"):
         return None
     try:
-        with httpx.Client(timeout=10.0, follow_redirects=True) as client:
+        with httpx.Client(timeout=10.0, follow_redirects=False) as client:
             response = client.get(
                 PHOTO_URL.format(photo_name=photo_name),
                 params={"maxWidthPx": 1200},
                 headers={"X-Goog-Api-Key": _key()},
             )
+            if response.is_redirect:
+                location = response.headers.get("location", "")
+                parsed = urlparse(location)
+                host = (parsed.hostname or "").lower()
+                if parsed.scheme != "https" or parsed.username or parsed.password or not (
+                    host.endswith(".googleusercontent.com") or host.endswith(".ggpht.com")
+                ):
+                    return None
+                # Never forward the Places API key to the image host.
+                response = client.get(location)
             response.raise_for_status()
-            content_type = response.headers.get("content-type", "image/jpeg").split(";", 1)[0]
+            content_type = response.headers.get("content-type", "").split(";", 1)[0]
             if not content_type.startswith("image/"):
                 return None
             return response.content, content_type
