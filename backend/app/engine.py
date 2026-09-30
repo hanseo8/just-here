@@ -106,6 +106,7 @@ class Session:
     force_gold_once: bool = False
     places: list[dict] = field(default_factory=list)
     inventory_source: str = "seed"  # seed | kakao | empty
+    visit_radius_m: int = 700
     pool_radius_m: int = 0  # 인벤토리를 받아 둔 상한 반경
     pack_id: str = ""
     pack_cards: list[dict] = field(default_factory=list)
@@ -211,6 +212,7 @@ def load_inventory(
     intent: str,
     weather: str,
     taste: list[str] | None = None,
+    visit_radius_m: int = 700,
 ) -> tuple[list[dict], str, str]:
     """방문 재고는 카카오 실상호만 쓴다.
 
@@ -220,7 +222,7 @@ def load_inventory(
     taste = taste or []
     tier = resolve_tier(lat, lng)
     _ = intent
-    pool_r = session_radius_m("visit", weather)  # type: ignore[arg-type]
+    pool_r = max(100, min(3000, int(visit_radius_m)))
 
     matched, nearby = _fetch_kakao_block(lat, lng, pool_r, taste)
     kakao_block = _dedupe_places(matched + nearby)
@@ -298,8 +300,9 @@ def create_session(
     weather: str,
     taste: list[str] | None = None,
     meal_context: str = "meal",
+    visit_radius_m: int = 700,
 ) -> Session:
-    places, tier, source = load_inventory(lat, lng, intent, weather, taste)
+    places, tier, source = load_inventory(lat, lng, intent, weather, taste, visit_radius_m)
     s = Session(
         id=str(uuid.uuid4()),
         lat=lat,
@@ -311,7 +314,8 @@ def create_session(
         taste=taste or [],
         places=places,
         inventory_source=source,
-        pool_radius_m=session_radius_m("visit", weather),  # type: ignore[arg-type]
+        visit_radius_m=max(100, min(3000, int(visit_radius_m))),
+        pool_radius_m=max(100, min(3000, int(visit_radius_m))),
         meal_context=normalize_meal_context(meal_context),
     )
     SESSIONS[s.id] = s
@@ -352,13 +356,13 @@ def reanchor_session(session: Session, lat: float, lng: float) -> bool:
         return False
 
     places, tier, source = load_inventory(
-        lat, lng, session.intent, session.weather, session.taste
+        lat, lng, session.intent, session.weather, session.taste, session.visit_radius_m
     )
     session.tier = tier
     session.hub_id = HUB_ID if tier == "hub_full" else None
     session.places = places
     session.inventory_source = source
-    session.pool_radius_m = session_radius_m("visit", session.weather)  # type: ignore[arg-type]
+    session.pool_radius_m = session.visit_radius_m
     session.seen_menu_ids.clear()
     session.consecutive_nopes = 0
     session.perfect_slots_left = 5
@@ -369,13 +373,13 @@ def reanchor_session(session: Session, lat: float, lng: float) -> bool:
 def refresh_inventory(session: Session) -> None:
     """날씨·위치 등으로 풀 재조회가 필요할 때."""
     places, tier, source = load_inventory(
-        session.lat, session.lng, session.intent, session.weather, session.taste
+        session.lat, session.lng, session.intent, session.weather, session.taste, session.visit_radius_m
     )
     session.tier = tier
     session.hub_id = HUB_ID if tier == "hub_full" else None
     session.places = places
     session.inventory_source = source
-    session.pool_radius_m = session_radius_m("visit", session.weather)  # type: ignore[arg-type]
+    session.pool_radius_m = session.visit_radius_m
     session.seen_menu_ids.clear()
     session.consecutive_nopes = 0
     reset_pack(session)
@@ -691,6 +695,7 @@ def build_brand_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
                 "deal": deals.public_payload(_deal_for(p, session)),
                 "review": meta["review"],
                 "is_gold": False,
+                "matched_tastes": list(p.get("matched_tastes", [])),
                 "taste_match": bool(p.get("taste_match")),
                 "lat": None,
                 "lng": None,
@@ -706,7 +711,7 @@ def build_brand_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
 
 
 def build_visit_cards(session: Session, limit: int = 20) -> tuple[list[dict], int, bool]:
-    pool_r = session_radius_m("visit", session.weather)  # type: ignore[arg-type]
+    pool_r = session.visit_radius_m
     inventory = session.places or []
     kakao_cands: list[tuple[float, dict, float, int]] = []
 
@@ -717,11 +722,7 @@ def build_visit_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
         if not p.get("open_now", True):
             continue
         dist = haversine_m(session.lat, session.lng, p["lat"], p["lng"])
-        allow_r = card_radius_m(
-            "visit",
-            session.weather,  # type: ignore[arg-type]
-            float(p.get("delivery_sensitivity", 0.5)),
-        )
+        allow_r = pool_r
         if dist > pool_r or dist > allow_r:
             continue
         if p["menu_id"] in session.seen_menu_ids:
@@ -742,7 +743,7 @@ def build_visit_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
     candidates = _diversify_by_category(taste_first) + _diversify_by_category(rest)
 
     cards = []
-    for sc, p, dist, allow_r in candidates[:limit]:
+    for sc, p, dist, allow_r in candidates:
         meta = enrich_place_fields(p)
         kind = _visit_kind(p)
         cat_label = category_ko(p.get("category") or "")
@@ -778,6 +779,7 @@ def build_visit_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
                 "deal": deals.public_payload(_deal_for(p, session)),
                 "review": meta["review"],
                 "is_gold": False,
+                "matched_tastes": list(p.get("matched_tastes", [])),
                 "taste_match": bool(p.get("taste_match")),
                 "lat": p["lat"],
                 "lng": p["lng"],
@@ -787,6 +789,21 @@ def build_visit_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
             }
         )
     cards = _attach_verified_visit_menus(session, cards)
+    selected_dishes = set(session.taste) & kakao.DISH_QUERIES.keys()
+    if selected_dishes:
+        def matches_selected_dish(card: dict) -> bool:
+            if selected_dishes.intersection(card.get("matched_tastes", [])):
+                return True
+            menu_name = str(card.get("menu_name") or "")
+            menu_tags = set(card.get("menu_tags") or [])
+            return any(
+                dish in menu_tags
+                or any(query in menu_name for query in kakao.DISH_QUERIES.get(dish, []))
+                for dish in selected_dishes
+            )
+
+        cards = [card for card in cards if matches_selected_dish(card)]
+    cards = cards[:limit]
     if cards:
         mark_deck_shown(session)
     return cards, pool_r, False
@@ -916,6 +933,9 @@ def _pick_diverse_pack(cards: list[dict], n: int = PACK_SIZE) -> list[dict]:
 
 
 def _why(session: Session, card: dict) -> str:
+    matched = [kakao.DISH_QUERIES[k][0] for k in card.get("matched_tastes", []) if k in kakao.DISH_QUERIES]
+    if session.intent == "visit" and matched and not card.get("menu_verified"):
+        return " · ".join(matched[:3]) + " 검색으로 찾은 곳이에요. 판매 여부는 확인해 주세요."
     f = session.adjust_filters or {}
     if f.get("cheaper"):
         if f.get("price_unusable"):

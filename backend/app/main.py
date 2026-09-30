@@ -89,6 +89,7 @@ class SwipeBody(BaseModel):
 
 
 class SessionStartBody(BaseModel):
+    visit_radius_m: int = Field(default=700, ge=100, le=3000)
     lat: float
     lng: float
     intent: Literal["visit", "delivery"] = "visit"
@@ -618,6 +619,7 @@ def start_session(body: SessionStartBody, request: Request):
         body.weather,
         taste,
         meal_context=body.meal_context,
+        visit_radius_m=body.visit_radius_m,
     )
     engine.apply_profile(s, signals, stored_taste=taste)
     cards, radius, gold = engine.present_feed(s)

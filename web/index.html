@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#14120f" />
+  <meta name="theme-color" content="#fbfdfb" />
   <meta name="description" content="메뉴 고민은 사치, 지금 당장 그냥여기 어때? 근처 맛집 원픽 큐레이션." />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -26,7 +26,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=20260930-food3" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260930-green4" />
 </head>
 <body>
   <!-- 진입 인트로: 첫 페인트를 브랜드로 채우고, 그 사이 init()이 끝난다 -->
@@ -39,12 +39,10 @@
   </div>
 
   <div id="app">
+    <header class="site-header"><a class="home-logo" href="/" aria-label="그냥여기 홈으로">그냥여기<span aria-hidden="true">.</span></a><button type="button" id="btn-install" class="bar-link hidden">홈 화면에 추가</button></header>
     <!-- ONBOARDING -->
     <section id="screen-onboard" class="screen">
-      <header class="app-bar">
-        <span class="wordmark">그냥여기</span>
-        <button type="button" id="btn-install" class="bar-link hidden">홈 화면에 추가</button>
-      </header>
+
 
       <div id="onboard-main">
         <div class="onboard">
@@ -69,21 +67,33 @@
 
       <div id="taste-stage" class="taste-stage hidden">
         <div id="taste-step-cat">
-          <p class="taste-eyebrow">오늘의 한 끼 · 02</p><h1 class="taste-prompt">뭐가 땡겨?</h1>          <div class="meal-picker">
-            <p class="meal-picker-label">지금은</p>
-            <div class="meal-seg" role="tablist" aria-label="식사 상황">
-              <button type="button" class="meal-tog on" data-meal="meal" role="tab" aria-selected="true">한 끼</button>
-              <button type="button" class="meal-tog" data-meal="late_night" role="tab" aria-selected="false">야식</button>
-              <button type="button" class="meal-tog" data-meal="anju" role="tab" aria-selected="false">술안주</button>
-            </div>
-            <p id="onboard-meal-reason" class="reason hidden"></p>
-          </div>
+          <p class="taste-eyebrow">오늘의 한 끼 · 02</p><h1 class="taste-prompt">뭐가 땡겨?</h1>
           <p class="taste-sub">끌리는 메뉴를 3개까지 골라 주세요.</p>
           <p class="food-image-note">음식 이미지는 종류 선택용 예시예요.</p><div id="taste-cats" class="taste-cats" role="group" aria-label="음식 종류"></div>
 <div class="food-actions">          <p id="taste-status" class="taste-status hidden" role="status"></p><p id="taste-cat-hint" class="taste-progress" aria-live="polite">0 / 3</p>
           <button type="button" id="btn-taste-next" class="btn primary" disabled>다음</button>
-          <button type="button" id="btn-taste-skip" class="link-btn taste-back">건너뛰고 시작</button>
+          <button type="button" id="btn-taste-skip" class="link-btn taste-back">건너뛰고 다음</button>
           <button type="button" id="btn-taste-cancel" class="link-btn taste-back">돌아가기</button></div>
+        </div>
+        <div id="fulfillment-step" class="hidden">
+          <p class="taste-eyebrow">오늘의 한 끼 · 03</p>
+          <h1 class="taste-prompt">어떻게 먹을까요?</h1>
+          <p id="fulfillment-taste" class="taste-sub"></p>
+          <div class="fulfillment-options" role="group" aria-label="방문 또는 배달">
+            <button type="button" class="fulfillment-option" data-fulfillment="visit" aria-pressed="true"><span class="fulfillment-icon" aria-hidden="true">↗</span><strong>걸어서 방문</strong><span>내 주변에서 찾아요</span></button>
+            <button type="button" class="fulfillment-option" data-fulfillment="delivery" aria-pressed="false"><span class="fulfillment-icon" aria-hidden="true">⌂</span><strong>편하게 배달</strong><span>브랜드 공식 주문으로</span></button>
+          </div>
+          <div id="visit-range-panel" class="visit-range-panel">
+            <label for="visit-range">어디까지 찾아볼까요? <output id="visit-range-value" for="visit-range">700m</output></label>
+            <input id="visit-range" type="range" min="100" max="3000" step="100" value="700">
+            <div class="range-ends"><span>100m</span><span>3km</span></div>
+            <p>기본은 도보 700m · 현재 위치에서 직선거리 기준이에요.</p>
+          </div>
+          <div id="delivery-range-panel" class="delivery-range-panel hidden"><strong>거리 제한 없이 찾아요</strong><p>공식 주문 페이지가 있는 브랜드를 추천해요. 배달 가능 지역과 메뉴는 주문 페이지에서 확인해 주세요.</p></div>
+          <p class="food-image-note">메뉴 검색 결과를 참고해 찾아요. 실제 판매 여부는 가게에서 확인해 주세요.</p>
+          <p id="fulfillment-status" role="status"></p>
+          <button type="button" id="btn-fulfillment-start" class="btn primary">주변 가게 찾기</button>
+          <button type="button" id="btn-fulfillment-back" class="link-btn taste-back">취향 다시 고르기</button>
         </div>
         <div id="taste-step-tone" class="hidden">
           <p class="taste-prompt">매운 쪽? 담백한 쪽?</p>
@@ -112,11 +122,6 @@
             <button type="button" class="tog on" data-intent="visit" role="tab" aria-selected="true">방문</button>
             <button type="button" class="tog" data-intent="delivery" role="tab" aria-selected="false">배달</button>
           </div>
-          <div class="meal-seg compact" role="tablist" aria-label="식사 상황">
-            <button type="button" class="meal-tog on" data-meal="meal" role="tab" aria-selected="true">한 끼</button>
-            <button type="button" class="meal-tog" data-meal="late_night" role="tab" aria-selected="false">야식</button>
-            <button type="button" class="meal-tog" data-meal="anju" role="tab" aria-selected="false">술안주</button>
-          </div>
         </div>
         <p class="feed-meta">
           <span id="feed-progress">추천 1/3</span>
@@ -134,6 +139,7 @@
             <p class="empty-title">지금 보여줄 곳이 없어요</p>
             <p id="empty-msg" class="empty-msg">이 위치에서 조건에 맞는 가게를 못 찾았어요. 위치를 바꾸거나 다시 시도해 주세요.</p>
             <div class="empty-actions">
+              <button type="button" id="btn-empty-preferences" class="btn ghost">취향·거리 다시 고르기</button>
               <button type="button" id="btn-empty-locate" class="btn ghost">위치 다시 확인</button>
               <button type="button" id="btn-reload-feed" class="btn primary">다시 시도</button>
               <button type="button" id="btn-empty-intent" class="btn ghost">배달로 바꿔 보기</button>
@@ -143,6 +149,7 @@
           <div id="adjust-sheet" class="adjust-sheet hidden" role="dialog" aria-labelledby="adjust-title">
             <p id="adjust-title" class="adjust-title">이번엔 어떤 쪽으로 골라볼까요?</p>
             <p class="adjust-sub">한 번만 고르면 다음 후보를 바로 보여드려요.</p>
+            <p id="adjust-status" class="adjust-status hidden" role="status" aria-live="polite"></p>
             <div id="adjust-options" class="adjust-options"></div>
             <button type="button" id="btn-adjust-again" class="link-btn adjust-again hidden">조건 그대로 다시</button>
             <div id="adjust-undo-slot"></div>
@@ -271,6 +278,6 @@
   <script src="/static/auth.js?v=20260924-visit-menu"></script>
   <script src="/static/story.js?v=20260924-visit-menu"></script>
   <script src="/static/instagram.js?v=20260926-ig1"></script>
-  <script src="/static/app.js?v=20260930-food3"></script>
+  <script src="/static/app.js?v=20260930-green4"></script>
 </body>
 </html>

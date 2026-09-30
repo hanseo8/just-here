@@ -18,12 +18,15 @@ const state = {
   cards: [],
   perfect: 5,
   radius: 700,
+  visitRadius: 700,
   packId: "",
   packRank: 0,
   packSize: 3,
   adjustNeeded: false,
   canUndo: false,
   adjustOptions: [],
+  adjustMessage: "",
+  adjustMessageTone: "",
   logicVersion: "",
   swiping: false,
   modeSwitching: false,
@@ -359,7 +362,7 @@ function setMealUI(ctx) {
     b.setAttribute("aria-selected", on ? "true" : "false");
   });
   const hint = next === "meal" ? state.mealHint || "" : "";
-  ["onboard-meal-reason", "meal-reason"].forEach((id) => {
+  ["meal-reason"].forEach((id) => {
     const el = $(id);
     if (!el) return;
     if (hint) {
@@ -529,6 +532,7 @@ const TASTE_CAT_MIN = 1;
 const TASTE_CAT_MAX = 3;
 
 function openTasteFlow() {
+  $("fulfillment-step")?.classList.add("hidden");
   $("onboard-main")?.classList.add("hidden");
   $("onboard-cta")?.classList.add("hidden");
   $("taste-stage").classList.remove("hidden");
@@ -646,7 +650,7 @@ function syncTasteCatNext() {
   if (!next) return;
   next.disabled = n < TASTE_CAT_MIN;
   next.classList.toggle("ready", n >= TASTE_CAT_MIN);
-  next.textContent = n ? "이 취향으로 추천받기" : "메뉴를 골라 주세요";
+  next.textContent = n ? "다음 · 방문 / 배달" : "메뉴를 골라 주세요";
 }
 
 function goTasteToneStep() {
@@ -663,18 +667,37 @@ async function finishTasteWithTone(tone) {
     btn.classList.toggle("is-on", !!tone && btn.dataset.tone === tone);
   });
   track("taste_done", { taste: [...state.tasteChoices], tone: tone || "skip" });
-  setTasteBusy(true);
-  try {
-    await startSession();
-  } catch (err) {
-    console.error(err);
-    setTasteStatus(
-      "근처 가게를 불러오지 못했어요. 잠시 후 다시 눌러 주세요.",
-      "error"
-    );
-  } finally {
-    setTasteBusy(false);
-  }
+  openFulfillment();
+}
+
+function openFulfillment() {
+  $("taste-step-cat").classList.add("hidden");
+  $("taste-step-tone").classList.add("hidden");
+  $("fulfillment-step").classList.remove("hidden");
+  $("fulfillment-taste").textContent = state.tasteChoices.map(k => TASTE_CATEGORIES.find(c=>c.key===k)?.label || k).join(" · ") || "취향에 제한 없이 골라볼게요";
+  state.intent = "visit";
+  $("fulfillment-status").textContent = "";
+  syncFulfillment();
+  $("taste-stage").scrollTop = 0;
+}
+function syncFulfillment() {
+  const visit = state.intent === "visit";
+  document.querySelectorAll('[data-fulfillment]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.fulfillment===state.intent)));
+  $("visit-range-panel").classList.toggle("hidden",!visit);
+  $("delivery-range-panel").classList.toggle("hidden",visit);
+  $("visit-range").value=state.visitRadius;
+  $("visit-range-value").textContent=state.visitRadius<1000 ? `${state.visitRadius}m` : `${Number((state.visitRadius/1000).toFixed(1))}km`;
+  $("btn-fulfillment-start").textContent=visit ? "주변 가게 찾기" : "배달 브랜드 찾기";
+}
+async function submitFulfillment() {
+  if (state.fulfillmentBusy) return;
+  state.fulfillmentBusy=true;
+  const controls=$("fulfillment-step").querySelectorAll("button,input");
+  controls.forEach(b=>b.disabled=true);
+  $("fulfillment-status").textContent="선택한 조건으로 찾고 있어요…";
+  try { await startSession(); }
+  catch(err) { $("fulfillment-status").textContent="가게를 불러오지 못했어요. 다시 눌러 주세요."; }
+  finally { state.fulfillmentBusy=false; controls.forEach(b=>b.disabled=false); }
 }
 
 function setTasteStatus(text, tone = "") {
@@ -1176,6 +1199,10 @@ async function init() {
       openTasteFlow();
     };
   }
+  document.querySelectorAll('[data-fulfillment]').forEach(b=>{b.onclick=()=>{state.intent=b.dataset.fulfillment;syncFulfillment();};});
+  $("visit-range").oninput=e=>{state.visitRadius=Number(e.target.value);syncFulfillment();};
+  $("btn-fulfillment-start").onclick=submitFulfillment;
+  $("btn-fulfillment-back").onclick=()=>{$("fulfillment-step").classList.add("hidden");backToTasteCategories();};
   const tasteNext = $("btn-taste-next");
   if (tasteNext) tasteNext.onclick = () => goTasteToneStep();
   const tasteSkip = $("btn-taste-skip");
@@ -1183,15 +1210,7 @@ async function init() {
     tasteSkip.onclick = async () => {
       state.tasteChoices = [];
       track("taste_done", { taste: [], tone: "skip_all" });
-      setTasteBusy(true);
-      try {
-        await startSession();
-      } catch (err) {
-        console.error(err);
-        setTasteStatus("근처 가게를 불러오지 못했어요. 잠시 후 다시 눌러 주세요.", "error");
-      } finally {
-        setTasteBusy(false);
-      }
+      openFulfillment();
     };
   }
   document.querySelectorAll(".taste-tone").forEach((btn) => {
@@ -1263,6 +1282,11 @@ async function init() {
     };
   }
 
+  $("btn-empty-preferences").onclick=()=>{
+    state.sessionId=null;
+    show("screen-onboard");
+    openTasteFlow();
+  };
   const emptySwap = $("btn-empty-intent");
   if (emptySwap) {
     emptySwap.onclick = () => {
@@ -1499,6 +1523,7 @@ async function startSession() {
       lat: state.lat,
       lng: state.lng,
       intent: state.intent,
+      visit_radius_m: state.visitRadius,
       weather: state.weather,
       meal_context: state.mealContext,
       taste: state.tasteChoices,
@@ -2102,6 +2127,12 @@ function renderAdjustSheet() {
   if (!sheet || !box) return;
   box.innerHTML = "";
   const opts = state.adjustOptions || [];
+  const status = $("adjust-status");
+  if (status) {
+    status.textContent = state.adjustMessage || "";
+    status.classList.toggle("hidden", !state.adjustMessage);
+    status.classList.toggle("is-error", state.adjustMessageTone === "error");
+  }
   opts
     .filter((opt) => opt.id !== "again")
     .forEach((opt) => {
@@ -2136,7 +2167,20 @@ async function submitAdjust(option) {
   if (isDesignPreview() || !state.sessionId || state.swiping) return;
   const req = beginReq();
   const actionId = actionIdFor(`adjust:${option}:${state.packId}`);
+  const labels = {
+    cheaper: "더 저렴한 후보를 찾는 중이에요…",
+    different: "다른 종류의 후보를 찾는 중이에요…",
+    closer: "더 가까운 후보를 찾는 중이에요…",
+    again: "조건 그대로 다시 찾는 중이에요…",
+  };
   state.swiping = true;
+  state.adjustMessage = labels[option] || "다음 후보를 찾는 중이에요…";
+  state.adjustMessageTone = "busy";
+  renderAdjustSheet();
+  $("adjust-sheet")?.setAttribute("aria-busy", "true");
+  document
+    .querySelectorAll(".adjust-opt, #btn-adjust-again, #btn-undo")
+    .forEach((btn) => (btn.disabled = true));
   try {
     const data = await api("/v1/adjust", {
       method: "POST",
@@ -2144,7 +2188,13 @@ async function submitAdjust(option) {
     });
     if (data.stale) {
       settleAction();
-      if (applyFeed(data, { req })) renderCard();
+      if (applyFeed(data, { req })) {
+        state.adjustMessage = state.adjustNeeded
+          ? "이 조건에 맞는 후보가 없어요. 다른 조건을 골라 주세요."
+          : "";
+        state.adjustMessageTone = state.adjustNeeded ? "error" : "";
+        renderCard();
+      }
       return;
     }
     settleAction();
@@ -2153,12 +2203,24 @@ async function submitAdjust(option) {
       pack_id: state.packId,
       logic_version: data.logic_version || state.logicVersion,
     });
-    if (applyFeed(data, { req })) renderCard();
+    if (applyFeed(data, { req })) {
+      state.adjustMessage = state.adjustNeeded
+        ? "이 조건에 맞는 후보가 없어요. 다른 조건을 골라 주세요."
+        : "";
+      state.adjustMessageTone = state.adjustNeeded ? "error" : "";
+      renderCard();
+    }
   } catch (err) {
     console.error(err);
-    setFeedHint("조건을 바꾸지 못했어요. 다시 눌러 주세요.", "error");
+    state.adjustMessage = "조건을 바꾸지 못했어요. 다시 눌러 주세요.";
+    state.adjustMessageTone = "error";
+    renderAdjustSheet();
   } finally {
     state.swiping = false;
+    $("adjust-sheet")?.removeAttribute("aria-busy");
+    document
+      .querySelectorAll(".adjust-opt, #btn-adjust-again, #btn-undo")
+      .forEach((btn) => (btn.disabled = false));
     syncUndoBtn();
   }
 }
@@ -2870,6 +2932,7 @@ function renderDetailModal(card) {
     </button>
   `;
   d.classList.remove("hidden");
+  window.JustHereInstagram?.mount(d, card);
   const close = $("detail-close");
   if (close) {
     close.onclick = (e) => {
@@ -2891,6 +2954,8 @@ function hideDetailModal() {
   const d = $("detail");
   if (!d || d.classList.contains("hidden")) return;
   d.classList.add("hidden");
+  d.instagramMarker = null;
+  d.querySelector(".instagram-detail")?.remove();
   $("btn-card-detail")?.focus();
 }
 

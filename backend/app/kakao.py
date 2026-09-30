@@ -255,13 +255,19 @@ def _keyword_search(
     return out
 
 
+# Dish queries must not broaden to a cuisine (e.g. bibimbap -> Korean).
+BROAD_TASTES = {'korean','chinese','japanese','western','snack','mexican','meat','asian','stew','fastfood','late_night','spicy','mild'}
+DISH_QUERIES = {k: [v[0]] for k,v in TASTE_QUERIES.items() if k not in BROAD_TASTES}
+DISH_QUERIES.update({'sushi':['초밥','스시'], 'donkatsu':['돈가스','돈까스']})
+
+
 def fetch_by_taste(
     lat: float, lng: float, radius_m: int, taste: list[str], per_query: int = 8
 ) -> list[dict]:
     """취향 키워드 + 다양성 키워드로 주변 검색."""
     queries: list[str] = []
     for t in taste:
-        queries.extend(TASTE_QUERIES.get(t, []))
+        queries.extend(DISH_QUERIES.get(t, TASTE_QUERIES.get(t, [])))
     uniq_taste = list(dict.fromkeys(queries))[:6]
     # 다양성 쿼리는 취향과 겹치지 않는 것만
     taste_set = set(uniq_taste)
@@ -271,22 +277,29 @@ def fetch_by_taste(
         all_q = list(DIVERSITY_QUERIES)
 
     taste_q_set = set(uniq_taste)
-    seen_ids: set[str] = set()
+    by_id: dict[str, dict] = {}
     out: list[dict] = []
 
     for q, docs in _keyword_search(lat, lng, radius_m, all_q, per_query):
         is_taste = q in taste_q_set
         for i, d in enumerate(docs):
             pid = d.get("id") or ""
-            if not pid or pid in seen_ids:
+            if not pid:
+                continue
+            matched_keys = [t for t in taste if q in DISH_QUERIES.get(t, TASTE_QUERIES.get(t, []))]
+            if pid in by_id:
+                existing = by_id[pid]
+                existing["matched_tastes"] = list(set(existing["matched_tastes"] + matched_keys))
+                existing["taste_match"] = existing["taste_match"] or is_taste
                 continue
             cat = d.get("category_name") or ""
             if "음식점" not in cat and "카페" not in cat:
                 continue
-            seen_ids.add(pid)
             tag = "#취향맞춤" if is_taste else "#근처_실상호"
             place = _doc_to_place(d, i, tag)
             place["taste_match"] = is_taste
+            place["matched_tastes"] = matched_keys
+            by_id[pid] = place
             out.append(place)
     return out
 
