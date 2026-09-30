@@ -18,6 +18,8 @@ WATCH_FILES = (
     "users.json",
     "events.jsonl",
     "deals.json",
+    "rewards.sqlite3",
+    "receipt_uploads",
     ".guest_secret",
 )
 BACKUP_FILES = (

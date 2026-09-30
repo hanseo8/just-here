@@ -131,6 +131,16 @@ async function api(path, opts = {}) {
   throw lastErr;
 }
 
+async function apiForm(path, formData) {
+  const headers = window.JustHereAuth?.getToken?.()
+    ? { "X-Guest-Token": window.JustHereAuth.getToken() }
+    : {};
+  const res = await fetch(path, { method: "POST", headers, body: formData });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(JSON.stringify(data));
+  return data;
+}
+
 /** 소프트런치 퍼널 이벤트 — 실패해도 UX 방해 없음 */
 function isDesignPreview() {
   return (
@@ -2670,6 +2680,15 @@ function showDone(data) {
       logic_version: data.logic_version || state.logicVersion,
       provider: data.handoff?.provider || "",
     });
+    const attributionId = data.reward_offer?.attribution_id;
+    const uid = state.uid || window.JustHereAuth?.getUid?.() || "";
+    if (attributionId && uid) {
+      api(`/v1/rewards/attributions/${encodeURIComponent(attributionId)}/handoff`, {
+        method: "POST",
+        retries: 0,
+        body: JSON.stringify({ uid }),
+      }).catch(() => {});
+    }
   };
   const note = $("handoff-note");
   if (note) {
@@ -2685,6 +2704,7 @@ function showDone(data) {
   updateKakaoLinkButton();
   updateStoryReward();
   refreshTitleBadge();
+  renderRewardOffer(data);
   if (isDesignPreview()) {
     setShareStatus("");
     $("meal-prompt")?.classList.add("hidden");
@@ -2694,6 +2714,92 @@ function showDone(data) {
   ensureReceipt(data)
     .then(() => setShareStatus("공유할 준비됐어요"))
     .catch(() => setShareStatus("공유 링크를 아직 못 만들었어요"));
+}
+
+function rewardMessage(message, error = false) {
+  const el = $("reward-status");
+  if (!el) return;
+  el.textContent = message || "";
+  el.classList.toggle("is-error", !!error);
+}
+
+function renderRewardOffer(data) {
+  const panel = $("reward-panel");
+  const form = $("reward-form");
+  const offer = data?.reward_offer;
+  if (!panel || !form) return;
+  const preview = isDesignPreview() && new URLSearchParams(location.search).get("reward") === "1";
+  panel.classList.toggle("hidden", !offer || (isDesignPreview() && !preview));
+  if (!offer || (isDesignPreview() && !preview)) return;
+  panel.dataset.attributionId = offer.attribution_id || "";
+  const purchased = $("reward-purchased-at");
+  if (purchased && !purchased.value) {
+    const now = new Date(Date.now() - new Date().getTimezoneOffset() * 60000);
+    purchased.value = now.toISOString().slice(0, 16);
+  }
+  form.reset();
+  if (purchased) {
+    const now = new Date(Date.now() - new Date().getTimezoneOffset() * 60000);
+    purchased.value = now.toISOString().slice(0, 16);
+  }
+  form.classList.remove("hidden");
+  rewardMessage("");
+  form.onsubmit = submitRewardReceipt;
+  if (preview) {
+    rewardMessage("디자인 미리보기입니다. 실제 접수는 저장되지 않아요.");
+    const submit = $("reward-submit");
+    if (submit) submit.disabled = true;
+  }
+}
+
+async function submitRewardReceipt(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const panel = $("reward-panel");
+  const button = $("reward-submit");
+  const uid = state.uid || window.JustHereAuth?.getUid?.() || "";
+  const attributionId = panel?.dataset.attributionId || "";
+  const file = $("reward-image")?.files?.[0];
+  if (!uid || !attributionId || !file) {
+    rewardMessage("영수증 사진과 필수 항목을 확인해 주세요.", true);
+    return;
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    rewardMessage("사진은 8MB 이하로 올려 주세요.", true);
+    return;
+  }
+  const data = new FormData(form);
+  const localTime = data.get("purchased_at");
+  const parsed = new Date(String(localTime || ""));
+  if (Number.isNaN(parsed.getTime())) {
+    rewardMessage("결제 시각을 확인해 주세요.", true);
+    return;
+  }
+  data.set("purchased_at", parsed.toISOString());
+  data.set("uid", uid);
+  data.set("attribution_id", attributionId);
+  data.set("review_tags", "");
+  data.set("photo_reuse_consent", data.has("photo_reuse_consent") ? "true" : "false");
+  button.disabled = true;
+  button.textContent = "검토 요청 중…";
+  rewardMessage("사진을 안전하게 올리고 있어요.");
+  try {
+    await apiForm("/v1/rewards/receipts", data);
+    form.classList.add("hidden");
+    $("reward-details")?.removeAttribute("open");
+    rewardMessage("접수됐어요. 확인 후 300P가 적립됩니다.");
+  } catch (err) {
+    const raw = String(err || "");
+    const message = raw.includes("duplicate_or_daily_limit")
+      ? "오늘 접수한 영수증이 이미 있거나 같은 영수증이 등록됐어요."
+      : raw.includes("purchase_time_out_of_range")
+      ? "최근 3일 안의 결제 시각을 입력해 주세요."
+      : "접수하지 못했어요. 항목을 확인하고 다시 시도해 주세요.";
+    rewardMessage(message, true);
+  } finally {
+    button.disabled = false;
+    button.textContent = "검토 요청하기";
+  }
 }
 
 function mealStorageKey(data) {
@@ -3261,6 +3367,9 @@ function openDesignPreview() {
       receipt_title: "본능 100% 그냥이거 마스터",
       persona: { sub_text: "근처에서 바로 골랐어요", sticker: "🛋️", theme: "bg_basic" },
       receipt: { match_reason: "확인된 메뉴와 거리가 맞았어요" },
+      reward_offer: params.get("reward") === "1"
+        ? { attribution_id: "design-reward", points: 300, status: "eligible" }
+        : null,
       handoff:
         kind === "done-delivery"
           ? {

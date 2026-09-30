@@ -39,6 +39,8 @@ ALLOWED_EVENTS = {
     "meal_confirm",
     "exclude",
     "handoff_open",
+    "reward_offer",
+    "receipt_submit",
 }
 
 

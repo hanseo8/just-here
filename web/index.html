@@ -26,7 +26,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=20260930-green5" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260930-rewards1" />
 </head>
 <body>
   <!-- 진입 인트로: 첫 페인트를 브랜드로 채우고, 그 사이 init()이 끝난다 -->
@@ -218,6 +218,50 @@
             <button type="button" id="btn-meal-skip" class="link-btn">아직이에요</button>
           </div>
         </div>
+        <section id="reward-panel" class="reward-panel hidden" aria-labelledby="reward-title">
+          <div class="reward-head">
+            <div>
+              <p class="reward-kicker">방문 인증 보상</p>
+              <h3 id="reward-title">영수증 확인 후 300P</h3>
+            </div>
+            <strong class="reward-points">+300P</strong>
+          </div>
+          <p class="reward-copy">이 추천으로 식사했다면 영수증과 짧은 후기를 남겨 주세요. 운영자가 확인하면 포인트가 적립돼요.</p>
+          <details id="reward-details" class="reward-details">
+            <summary>영수증 인증하기</summary>
+            <form id="reward-form" class="reward-form">
+              <label>영수증 사진
+                <input id="reward-image" name="image" type="file" accept="image/jpeg,image/png,image/webp" required />
+              </label>
+              <div class="reward-grid">
+                <label>결제 시각
+                  <input id="reward-purchased-at" name="purchased_at" type="datetime-local" required />
+                </label>
+                <label>결제 금액
+                  <input name="amount_krw" type="number" min="1000" max="10000000" inputmode="numeric" placeholder="예: 18000" required />
+                </label>
+              </div>
+              <label>영수증 승인번호
+                <input name="approval_number" type="text" minlength="6" maxlength="32" inputmode="numeric" autocomplete="off" required />
+                <small>중복 확인용으로 암호화해 저장해요.</small>
+              </label>
+              <fieldset>
+                <legend>다시 방문하고 싶나요?</legend>
+                <div class="reward-choice">
+                  <label><input type="radio" name="review_return" value="yes" required /> 네</label>
+                  <label><input type="radio" name="review_return" value="maybe" /> 고민돼요</label>
+                  <label><input type="radio" name="review_return" value="no" /> 아니요</label>
+                </div>
+              </fieldset>
+              <label>한 줄 후기 <span>(선택)</span>
+                <textarea name="review_note" maxlength="300" rows="3" placeholder="맛, 양, 대기시간처럼 다음 사람에게 도움 될 내용을 적어 주세요."></textarea>
+              </label>
+              <button id="reward-submit" type="submit" class="btn primary">검토 요청하기</button>
+            </form>
+          </details>
+          <p id="reward-status" class="reward-status" aria-live="polite"></p>
+          <a class="reward-history" href="/rewards">내 포인트·검토 현황</a>
+        </section>
         <article id="receipt" class="receipt-card theme-bg_basic" role="status">
           <button type="button" id="btn-receipt-toggle" class="receipt-summary" aria-expanded="false">
             <span class="receipt-label">오늘의 칭호</span>
@@ -279,6 +323,6 @@
   <script src="/static/badges.js?v=20260930-badges1"></script>
   <script src="/static/story.js?v=20260930-receipt2"></script>
   <script src="/static/instagram.js?v=20260926-ig1"></script>
-  <script src="/static/app.js?v=20260930-photo1"></script>
+  <script src="/static/app.js?v=20260930-rewards1"></script>
 </body>
 </html>
