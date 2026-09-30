@@ -125,11 +125,11 @@ def _display_name(item: dict) -> str:
     return str((item.get("displayName") or {}).get("text") or "")
 
 
-def _matches(place: dict, item: dict) -> bool:
+def _match_distance(place: dict, item: dict) -> float | None:
     name = _norm(place.get("name") or "")
     candidate = _norm(_display_name(item))
     if not name or not candidate or (name not in candidate and candidate not in name):
-        return False
+        return None
     loc = item.get("location") or {}
     try:
         distance = _distance_m(
@@ -139,39 +139,63 @@ def _matches(place: dict, item: dict) -> bool:
             float(loc["longitude"]),
         )
     except (KeyError, TypeError, ValueError):
-        return False
-    return distance <= 250
+        return None
+    return distance if distance <= 300 else None
+
+
+def _matches(place: dict, item: dict) -> bool:
+    return _match_distance(place, item) is not None
+
+
+def _query_variants(place: dict) -> list[str]:
+    """전체 주소가 Google 표기와 달라도 같은 지점을 한 번 더 찾는다."""
+    name = str(place.get("name") or "").strip()
+    address = str(place.get("address") or "").strip()
+    values = [" ".join(part for part in [name, address] if part), name]
+    return list(dict.fromkeys(value for value in values if value))
 
 
 def _search(place: dict) -> dict | None:
-    address = str(place.get("address") or "").strip()
-    query = " ".join(part for part in [str(place.get("name") or "").strip(), address] if part)
-    body = {
-        "textQuery": query,
-        "languageCode": "ko",
-        "regionCode": "KR",
-        "pageSize": 5,
-        "locationBias": {
-            "circle": {
-                "center": {"latitude": float(place["lat"]), "longitude": float(place["lng"])},
-                "radius": 250,
-            }
-        },
-    }
+    candidates: dict[str, dict] = {}
     try:
         with httpx.Client(timeout=8.0) as client:
-            response = client.post(
-                SEARCH_URL,
-                headers={"X-Goog-Api-Key": _key(), "X-Goog-FieldMask": FIELD_MASK},
-                json=body,
-            )
-            response.raise_for_status()
-            for item in response.json().get("places", []):
-                if _matches(place, item):
-                    return item
+            for query in _query_variants(place):
+                body = {
+                    "textQuery": query,
+                    "languageCode": "ko",
+                    "regionCode": "KR",
+                    "pageSize": 8,
+                    "locationBias": {
+                        "circle": {
+                            "center": {
+                                "latitude": float(place["lat"]),
+                                "longitude": float(place["lng"]),
+                            },
+                            "radius": 500,
+                        }
+                    },
+                }
+                response = client.post(
+                    SEARCH_URL,
+                    headers={"X-Goog-Api-Key": _key(), "X-Goog-FieldMask": FIELD_MASK},
+                    json=body,
+                )
+                response.raise_for_status()
+                for item in response.json().get("places", []):
+                    distance = _match_distance(place, item)
+                    if distance is None:
+                        continue
+                    key = str(item.get("id") or f"{_display_name(item)}:{distance:.1f}")
+                    item["_match_distance_m"] = distance
+                    candidates[key] = item
     except (httpx.HTTPError, ValueError, TypeError):
         return None
-    return None
+    if not candidates:
+        return None
+    return min(
+        candidates.values(),
+        key=lambda item: (not bool(item.get("photos")), float(item["_match_distance_m"])),
+    )
 
 
 def fetch_photo(token: str) -> tuple[bytes, str] | None:

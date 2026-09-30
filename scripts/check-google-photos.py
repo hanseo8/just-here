@@ -48,6 +48,30 @@ def main() -> None:
             "location": {"latitude": 37.3926, "longitude": 126.6451},
         },
     )
+    assert google_places._query_variants(place) == ["테스트 식당 인천 연수구 송도동", "테스트 식당"]
+
+    search_calls = []
+    def search_handler(request):
+        search_calls.append(request)
+        query = request.read().decode("utf-8")
+        if "송도동" in query:
+            return httpx.Response(200, json={"places": []})
+        return httpx.Response(200, json={"places": [{
+            "id": "google_test",
+            "displayName": {"text": "테스트식당"},
+            "location": {"latitude": 37.3926, "longitude": 126.6451},
+            "photos": [{"name": "places/test/photos/one"}],
+        }]})
+    factory = httpx.Client
+    with patch.object(
+        google_places.httpx,
+        "Client",
+        side_effect=lambda **kw: factory(transport=httpx.MockTransport(search_handler), **kw),
+    ):
+        found = google_places._search(place)
+    assert found and found["id"] == "google_test"
+    assert len(search_calls) == 2
+
     calls = []
     def handler(request):
         calls.append(request)
@@ -55,7 +79,6 @@ def main() -> None:
             return httpx.Response(302, headers={"location": "https://lh3.googleusercontent.com/photo"})
         assert "x-goog-api-key" not in request.headers
         return httpx.Response(200, content=b"photo", headers={"content-type": "image/jpeg"})
-    factory = httpx.Client
     def client(**kwargs):
         return factory(transport=httpx.MockTransport(handler), **kwargs)
     matched = {"photos": [{"name": "places/test/photos/one"}]}
