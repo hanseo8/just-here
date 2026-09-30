@@ -32,9 +32,27 @@ with patch.object(engine,'_fetch_kakao_block',return_value=(places+[far],[])) as
         assert fetch.call_args.args[2]==radius
     session.taste=['gukbap']
     assert engine.build_visit_cards(session)[0]==[]
+
+# Broad cuisine + explicit dish is an OR selection. Japanese matches must not
+# disappear just because pasta is also selected.
+mixed_places = [
+    dict(places[0],id='j',place_id='j',name='스시집',place_name='스시집',matched_tastes=['japanese'],taste_match=True,lat=37.3925,lng=126.645),
+    dict(places[0],id='p',place_id='p',name='파스타집',place_name='파스타집',matched_tastes=['pasta'],taste_match=True,lat=37.3926,lng=126.645),
+    dict(places[0],id='x',place_id='x',name='무관한 집',place_name='무관한 집',matched_tastes=[],taste_match=False,lat=37.3927,lng=126.645),
+]
+with patch.object(engine,'_fetch_kakao_block',return_value=(mixed_places,[])), patch.object(engine,'google_place_photo_fields',return_value={}), patch.object(engine,'_attach_verified_visit_menus',side_effect=lambda s,c:c):
+    mixed=engine.create_session(37.3925,126.645,'visit','clear',['japanese','pasta'],visit_radius_m=700)
+    mixed_cards=engine.build_visit_cards(mixed)[0]
+    assert {c['place_name'] for c in mixed_cards} == {'스시집','파스타집'}, mixed_cards
+
+visit_opts=engine.adjust_options(mixed)
+assert [o['id'] for o in visit_opts if o['id'] != 'deal'] == ['again','closer','retaste']
+delivery=engine.create_session(37.3925,126.645,'delivery','clear',['pasta'])
+delivery_opts=engine.adjust_options(delivery)
+assert [o['id'] for o in delivery_opts if o['id'] != 'deal'] == ['again','retaste']
 assert SessionStartBody(lat=0,lng=0).visit_radius_m==700
 for radius in [99,3001]:
     try: SessionStartBody(lat=0,lng=0,visit_radius_m=radius)
     except ValidationError: pass
     else: raise AssertionError(radius)
-print('PASS: exact dish evidence, duplicate query ordering, no unrelated fallback, 100/700/3000m, reanchor, API bounds')
+print('PASS: exact dish evidence, mixed cuisine/dish OR, adjustment choices, 100/700/3000m, reanchor, API bounds')

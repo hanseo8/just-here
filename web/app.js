@@ -2133,25 +2133,35 @@ function renderAdjustSheet() {
     status.classList.toggle("hidden", !state.adjustMessage);
     status.classList.toggle("is-error", state.adjustMessageTone === "error");
   }
-  opts
-    .filter((opt) => opt.id !== "again")
-    .forEach((opt) => {
+  opts.forEach((opt) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "btn ghost adjust-opt";
       btn.dataset.option = opt.id;
       btn.textContent = opt.label;
-      btn.onclick = () => submitAdjust(opt.id);
+      btn.onclick = () =>
+        opt.id === "retaste" ? returnToTasteFromAdjust() : submitAdjust(opt.id);
       box.appendChild(btn);
     });
   const again = $("btn-adjust-again");
-  const againOpt = opts.find((opt) => opt.id === "again");
   if (again) {
-    again.textContent = againOpt?.label || "조건 그대로 다시";
-    again.classList.toggle("hidden", !againOpt);
-    again.onclick = againOpt ? () => submitAdjust("again") : null;
+    again.classList.add("hidden");
+    again.onclick = null;
   }
   sheet.classList.remove("hidden");
+}
+
+function returnToTasteFromAdjust() {
+  if (state.swiping) return;
+  state.sessionId = null;
+  state.adjustNeeded = false;
+  state.adjustOptions = [];
+  state.adjustMessage = "";
+  state.adjustMessageTone = "";
+  state.cards = [];
+  state.forceRetaste = true;
+  show("screen-onboard");
+  openTasteFlow();
 }
 
 function syncUndoBtn() {
@@ -3227,10 +3237,9 @@ function openDesignPreview() {
     state.canUndo = true;
     state.packRank = 3;
     state.adjustOptions = [
-      { id: "cheaper", label: "더 저렴하게" },
-      { id: "different", label: "다른 종류로" },
-      { id: "closer", label: "더 가까운 곳" },
       { id: "again", label: "조건 그대로 다시" },
+      { id: "closer", label: "더 가까운 곳" },
+      { id: "retaste", label: "다른 메뉴" },
     ];
     show("screen-feed");
     renderFeedChrome();

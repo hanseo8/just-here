@@ -789,10 +789,14 @@ def build_visit_cards(session: Session, limit: int = 20) -> tuple[list[dict], in
             }
         )
     cards = _attach_verified_visit_menus(session, cards)
-    selected_dishes = set(session.taste) & kakao.DISH_QUERIES.keys()
+    selected_tastes = set(session.taste)
+    selected_dishes = selected_tastes & kakao.DISH_QUERIES.keys()
     if selected_dishes:
         def matches_selected_dish(card: dict) -> bool:
-            if selected_dishes.intersection(card.get("matched_tastes", [])):
+            # A mixed choice such as "Japanese overall + pasta" is an OR choice.
+            # Keep cards that matched either the broad cuisine or the explicit dish.
+            # When only a dish was selected, this remains a strict dish filter.
+            if selected_tastes.intersection(card.get("matched_tastes", [])):
                 return True
             menu_name = str(card.get("menu_name") or "")
             menu_tags = set(card.get("menu_tags") or [])
@@ -1099,15 +1103,12 @@ def present_feed(session: Session) -> tuple[list[dict], int, bool]:
 
 
 def adjust_options(session: Session) -> list[dict]:
-    opts = [
-        {"id": "cheaper", "label": "더 저렴하게"},
-        {"id": "different", "label": "다른 종류로"},
-    ]
+    opts = [{"id": "again", "label": "조건 그대로 다시"}]
     if session.intent == "visit":
         opts.append({"id": "closer", "label": "더 가까운 곳"})
     if deals.public_ready(hub_id=session.hub_id, intent=session.intent):
         opts.append({"id": "deal", "label": "확인된 혜택"})
-    opts.append({"id": "again", "label": "조건 그대로 다시"})
+    opts.append({"id": "retaste", "label": "다른 메뉴"})
     return opts
 
 
