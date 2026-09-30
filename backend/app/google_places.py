@@ -229,6 +229,6 @@ def metadata(token: str) -> dict | None:
         "ok": True,
         "source": "Google Places",
         "attributions": attributions,
-        "google_maps_url": matched.get("googleMapsUri") or "",
+        "google_maps_url": photos[0].get("googleMapsUri") or matched.get("googleMapsUri") or "",
         "place_name": _display_name(matched),
     }

@@ -1720,7 +1720,23 @@ function cardPresentation(card) {
   };
 }
 
-const EXAMPLE_PHOTO_CAP = "음식 종류 예시";
+const EXAMPLE_PHOTO_CAP = "음식 종류 예시 · 가게 사진 아님";
+const CARD_EXAMPLE_BY_CATEGORY = {
+  korean: 0,
+  stew: 1,
+  sashimi: 2,
+  fastfood: 3,
+  chicken: 4,
+  chinese: 5,
+  japanese: 6,
+  western: 7,
+  snack: 8,
+  meat: 9,
+  asian: 10,
+  mexican: 11,
+  late_night: 12,
+  noodle: 27,
+};
 
 function photoRole(card) {
   if (card?.photo_role) return card.photo_role;
@@ -1757,6 +1773,45 @@ function usablePhoto(card) {
   if (example) return null;
   if (role === "menu" || role === "store") return { url, role, example: false };
   return null;
+}
+
+function visitExamplePhoto(card) {
+  if (!card || card.is_brand) return null;
+  const matched = Array.isArray(card.matched_tastes) ? card.matched_tastes : [];
+  for (const key of matched) {
+    const item = TASTE_CATEGORIES.find((candidate) => candidate.key === key);
+    if (item?.image != null) {
+      return { role: "example", example: true, atlasIndex: item.image };
+    }
+  }
+  const copy = `${card.menu_name || ""} ${card.kind || ""}`.trim();
+  const byLabel = [...TASTE_CATEGORIES]
+    .sort((a, b) => b.label.length - a.label.length)
+    .find((candidate) => copy.includes(candidate.label));
+  const atlasIndex = byLabel?.image ?? CARD_EXAMPLE_BY_CATEGORY[card.category];
+  if (atlasIndex == null) return null;
+  return { role: "example", example: true, atlasIndex };
+}
+
+function cardVisualPhoto(card) {
+  return usablePhoto(card) || visitExamplePhoto(card);
+}
+
+function renderVisitExample(wrap, img, card, photo) {
+  if (!wrap || !img || photo?.atlasIndex == null) return false;
+  const col = photo.atlasIndex % 6;
+  const row = Math.floor(photo.atlasIndex / 6);
+  img.classList.add("hidden");
+  img.removeAttribute("src");
+  img.alt = EXAMPLE_PHOTO_CAP;
+  wrap.style.backgroundImage = "url('/static/tastes/food-atlas.png')";
+  wrap.style.backgroundSize = "600% 600%";
+  wrap.style.backgroundPosition = `${col * 20}% ${row * 20}%`;
+  wrap.style.backgroundRepeat = "no-repeat";
+  wrap.classList.remove("hidden");
+  showExampleCaption(true);
+  $("card")?.classList.add("has-photo");
+  return true;
 }
 
 function showExampleCaption(on) {
@@ -1826,14 +1881,14 @@ function displayWhy(card) {
 
 function detailChipLabel(card, photo) {
   const bits = [];
-  if (photo) bits.push("사진");
+  if (photo && !photo.example) bits.push("사진");
   if (!card?.is_brand && card?.address && card.address !== "주소 확인 중") bits.push("주소");
   if (card?.is_brand) bits.push("주문", "가격");
   else bits.push("가게 정보");
   return bits.join("·");
 }
 
-/* 실제 사진이 확인된 경우에만 띄운다. 방문 카드에 음식 예시 사진을 붙이지 않는다. */
+/* 실제 가게 사진을 우선하고, 없으면 가게 사진과 구분된 음식 종류 예시를 쓴다. */
 let cardPhotoGeneration = 0;
 let cardPhotoRequest = null;
 
@@ -1849,26 +1904,35 @@ function setCardPhoto(card) {
   if (!el || !wrap || !img) return;
   el.classList.remove("has-photo");
   wrap.style.backgroundImage = "";
+  wrap.style.backgroundSize = "";
+  wrap.style.backgroundPosition = "";
+  wrap.style.backgroundRepeat = "";
   img.onload = null;
   img.onerror = null;
+  img.classList.remove("hidden");
   img.removeAttribute("src");
   showExampleCaption(false);
   if (source) {
     source.textContent = "";
+    source.removeAttribute("href");
     source.classList.add("hidden");
   }
 
-  const photo = usablePhoto(card);
+  const storePhoto = usablePhoto(card);
+  const fallbackPhoto = visitExamplePhoto(card);
+  const photo = storePhoto || fallbackPhoto;
   if (!photo) {
     wrap.classList.add("hidden");
     return;
   }
+  if (!storePhoto && renderVisitExample(wrap, img, card, photo)) return;
   wrap.classList.remove("hidden");
   img.alt = photo.example ? EXAMPLE_PHOTO_CAP : cardPresentation(card).title;
   img.style.objectPosition = card.photo_focus || "50% 40%";
   showExampleCaption(!!photo.example);
   if (source && card.photo_source === "google_places") {
     source.textContent = card.photo_attribution || "Google 지도 사진";
+    if (card.google_maps_url) source.href = card.google_maps_url;
     source.classList.remove("hidden");
   }
   const token = card.card_id;
@@ -1878,6 +1942,17 @@ function setCardPhoto(card) {
   };
   img.onerror = () => {
     if (generation !== cardPhotoGeneration || currentCard()?.card_id !== token) return;
+    if (fallbackPhoto) cardPhotoRequest?.abort();
+    if (fallbackPhoto && renderVisitExample(wrap, img, card, fallbackPhoto)) {
+      if (source) {
+        source.textContent = "";
+        source.removeAttribute("href");
+        source.classList.add("hidden");
+      }
+      const chip = $("btn-card-detail");
+      if (chip) chip.textContent = detailChipLabel(card, fallbackPhoto);
+      return;
+    }
     wrap.classList.add("hidden");
     el.classList.remove("has-photo");
     $("screen-feed")?.classList.add("is-nophoto");
@@ -1903,6 +1978,7 @@ function setCardPhoto(card) {
         source.classList.remove("hidden");
         card.google_maps_url = meta.google_maps_url || card.google_maps_url || "";
         card.photo_attribution = source.textContent;
+        if (card.google_maps_url) source.href = card.google_maps_url;
       })
       .catch(() => {});
   }
@@ -2053,7 +2129,7 @@ function renderCard() {
   el.classList.remove("gold");
   $("gold-badge")?.classList.add("hidden");
   const view = cardPresentation(card);
-  const photo = usablePhoto(card);
+  const photo = cardVisualPhoto(card);
   setCardPhoto(card);
   $("card-title").textContent = view.title;
   $("card-sub").textContent = view.sub;
