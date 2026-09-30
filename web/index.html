@@ -26,7 +26,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=20260930-green4" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260930-green5" />
 </head>
 <body>
   <!-- 진입 인트로: 첫 페인트를 브랜드로 채우고, 그 사이 init()이 끝난다 -->
@@ -218,15 +218,15 @@
             <button type="button" id="btn-meal-skip" class="link-btn">아직이에요</button>
           </div>
         </div>
-        <article id="receipt" class="receipt-card theme-bg_basic is-collapsed" role="status">
+        <article id="receipt" class="receipt-card theme-bg_basic" role="status">
           <button type="button" id="btn-receipt-toggle" class="receipt-summary" aria-expanded="false">
-            <span class="receipt-label">칭호</span>
+            <span class="receipt-label">오늘의 칭호</span>
             <strong id="receipt-title" class="receipt-title"></strong>
-            <span id="receipt-toggle-label" class="receipt-toggle">펼치기</span>
+            <span id="receipt-toggle-label" class="receipt-toggle">접기</span>
           </button>
-          <div id="receipt-body" class="receipt-body" hidden>
+          <div id="receipt-body" class="receipt-body">
             <p class="receipt-label">나만의 식탐 영수증</p>
-            <div class="receipt-sticker" id="receipt-sticker" aria-hidden="true">🛋️</div>
+            <img class="receipt-badge" id="receipt-badge" alt="" />
             <p id="receipt-sub" class="receipt-sub"></p>
             <div class="receipt-divider"></div>
             <p class="receipt-row"><span>식당</span><strong id="receipt-place"></strong></p>
@@ -276,8 +276,9 @@
   </div>
   <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
   <script src="/static/auth.js?v=20260924-visit-menu"></script>
-  <script src="/static/story.js?v=20260924-visit-menu"></script>
+  <script src="/static/badges.js?v=20260930-badges1"></script>
+  <script src="/static/story.js?v=20260930-receipt2"></script>
   <script src="/static/instagram.js?v=20260926-ig1"></script>
-  <script src="/static/app.js?v=20260930-green4"></script>
+  <script src="/static/app.js?v=20260930-green5"></script>
 </body>
 </html>

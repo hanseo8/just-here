@@ -14,26 +14,26 @@
 
   // styles.css의 .receipt-card.theme-* 와 같은 값을 유지한다
   const THEMES = {
-    bg_destiny: ["#FF6B6B", "#FF8E8B", "#1a120e"],
-    bg_ironwall: ["#4A4A4A", "#2C3E50", "#ffffff"],
-    bg_sprint: ["#00E676", "#1DE9B6", "#0b2e1c"],
-    bg_overthink: ["#5C6BC0", "#283593", "#ffffff"],
-    bg_meat: ["#F44336", "#BF360C", "#ffffff"],
-    bg_herb: ["#66BB6A", "#1B5E20", "#ffffff"],
-    bg_chameleon: ["#AB47BC", "#6A1B9A", "#ffffff"],
-    bg_survival: ["#34495E", "#5D6D7E", "#ffffff"],
-    bg_midnight: ["#1A1A2E", "#E94560", "#ffffff"],
-    bg_nomad: ["#D4A373", "#FAEDCD", "#3b2a1a"],
-    bg_heat: ["#FF7043", "#E65100", "#2a1000"],
-    bg_morning: ["#FFCC80", "#FF8A65", "#3b2410"],
-    bg_hermit: ["#90A4AE", "#455A64", "#ffffff"],
-    bg_spicy: ["#D32F2F", "#FF0000", "#ffffff"],
-    bg_temp: ["#FF5A00", "#FF9B00", "#2a1200"],
-    bg_flex: ["#FFD700", "#F1C40F", "#2a2200"],
-    bg_value: ["#26A69A", "#004D40", "#ffffff"],
-    bg_carb: ["#FFB74D", "#EF6C00", "#2a1600"],
-    bg_hangover: ["#4DB6AC", "#00695C", "#ffffff"],
-    bg_basic: ["#FF5A00", "#E62E00", "#ffffff"],
+    bg_destiny: ["#ff7a3d", "#ff5a1f", "#fbfdfb"],
+    bg_ironwall: ["#183d2d", "#205c3c", "#fbfdfb"],
+    bg_sprint: ["#39a66b", "#248552", "#fbfdfb"],
+    bg_overthink: ["#205c3c", "#ff5a1f", "#fbfdfb"],
+    bg_meat: ["#e94e1b", "#ff7a3d", "#fbfdfb"],
+    bg_herb: ["#318e5b", "#205c3c", "#fbfdfb"],
+    bg_chameleon: ["#205c3c", "#ff5a1f", "#fbfdfb"],
+    bg_survival: ["#183d2d", "#2f6f4c", "#fbfdfb"],
+    bg_midnight: ["#183d2d", "#ff5a1f", "#fbfdfb"],
+    bg_nomad: ["#e4f3e9", "#fff0e5", "#183d2d"],
+    bg_heat: ["#ff7a3d", "#e94e1b", "#fbfdfb"],
+    bg_morning: ["#fff0e5", "#ffd7bf", "#183d2d"],
+    bg_hermit: ["#577360", "#205c3c", "#fbfdfb"],
+    bg_spicy: ["#ff5a1f", "#d94312", "#fbfdfb"],
+    bg_temp: ["#ff8a3d", "#ff5a1f", "#fbfdfb"],
+    bg_flex: ["#ffb23f", "#ff7a3d", "#183d2d"],
+    bg_value: ["#248552", "#183d2d", "#fbfdfb"],
+    bg_carb: ["#ffd19f", "#ff8a3d", "#183d2d"],
+    bg_hangover: ["#39a66b", "#205c3c", "#fbfdfb"],
+    bg_basic: ["#205c3c", "#ff5a1f", "#fbfdfb"],
   };
 
   function theme(id) {
@@ -110,7 +110,7 @@
    * 두 번 돌려서 위아래 여백을 같게 맞춘다 — 스토리에서 아래가 뜨면 허전해 보인다.
    * @returns {number} 마지막으로 쓴 y
    */
-  function layoutBody(ctx, receipt, ink, startY, paint) {
+  function layoutBody(ctx, receipt, ink, startY, paint, badgeImage) {
     let y = startY;
 
     ctx.textAlign = "center";
@@ -121,12 +121,11 @@
     }
     y += 90;
 
-    ctx.font = "120px sans-serif";
-    if (paint) {
-      ctx.fillStyle = ink;
-      ctx.fillText(receipt.sticker || "🍚", W / 2, y + 40);
+    const badgeSize = 300;
+    if (paint && badgeImage) {
+      ctx.drawImage(badgeImage, (W - badgeSize) / 2, y - 24, badgeSize, badgeSize);
     }
-    y += 150;
+    y += badgeSize + 24;
 
     ctx.font = '400 76px "Black Han Sans", "IBM Plex Sans KR", sans-serif';
     wrap(ctx, receipt.title || "오늘의 선택", W - PAD * 2).forEach((line) => {
@@ -185,6 +184,10 @@
     const [c1, c2, inkRaw] = theme(receipt.asset_id || receipt.theme);
     const ink = inkRaw;
     const gold = !!opts.gold;
+    const badgeImage = await global.JustHereBadges?.load(
+      receipt.persona_id,
+      receipt.asset_id || receipt.theme
+    );
 
     const canvas = document.createElement("canvas");
     canvas.width = W;
@@ -204,11 +207,11 @@
     }
 
     // 본문 높이를 먼저 재고, 안전 영역 안에서 세로 중앙에 앉힌다
-    const bodyEnd = layoutBody(ctx, receipt, ink, SAFE_TOP, false);
+    const bodyEnd = layoutBody(ctx, receipt, ink, SAFE_TOP, false, badgeImage);
     const bodyHeight = bodyEnd - SAFE_TOP;
     const room = SAFE_BOTTOM - 140 - SAFE_TOP;
     const offset = Math.max(0, (room - bodyHeight) / 2);
-    layoutBody(ctx, receipt, ink, SAFE_TOP + offset, true);
+    layoutBody(ctx, receipt, ink, SAFE_TOP + offset, true, badgeImage);
 
     // 하단 고정: 보는 사람이 어디로 가야 하는지
     ctx.textAlign = "center";

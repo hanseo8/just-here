@@ -2617,8 +2617,14 @@ function showDone(data) {
   const title = data.receipt_title || persona.title || "본능 100% 그냥이거 마스터";
   $("receipt-title").textContent = title;
   $("receipt-sub").textContent = persona.sub_text || data.receipt?.sub_text || "";
-  $("receipt-sticker").textContent =
-    persona.sticker || data.receipt?.sticker || "🛋️";
+  const badge = $("receipt-badge");
+  if (badge) {
+    badge.src = window.JustHereBadges?.url(
+      persona.id || data.receipt?.persona_id,
+      persona.asset_id || persona.theme || data.receipt?.asset_id || data.receipt?.theme
+    ) || "/static/badges/instinct_master.png";
+    badge.alt = `${title} 칭호 일러스트`;
+  }
   $("receipt-place").textContent = data.place_name || "";
   $("receipt-menu").textContent = displayMenuName(data);
   $("receipt-reason").textContent =
@@ -2630,8 +2636,8 @@ function showDone(data) {
     data.receipt?.theme ||
     "bg_basic";
   const card = $("receipt");
-  card.className = `receipt-card theme-${theme} is-collapsed${state.goldUnlocked ? " is-gold" : ""}`;
-  setReceiptExpanded(false);
+  card.className = `receipt-card theme-${theme}${state.goldUnlocked ? " is-gold" : ""}`;
+  setReceiptExpanded(true);
   const tog = $("btn-receipt-toggle");
   if (tog) tog.onclick = () => setReceiptExpanded(card.classList.contains("is-collapsed"));
   const link = $("handoff-link");

@@ -28,7 +28,7 @@
     .share-landing .cta { margin-top: 12px; }
   </style>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/styles.css?v=20260930-green4">
+<link rel="stylesheet" href="/static/styles.css?v=20260930-green5">
 </head>
 <body class="standalone-brand">
   <header class="site-header"><a class="home-logo" href="/" aria-label="그냥여기 홈으로">그냥여기<span aria-hidden="true">.</span></a></header>
@@ -37,19 +37,22 @@
     <h1>그냥여기</h1>
     <p class="sub">친구가 고민 없이 골랐어요</p>
     <article id="ticket" class="receipt-card theme-bg_basic">
-      <p class="receipt-label">나만의 식탐 영수증</p>
-      <div class="receipt-sticker" id="r-sticker" aria-hidden="true">🛋️</div>
-      <h2 id="r-title" class="receipt-title">불러오는 중…</h2>
-      <p id="r-sub" class="receipt-sub"></p>
-      <div class="receipt-divider"></div>
-      <p class="receipt-row"><span>식당</span><strong id="r-place"></strong></p>
-      <p class="receipt-row"><span>메뉴</span><strong id="r-menu"></strong></p>
-      <p class="receipt-row reason"><span>매칭</span><strong id="r-reason"></strong></p>
-      <p class="receipt-wm">JUST HERE · 그냥여기</p>
+      <div class="receipt-body">
+        <p class="receipt-label">오늘의 칭호</p>
+        <img class="receipt-badge" id="r-badge" alt="" />
+        <h2 id="r-title" class="receipt-title">불러오는 중…</h2>
+        <p id="r-sub" class="receipt-sub"></p>
+        <div class="receipt-divider"></div>
+        <p class="receipt-row"><span>식당</span><strong id="r-place"></strong></p>
+        <p class="receipt-row"><span>메뉴</span><strong id="r-menu"></strong></p>
+        <p class="receipt-row reason"><span>매칭</span><strong id="r-reason"></strong></p>
+        <p class="receipt-wm">JUST HERE · 그냥여기</p>
+      </div>
     </article>
     <a class="btn primary cta" href="/">나도 선택 시작</a>
     <p class="hint" style="margin-top:16px">메뉴 고민은 사치, 지금 당장 그냥여기 어때?</p>
   </div>
+  <script src="/static/badges.js?v=20260930-badges1"></script>
   <script>
     (async () => {
       const id = location.pathname.split("/").filter(Boolean).pop();
@@ -58,7 +61,9 @@
         if (!res.ok) throw new Error("missing");
         const data = await res.json();
         const theme = data.asset_id || data.theme || "bg_basic";
-        document.getElementById("r-sticker").textContent = data.sticker || "🛋️";
+        const badge = document.getElementById("r-badge");
+        badge.src = window.JustHereBadges.url(data.persona_id, theme);
+        badge.alt = `${data.title} 칭호 일러스트`;
         document.getElementById("r-title").textContent = data.title;
         document.getElementById("r-sub").textContent = data.sub_text || "";
         document.getElementById("r-place").textContent = data.place_name;
