@@ -11,6 +11,7 @@ import os
 import secrets
 import sqlite3
 import threading
+import zipfile
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -75,6 +76,10 @@ def status() -> dict[str, Any]:
 
 def enabled() -> bool:
     return bool(status()["enabled"])
+
+
+def claim_limit() -> int:
+    return max(0, int(os.getenv("RECEIPT_REWARDS_MAX_CLAIMS", "100")))
 
 
 def _hash(value: str) -> str:
@@ -325,7 +330,7 @@ class RewardStore:
                 raise ValueError("ineligible_attribution")
             if _now() > _parse_iso(attribution["expires_at"]):
                 raise ValueError("attribution_expired")
-            limit = max(0, int(os.getenv("RECEIPT_REWARDS_MAX_CLAIMS", "100")))
+            limit = claim_limit()
             reserved = db.execute(
                 "SELECT COUNT(*) FROM receipts WHERE status IN ('pending','approved')"
             ).fetchone()[0]
@@ -502,11 +507,59 @@ class RewardStore:
             }
             points = db.execute("SELECT COALESCE(SUM(amount),0) FROM reward_ledger").fetchone()[0]
             users = db.execute("SELECT COUNT(DISTINCT uid) FROM receipts").fetchone()[0]
+            pending_points = db.execute(
+                "SELECT COALESCE(SUM(reward_points),0) FROM receipts WHERE status='pending'"
+            ).fetchone()[0]
+        reserved = counts.get("pending", 0) + counts.get("approved", 0)
         return {
             "receipts": counts,
             "points_issued": int(points or 0),
             "submitters": int(users or 0),
+            "pending_points": int(pending_points),
+            "committed_points": int(points) + int(pending_points),
+            "claim_limit": claim_limit(),
+            "claims_remaining": max(0, claim_limit() - reserved),
         }
+
+    def backup_archive(self, directory: Path) -> Path:
+        """Create a consistent SQLite snapshot and its referenced receipt images.
+
+        The database write lock also coordinates with other application workers.
+        The destination must be a private temporary directory, outside DATA_DIR.
+        """
+        snapshot = directory / "rewards.sqlite3"
+        archive = directory / "rewards-backup.zip"
+        manifest = {"version": 1, "created_at": _iso(), "files": {}}
+        with _LOCK, self._db() as guard:
+            guard.execute("BEGIN IMMEDIATE")
+            try:
+                with self._db() as source:
+                    destination = sqlite3.connect(snapshot)
+                    try:
+                        source.backup(destination)
+                    finally:
+                        destination.close()
+                with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
+                    paths = [("rewards.sqlite3", snapshot)]
+                    for row in guard.execute("SELECT image_path FROM receipts"):
+                        name = row["image_path"]
+                        if name == "receipt_uploads/deleted":
+                            continue
+                        path = (self.path.parent / name).resolve()
+                        if path.parent != self.uploads_dir.resolve() or not path.is_file():
+                            raise ValueError("backup_image_missing_or_invalid")
+                        paths.append((name, path))
+                    for name, path in paths:
+                        digest = hashlib.sha256()
+                        with path.open("rb") as file:
+                            for chunk in iter(lambda: file.read(1024 * 1024), b""):
+                                digest.update(chunk)
+                        manifest["files"][name] = digest.hexdigest()
+                        bundle.write(path, name)
+                    bundle.writestr("manifest.json", json.dumps(manifest))
+            finally:
+                guard.execute("ROLLBACK")
+        return archive
 
     def image_path(self, receipt_id: str) -> tuple[Path, str]:
         with self._db() as db:

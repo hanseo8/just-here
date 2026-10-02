@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import tempfile
 import os
 from datetime import datetime
 from pathlib import Path
@@ -11,6 +12,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFi
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
@@ -1049,7 +1051,7 @@ def admin_rewards(
 ):
     _require_admin(request, token)
     current = rewards.status()
-    if not current["enabled"]:
+    if not (rewards.data_dir() / "rewards.sqlite3").exists() and not current["enabled"]:
         return _admin_json({"ok": True, "rewards": current, "summary": {}, "receipts": []})
     store = rewards.get_store()
     return _admin_json(
@@ -1059,6 +1061,26 @@ def admin_rewards(
             "summary": store.summary(),
             "receipts": store.admin_receipts(status=status),
         }
+    )
+
+
+@app.get("/v1/admin/rewards/backup")
+def admin_reward_backup(request: Request):
+    _require_admin(request)
+    if not (rewards.data_dir() / "rewards.sqlite3").exists():
+        raise HTTPException(404, "reward database not found")
+    temporary = tempfile.TemporaryDirectory(prefix="reward-backup-")
+    try:
+        archive = rewards.get_store().backup_archive(Path(temporary.name))
+    except Exception as exc:
+        temporary.cleanup()
+        raise HTTPException(503, "Reward backup failed; check storage and receipt files") from exc
+    return FileResponse(
+        archive,
+        media_type="application/zip",
+        filename="rewards-backup.zip",
+        headers=_ADMIN_NO_STORE,
+        background=BackgroundTask(temporary.cleanup),
     )
 
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import os
 import tempfile
+import runpy
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -58,6 +60,7 @@ with tempfile.TemporaryDirectory() as raw:
     check(denied.status_code == 401, "관리자 목록 무인증 차단")
     admin_headers = {"X-Admin-Token": "test-admin-token"}
     queue = client.get("/v1/admin/rewards", headers=admin_headers)
+    check(queue.json()["summary"]["pending_points"] == 300, "pending rewards reserve budget")
     check(queue.status_code == 200 and len(queue.json()["receipts"]) == 1, "관리자 검토 큐")
     image = client.get(f"/v1/admin/rewards/{receipt_id}/image", headers=admin_headers)
     check(image.status_code == 200 and image.headers["cache-control"].startswith("no-store"), "영수증 이미지 보호")
@@ -69,5 +72,40 @@ with tempfile.TemporaryDirectory() as raw:
     check(decision.status_code == 200, "관리자 300P 승인")
     mine = client.get(f"/v1/rewards/me?uid={uid}", headers=headers)
     check(mine.status_code == 200 and mine.json()["balance"] == 300, "사용자 잔액 300P")
+
+    summary = client.get("/v1/admin/rewards", headers=admin_headers).json()["summary"]
+    check(summary["claims_remaining"] == 99 and summary["committed_points"] == 300, "pilot budget summary")
+    check(client.get("/v1/admin/rewards/backup").status_code == 401, "backup requires admin authentication")
+    os.environ["RECEIPT_REWARDS"] = "off"
+    stopped = client.get("/v1/admin/rewards", headers=admin_headers).json()
+    check(not stopped["rewards"]["enabled"] and stopped["summary"]["points_issued"] == 300, "stopped pilot retains admin visibility")
+    result = client.get("/v1/admin/rewards/backup", headers=admin_headers)
+    check(result.status_code == 200 and "no-store" in result.headers["cache-control"], "backup available when pilot stopped")
+    archive = Path(raw) / "backup.zip"
+    archive.write_bytes(result.content)
+    restore = runpy.run_path(str(Path(__file__).with_name("restore-rewards.py")))["restore"]
+    target = Path(raw) / "restored"
+    restore(archive, target)
+    restored = rewards.RewardStore(target / "rewards.sqlite3")
+    check(restored.list_for_user(uid)["balance"] == 300, "restored ledger matches balance")
+    restored_image, _ = restored.image_path(receipt_id)
+    check(restored_image.read_bytes() == image.content, "restored receipt image matches original")
+    try:
+        restore(archive, target)
+        raise AssertionError("existing target was accepted")
+    except ValueError:
+        check(restored.list_for_user(uid)["balance"] == 300, "restore refuses overwriting existing data")
+    corrupt = Path(raw) / "corrupt.zip"
+    with zipfile.ZipFile(archive) as source, zipfile.ZipFile(corrupt, "w") as out:
+        for name in source.namelist():
+            content = source.read(name)
+            if name == "rewards.sqlite3":
+                content += b"changed"
+            out.writestr(name, content)
+    try:
+        restore(corrupt, Path(raw) / "invalid")
+        raise AssertionError("tampered backup accepted")
+    except ValueError:
+        check(not (Path(raw) / "invalid").exists(), "checksum rejects damaged backup before restore")
 
 print("영수증 보상 API 검사 통과")
