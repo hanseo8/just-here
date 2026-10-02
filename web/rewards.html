@@ -26,6 +26,19 @@
       <label>한 줄 후기 (선택)<textarea name="review_note" maxlength="300" rows="2"></textarea></label>
       <button id="claim-submit" type="submit">검토 요청하기</button><p id="claim-status"></p>
     </form></section>
+    <section id="bank-payout" class="claim" hidden>
+      <h2>승인된 영수증, 300원 받기</h2>
+      <p>영수증 1건부터 신청할 수 있어요. 운영자가 계좌로 송금한 뒤 지급 상태를 알려드립니다. 신청 중인 300P는 지급용으로 예약됩니다.</p>
+      <form id="bank-form">
+        <label>승인 영수증<select id="bank-receipt" required></select></label>
+        <label>은행<input name="bank" maxlength="40" autocomplete="off" required></label>
+        <label>계좌번호<input name="account" inputmode="numeric" minlength="8" maxlength="30" autocomplete="off" required></label>
+        <label>예금주<input name="holder" maxlength="40" autocomplete="off" required></label>
+        <label><input name="consent" type="checkbox" style="width:auto" required> 300원 송금을 위한 은행·계좌번호·예금주 수집에 동의합니다. 암호화해 보관하며 지급 완료·반려 후 원문을 삭제합니다. 동의하지 않으면 계좌 지급을 신청할 수 없습니다.</label>
+        <button type="submit">300원 계좌 지급 신청</button>
+      </form>
+    </section>
+    <p id="bank-message" role="status"></p><div id="bank-history" class="reward-list"></div>
     <h2>영수증 현황</h2>
     <div id="reward-list" class="reward-list"><p>불러오는 중…</p></div>
   </main>
@@ -36,6 +49,7 @@
     let currentUid='';
     async function start(){const list=document.getElementById('reward-list');try{let uid=window.JustHereAuth.getUid();if(!uid){const guest=await window.JustHereAuth.ensureGuest(jsonApi);uid=guest.uid}currentUid=uid;const data=await jsonApi('/v1/rewards/me?uid='+encodeURIComponent(uid));document.getElementById('balance').textContent=`${data.balance||0}P`;document.getElementById('pending').textContent=`${data.pending_points||0}P`;const eligible=(data.eligible_attributions||[])[0];const claim=document.getElementById('claim');claim.hidden=!eligible;if(eligible){document.getElementById('attribution').value=eligible.id;document.getElementById('claim-place').textContent=`${eligible.place_name} · ${eligible.menu_name||'선택한 메뉴'}`;const now=new Date(Date.now()-new Date().getTimezoneOffset()*60000);document.getElementById('purchased-at').value=now.toISOString().slice(0,16)}const rows=data.receipts||[];list.innerHTML=rows.length?rows.map(r=>`<article class="reward-item"><h3>${safe(r.place_name)}</h3><p>${safe(r.menu_name||'메뉴')} · ${Number(r.amount_krw||0).toLocaleString()}원</p><p class="status ${r.status}">${label[r.status]||r.status}${r.admin_reason?` · ${safe(r.admin_reason)}`:''}</p><p>${safe((r.created_at||'').slice(0,10))}</p></article>`).join(''):'<p class="empty">아직 접수한 영수증이 없어요.<br>추천받은 가게에서 식사한 뒤 인증해 보세요.</p>'}catch(err){list.innerHTML='<p class="empty error">현재 포인트 파일럿을 이용할 수 없어요.</p>'}}
     async function submitClaim(e){e.preventDefault();const form=e.currentTarget;const button=document.getElementById('claim-submit');const status=document.getElementById('claim-status');const data=new FormData(form);const when=new Date(String(data.get('purchased_at')||''));if(Number.isNaN(when.getTime()))return;data.set('purchased_at',when.toISOString());data.set('uid',currentUid);data.set('review_tags','');data.set('photo_reuse_consent','false');button.disabled=true;status.textContent='접수 중…';try{const res=await fetch('/v1/rewards/receipts',{method:'POST',headers:{'X-Guest-Token':window.JustHereAuth.getToken()},body:data});if(!res.ok)throw new Error();status.textContent='접수됐어요. 확인 후 적립됩니다.';await start()}catch(err){status.textContent='접수하지 못했어요. 중복 여부와 입력 내용을 확인해 주세요.'}finally{button.disabled=false}}
-    function safe(v){const d=document.createElement('div');d.textContent=String(v||'');return d.innerHTML}document.getElementById('claim-form').onsubmit=submitClaim;start();
+    function safe(v){const d=document.createElement('div');d.textContent=String(v||'');return d.innerHTML}document.getElementById('claim-form').onsubmit=submitClaim;
   </script>
+  <script src="/static/payouts.js?v=20261002-1"></script>
 </body></html>

@@ -188,6 +188,23 @@ class RewardStore:
                   detail TEXT NOT NULL DEFAULT '{}',
                   created_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS payouts (
+                  id TEXT PRIMARY KEY,
+                  uid TEXT NOT NULL,
+                  request_id TEXT NOT NULL,
+                  receipt_id TEXT NOT NULL REFERENCES receipts(id),
+                  amount_krw INTEGER NOT NULL CHECK(amount_krw=300),
+                  recipient_encrypted TEXT NOT NULL,
+                  account_tail TEXT NOT NULL,
+                  status TEXT NOT NULL DEFAULT 'pending',
+                  reference TEXT UNIQUE,
+                  reason TEXT NOT NULL DEFAULT '',
+                  created_at TEXT NOT NULL,
+                  updated_at TEXT NOT NULL,
+                  UNIQUE(uid,request_id)
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS payout_receipt_active
+                  ON payouts(receipt_id) WHERE status IN ('pending','processing','paid');
                 """
             )
         self._purge_expired_images()
@@ -505,7 +522,7 @@ class RewardStore:
                 row["status"]: row["count"]
                 for row in db.execute("SELECT status,COUNT(*) count FROM receipts GROUP BY status")
             }
-            points = db.execute("SELECT COALESCE(SUM(amount),0) FROM reward_ledger").fetchone()[0]
+            points = db.execute("SELECT COALESCE(SUM(amount),0) FROM reward_ledger WHERE kind='receipt_approved'").fetchone()[0]
             users = db.execute("SELECT COUNT(DISTINCT uid) FROM receipts").fetchone()[0]
             pending_points = db.execute(
                 "SELECT COALESCE(SUM(reward_points),0) FROM receipts WHERE status='pending'"
@@ -582,6 +599,7 @@ class RewardStore:
                 db.execute("UPDATE attributions SET uid=? WHERE uid=?", (target_uid, source_uid))
                 db.execute("UPDATE receipts SET uid=? WHERE uid=?", (target_uid, source_uid))
                 db.execute("UPDATE reward_ledger SET uid=? WHERE uid=?", (target_uid, source_uid))
+                db.execute("UPDATE payouts SET uid=? WHERE uid=?", (target_uid, source_uid))
                 db.execute("COMMIT")
             except Exception:
                 db.execute("ROLLBACK")

@@ -24,6 +24,7 @@ from . import guest_token
 from . import google_places
 from . import kakao
 from . import rewards
+from . import payouts
 from . import share
 from . import titles
 from . import users
@@ -49,6 +50,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def private_rewards_responses(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith(("/v1/rewards", "/v1/admin/payouts", "/v1/admin/rewards")):
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.middleware("http")
@@ -160,6 +169,23 @@ class RewardHandoffBody(BaseModel):
 class RewardDecisionBody(BaseModel):
     approve: bool
     reason: str = ""
+
+
+class PayoutRequestBody(BaseModel):
+    uid: str
+    receipt_id: str = Field(min_length=1, max_length=100)
+    request_id: str = Field(min_length=8, max_length=100)
+    bank: str = Field(min_length=1, max_length=40)
+    account: str = Field(min_length=8, max_length=30)
+    holder: str = Field(min_length=1, max_length=40)
+    consent: bool
+
+
+class PayoutDecisionBody(BaseModel):
+    action: Literal["processing", "paid", "rejected"]
+    reference: str = Field(default="", max_length=100)
+    reason: str = Field(default="", max_length=240)
+    no_transfer: bool = False
 
 
 def _guest_header(request: Request) -> str:
@@ -1038,9 +1064,55 @@ async def reward_receipt_submit(
 
 @app.get("/v1/rewards/me")
 def reward_me(request: Request, uid: str = Query(...)):
-    _require_rewards()
     uid = _require_uid(request, uid)
-    return {"ok": True, **rewards.get_store().list_for_user(uid)}
+    if not (rewards.data_dir() / "rewards.sqlite3").exists():
+        _require_rewards()
+    store = rewards.get_store()
+    return _admin_json({"ok": True, **store.list_for_user(uid), "payout_config": payouts.status(), "payouts": payouts.listing(store, uid)})
+
+
+@app.post("/v1/rewards/payouts")
+def request_reward_payout(body: PayoutRequestBody, request: Request):
+    uid = _require_uid(request, body.uid)
+    if not payouts.status()["enabled"]:
+        raise HTTPException(503, "bank_payouts_unavailable")
+    if not body.consent:
+        raise HTTPException(400, "payout_consent_required")
+    try:
+        result = payouts.request(rewards.get_store(), uid=uid, receipt_id=body.receipt_id,
+            request_id=body.request_id, bank=body.bank, account=body.account, holder=body.holder)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _admin_json({"ok": True, "payout": result})
+
+
+@app.get("/v1/admin/payouts")
+def admin_payouts(request: Request):
+    _require_admin(request)
+    rows = payouts.listing(rewards.get_store()) if (rewards.data_dir() / "rewards.sqlite3").exists() else []
+    return _admin_json({"payouts": rows, "config": payouts.status()})
+
+
+@app.post("/v1/admin/payouts/{ident}/recipient")
+def admin_payout_recipient(ident: str, request: Request):
+    _require_admin(request)
+    actor = hashlib.sha256((request.headers.get("x-admin-token") or "").encode()).hexdigest()[:12]
+    try:
+        result = payouts.recipient(rewards.get_store(), ident, actor)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _admin_json(result)
+
+
+@app.post("/v1/admin/payouts/{ident}/decision")
+def admin_payout_decision(ident: str, body: PayoutDecisionBody, request: Request):
+    _require_admin(request)
+    actor = hashlib.sha256((request.headers.get("x-admin-token") or "").encode()).hexdigest()[:12]
+    try:
+        result = payouts.decide(rewards.get_store(), ident, body.action, body.reference, body.reason, body.no_transfer, actor)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _admin_json({"ok": True, "payout": result})
 
 
 @app.get("/v1/admin/rewards")
