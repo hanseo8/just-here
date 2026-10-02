@@ -5,8 +5,22 @@
   function button(text, action) { const el = document.createElement('button'); el.textContent = text; el.onclick = action; return el; }
   async function reload() {
     queue.replaceChildren();
+    const summary = document.getElementById('payout-summary');
+    summary.replaceChildren();
     try {
       const data = await call('/v1/admin/payouts');
+      if (data.reconciliation) {
+        for (const [state, value] of Object.entries(data.reconciliation.states)) {
+          const line = document.createElement('p');
+          line.textContent = `${labels[state]}: ${value.count}건 · ${value.amount_krw.toLocaleString()}원`;
+          summary.append(line);
+        }
+        const check = document.createElement('p');
+        check.textContent = data.reconciliation.records_match
+          ? '앱 지급 기록과 포인트 장부가 일치합니다. 은행 거래내역은 별도로 확인하세요.'
+          : `장부 불일치 ${data.reconciliation.mismatch_count}건: 추가 지급 전에 기록을 확인하세요.`;
+        summary.append(check);
+      }
       for (const p of data.payouts) {
         const box = document.createElement('article'); box.className = 'metric';
         const title = document.createElement('p');

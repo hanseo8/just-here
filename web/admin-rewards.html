@@ -13,6 +13,7 @@
   <section aria-label="보상 운영 현황"><p id="budget-status" role="status"></p><button id="backup" disabled>포인트·영수증 백업 다운로드</button><p>백업에는 영수증 개인정보가 포함됩니다. 접근이 제한된 곳에 보관해 주세요.</p></section>
   <section id="queue" class="queue"></section>
   <h2>300원 계좌 지급</h2><p>실제 송금은 은행에서 진행합니다. 송금 여부가 불확실하면 반려·재송금하지 말고 거래 내역을 먼저 확인하세요.</p>
+  <div id="payout-summary" aria-live="polite"></div>
   <div id="payout-queue" class="queue"></div><p id="payout-message" role="status"></p>
 </main><script>
   const $=id=>document.getElementById(id);let token='';

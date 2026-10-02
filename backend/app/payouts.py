@@ -76,6 +76,39 @@ def listing(store, uid=None):
     return [public(row) for row in rows]
 
 
+def reconciliation(store):
+    """Reconcile application records; this does not verify bank transactions."""
+    states = {s: {"count": 0, "amount_krw": 0} for s in ("pending", "processing", "paid", "rejected")}
+    mismatches = []
+    with store._db() as db:
+        db.execute("BEGIN")
+        rows = db.execute("SELECT id,uid,receipt_id,status,amount_krw FROM payouts").fetchall()
+        ledger = {row["kind"]: row for row in db.execute(
+            "SELECT kind,uid,receipt_id,amount FROM reward_ledger WHERE kind LIKE 'payout_%'"
+        ).fetchall()}
+        expected_kinds = set()
+        for row in rows:
+            state = states.get(row["status"])
+            if state is None:
+                mismatches.append(row["id"])
+                continue
+            state["count"] += 1
+            state["amount_krw"] += row["amount_krw"]
+            expected = {"payout_hold:" + row["id"]: -row["amount_krw"]}
+            if row["status"] == "rejected":
+                expected["payout_release:" + row["id"]] = row["amount_krw"]
+            for kind, amount in expected.items():
+                expected_kinds.add(kind)
+                entry = ledger.get(kind)
+                if entry is None or (entry["amount"], entry["uid"], entry["receipt_id"]) != (amount, row["uid"], row["receipt_id"]):
+                    mismatches.append(row["id"])
+        orphan_count = len(set(ledger) - expected_kinds)
+        db.execute("COMMIT")
+    return {"states": states, "records_match": not mismatches and not orphan_count,
+            "mismatch_count": len(set(mismatches)) + orphan_count,
+            "bank_verified": False}
+
+
 def audit(db, actor, action, ident):
     db.execute("INSERT INTO admin_audit (id,admin_id,action,target_id,detail,created_at) VALUES (?,?,?,?,?,?)", (
         "aud_"+secrets.token_urlsafe(12), actor, action, ident, "{}", rewards._iso(),

@@ -1089,8 +1089,10 @@ def request_reward_payout(body: PayoutRequestBody, request: Request):
 @app.get("/v1/admin/payouts")
 def admin_payouts(request: Request):
     _require_admin(request)
-    rows = payouts.listing(rewards.get_store()) if (rewards.data_dir() / "rewards.sqlite3").exists() else []
-    return _admin_json({"payouts": rows, "config": payouts.status()})
+    store = rewards.get_store() if (rewards.data_dir() / "rewards.sqlite3").exists() else None
+    rows = payouts.listing(store) if store else []
+    return _admin_json({"payouts": rows, "config": payouts.status(),
+                        "reconciliation": payouts.reconciliation(store) if store else None})
 
 
 @app.post("/v1/admin/payouts/{ident}/recipient")

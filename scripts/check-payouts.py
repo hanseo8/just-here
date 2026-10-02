@@ -1,6 +1,7 @@
 """Offline settlement tests: no bank or Npay requests are sent."""
 import os
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from cryptography.fernet import Fernet
 
@@ -76,6 +77,32 @@ with tempfile.TemporaryDirectory() as raw:
     assert store.list_for_user(owner2)['balance']==300
     assert store.summary()['points_issued']==600
     assert client.post('/v1/rewards/payouts',headers=headers2,json={**body2,'request_id':'retry-request-2'}).status_code==200
+    report = client.get('/v1/admin/payouts', headers=admin)
+    assert report.headers['cache-control'] == 'no-store'
+    totals = report.json()['reconciliation']
+    assert totals['records_match'] and not totals['bank_verified']
+    assert totals['states']['paid'] == {'count': 1, 'amount_krw': 300}
+    assert totals['states']['pending']['amount_krw'] == 300
+    assert totals['states']['rejected']['amount_krw'] == 300
+    # Simulate a damaged ledger, ensure it is detected without silently repairing it.
+    with store._db() as db:
+        db.execute("UPDATE reward_ledger SET amount=-299 WHERE kind=?", ('payout_hold:'+ident,))
+    assert payouts.reconciliation(store)['mismatch_count'] == 1
+    with store._db() as db:
+        db.execute("UPDATE reward_ledger SET amount=-300 WHERE kind=?", ('payout_hold:'+ident,))
+    owner3, rid3 = receipt(3)
+    def simultaneous(n):
+        try:
+            return payouts.request(store, uid=owner3, receipt_id=rid3, request_id='parallel-'+str(n),
+                bank='Test', account='123456789012', holder='Test')['id']
+        except ValueError:
+            return None
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        attempts = list(pool.map(simultaneous, range(8)))
+    assert sum(value is not None for value in attempts) == 1
+    assert store.list_for_user(owner3)['balance'] == 0
+    assert payouts.reconciliation(store)['records_match']
+    print('PASS: settlement totals, corrupt ledger detection, concurrent requests reserve exactly once')
     os.environ['REWARD_BANK_PAYOUTS']='off'
     assert client.post('/v1/rewards/payouts',headers=headers2,json=body2).status_code==503
     assert client.get('/v1/rewards/me?uid='+owner,headers=headers).json()['payouts'][0]['status']=='paid'
