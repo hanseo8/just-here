@@ -1,6 +1,10 @@
 """Offline settlement tests: no bank or Npay requests are sent."""
 import os
 import tempfile
+import json
+import runpy
+import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from cryptography.fernet import Fernet
@@ -103,6 +107,50 @@ with tempfile.TemporaryDirectory() as raw:
     assert store.list_for_user(owner3)['balance'] == 0
     assert payouts.reconciliation(store)['records_match']
     print('PASS: settlement totals, corrupt ledger detection, concurrent requests reserve exactly once')
+    # Restore all payout states, then verify in a new process, not the live store.
+    pending_id = next(value for value in attempts if value)
+    payouts.decide(store, pending_id, 'processing', '', '', False, 'test')
+    before = payouts.listing(store)
+    before_totals = payouts.reconciliation(store)
+    try:
+        store.backup_archive(Path(raw))
+        raise AssertionError('live database backup destination accepted')
+    except ValueError as exc:
+        assert str(exc) == 'backup_destination_is_live_database'
+    backup_dir = Path(raw) / 'backup-output'
+    backup_dir.mkdir()
+    archive = store.backup_archive(backup_dir)
+    target = Path(raw) / 'payout-restored'
+    restore = runpy.run_path(str(Path(__file__).with_name('restore-rewards.py')))['restore']
+    restore(archive, target)
+    probe = '''
+import json, sys
+from pathlib import Path
+from backend.app import rewards, payouts
+store = rewards.RewardStore(Path(sys.argv[1]) / 'rewards.sqlite3')
+account = payouts.recipient(store, sys.argv[2], 'restore-test')
+print(json.dumps({'rows': payouts.listing(store), 'totals': payouts.reconciliation(store),
+ 'balance': store.list_for_user(sys.argv[3])['balance'],
+ 'recipient_matches': account == {'bank':'Test','account':'123456789012','holder':'Test'}}))
+'''
+    restarted = subprocess.run([sys.executable, '-B', '-c', probe, str(target), pending_id, owner3],
+        capture_output=True, text=True, check=True)
+    recovered = json.loads(restarted.stdout)
+    assert recovered['rows'] == before and recovered['totals'] == before_totals
+    assert recovered['balance'] == 0 and recovered['recipient_matches']
+    restored = rewards.RewardStore(target / 'rewards.sqlite3')
+    original_key = os.environ['PAYOUT_ENCRYPTION_KEY']
+    os.environ['PAYOUT_ENCRYPTION_KEY'] = Fernet.generate_key().decode()
+    try:
+        payouts.recipient(restored, pending_id, 'wrong-key-test')
+        raise AssertionError('wrong encryption key accepted')
+    except ValueError as exc:
+        assert str(exc) == 'payout_encryption_key_unavailable'
+    finally:
+        os.environ['PAYOUT_ENCRYPTION_KEY'] = original_key
+    assert payouts.listing(restored) == before
+    assert payouts.reconciliation(restored)['records_match']
+    print('PASS: payout backup, fresh-process restore, recipient decryption, wrong-key refusal without data changes')
     os.environ['REWARD_BANK_PAYOUTS']='off'
     assert client.post('/v1/rewards/payouts',headers=headers2,json=body2).status_code==503
     assert client.get('/v1/rewards/me?uid='+owner,headers=headers).json()['payouts'][0]['status']=='paid'

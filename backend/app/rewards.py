@@ -545,6 +545,8 @@ class RewardStore:
         The destination must be a private temporary directory, outside DATA_DIR.
         """
         snapshot = directory / "rewards.sqlite3"
+        if snapshot.resolve() == self.path.resolve():
+            raise ValueError("backup_destination_is_live_database")
         archive = directory / "rewards-backup.zip"
         manifest = {"version": 1, "created_at": _iso(), "files": {}}
         with _LOCK, self._db() as guard:
