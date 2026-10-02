@@ -453,6 +453,14 @@ def auth_guest(body: GuestAuthBody):
 
 def _finish_kakao_link(guest_uid: str, kakao_user: dict, device_id: str = "") -> dict:
     kakao_uid = f"kakao_{kakao_user['kakao_id']}"
+    if not users.STORE.get(guest_uid):
+        raise HTTPException(404, "guest user not found")
+    # Preserve the guest identity if rewards cannot be migrated. A retry is safe.
+    if (rewards.data_dir() / "rewards.sqlite3").exists():
+        try:
+            rewards.get_store().merge_uid(guest_uid, kakao_uid)
+        except Exception as exc:
+            raise HTTPException(409, "포인트 기록을 연결하지 못했어요. 기존 계정은 유지됩니다. 잠시 후 다시 시도해 주세요.") from exc
     try:
         users.STORE.merge_guest_into(guest_uid, kakao_uid, auth_type="kakao")
     except KeyError:
@@ -462,11 +470,6 @@ def _finish_kakao_link(guest_uid: str, kakao_user: dict, device_id: str = "") ->
             users.STORE.set_nickname(kakao_uid, kakao_user["nickname"])
         except KeyError:
             pass
-    try:
-        if rewards.enabled():
-            rewards.get_store().merge_uid(guest_uid, kakao_uid)
-    except Exception:
-        pass
     return {
         "ok": True,
         "uid": kakao_uid,

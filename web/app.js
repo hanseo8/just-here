@@ -2790,7 +2790,11 @@ async function submitRewardReceipt(event) {
     rewardMessage("접수됐어요. 확인 후 300P가 적립됩니다.");
   } catch (err) {
     const raw = String(err || "");
-    const message = raw.includes("duplicate_or_daily_limit")
+    const message = raw.includes("pilot_capacity_reached")
+      ? "이번 보상 모집이 마감됐어요. 이미 접수한 영수증은 계속 검토합니다."
+      : raw.includes("attribution_expired")
+      ? "이 추천의 영수증 접수 기한이 지났어요."
+      : raw.includes("duplicate_or_daily_limit")
       ? "오늘 접수한 영수증이 이미 있거나 같은 영수증이 등록됐어요."
       : raw.includes("purchase_time_out_of_range")
       ? "최근 3일 안의 결제 시각을 입력해 주세요."

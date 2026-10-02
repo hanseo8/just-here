@@ -196,11 +196,11 @@ class RewardStore:
                 """UPDATE receipts SET status='rejected',admin_reason='검토 기한 만료',
                    decided_at=?,decided_by='system'
                    WHERE status='pending' AND created_at<?""",
-                (_iso(), cutoff),
+                (cutoff, cutoff),
             )
             rows = db.execute(
                 """SELECT id,image_path FROM receipts
-                   WHERE decided_at IS NOT NULL AND decided_at<?
+                   WHERE decided_at IS NOT NULL AND decided_at<=?
                      AND image_path!='receipt_uploads/deleted'""",
                 (cutoff,),
             ).fetchall()
@@ -321,6 +321,16 @@ class RewardStore:
             if not attribution:
                 db.execute("ROLLBACK")
                 raise KeyError("attribution_not_found")
+            if attribution["intent"] != "visit" or str(attribution["session_id"]).startswith("design"):
+                raise ValueError("ineligible_attribution")
+            if _now() > _parse_iso(attribution["expires_at"]):
+                raise ValueError("attribution_expired")
+            limit = max(0, int(os.getenv("RECEIPT_REWARDS_MAX_CLAIMS", "100")))
+            reserved = db.execute(
+                "SELECT COUNT(*) FROM receipts WHERE status IN ('pending','approved')"
+            ).fetchone()[0]
+            if reserved >= limit:
+                raise ValueError("pilot_capacity_reached")
             selected = _parse_iso(attribution["selected_at"])
             expires = _parse_iso(attribution["expires_at"])
             if purchase < selected - timedelta(hours=1) or purchase > expires:
@@ -515,10 +525,14 @@ class RewardStore:
             return
         with _LOCK, self._db() as db:
             db.execute("BEGIN IMMEDIATE")
-            db.execute("UPDATE attributions SET uid=? WHERE uid=?", (target_uid, source_uid))
-            db.execute("UPDATE receipts SET uid=? WHERE uid=?", (target_uid, source_uid))
-            db.execute("UPDATE reward_ledger SET uid=? WHERE uid=?", (target_uid, source_uid))
-            db.execute("COMMIT")
+            try:
+                db.execute("UPDATE attributions SET uid=? WHERE uid=?", (target_uid, source_uid))
+                db.execute("UPDATE receipts SET uid=? WHERE uid=?", (target_uid, source_uid))
+                db.execute("UPDATE reward_ledger SET uid=? WHERE uid=?", (target_uid, source_uid))
+                db.execute("COMMIT")
+            except Exception:
+                db.execute("ROLLBACK")
+                raise
 
 
 def get_store() -> RewardStore:
@@ -527,4 +541,6 @@ def get_store() -> RewardStore:
     if _STORE is None or _STORE_PATH != path:
         _STORE = RewardStore(path)
         _STORE_PATH = path
+    else:
+        _STORE._purge_expired_images()
     return _STORE
