@@ -5,6 +5,9 @@
   <style>
     :root{font-family:Arial,"Apple SD Gothic Neo",sans-serif;color:#183d2d;background:#f0f7f2}*{box-sizing:border-box}body{margin:0}main{max-width:1100px;margin:auto;padding:24px}header,.toolbar,.summary,.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}header{justify-content:space-between}h1{color:#ff5a1f}input,select,button,textarea{font:inherit;padding:10px;border:1px solid #9cbfaa;border-radius:8px}input{min-width:280px}button{cursor:pointer;background:#fff}.primary{background:#ff5a1f;color:#fff;border-color:#ff5a1f}.reject{color:#b33a25}.summary{margin:18px 0}.metric{padding:14px 18px;border-radius:12px;background:#fff}.queue{display:grid;gap:14px}.card{display:grid;grid-template-columns:240px 1fr;gap:18px;padding:16px;border:1px solid #d2e4d8;border-radius:14px;background:#fff}.card img{width:100%;height:240px;object-fit:contain;background:#eef4ef;border-radius:8px}.meta p{margin:5px 0}.flags{color:#b33a25}.reason{width:100%;margin-top:10px}.message{margin:12px 0;color:#426653}@media(max-width:700px){.card{grid-template-columns:1fr}.card img{height:300px}input{min-width:0;width:100%}}
   </style>
+  <style>
+    .payout-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}.payout-stat{padding:14px;border-radius:12px;background:#e4f3e9}.payout-stat strong{display:block;margin-top:4px;font-size:18px}.payout-check{grid-column:1/-1;margin:0;padding:12px;border-radius:10px;background:#fff}.payout-check.warning{color:#b33a25;background:#fff0e5}.payout-item{padding:18px;border:1px solid #d2e4d8;border-radius:14px;background:#fff}.payout-item h3{margin:0 0 5px}.payout-item .muted{margin:0 0 14px;color:#577360;font-size:13px}.payout-item input{min-width:0;width:100%;margin-top:9px}.payout-item .payout-recipient{margin:10px 0;padding:12px;border-radius:9px;background:#f0f7f2;font-weight:700;overflow-wrap:anywhere}.payout-item .payout-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.payout-item .payout-actions button{flex:1}.no-transfer{display:flex;align-items:flex-start;gap:8px;margin-top:10px;font-size:13px}.no-transfer input{width:auto;margin:2px 0 0}@media(max-width:700px){.payout-summary{grid-template-columns:1fr 1fr}.payout-item .payout-actions{display:grid;grid-template-columns:1fr}}
+  </style>
 </head><body><main>
   <header><h1>영수증 검토</h1><a href="/analytics">통계</a></header>
   <section class="toolbar"><input id="token" type="password" placeholder="관리자 토큰"><select id="filter"><option value="pending">검토 중</option><option value="approved">승인</option><option value="rejected">반려</option><option value="all">전체</option></select><button id="load" class="primary">불러오기</button></section>
@@ -13,7 +16,7 @@
   <section aria-label="보상 운영 현황"><p id="budget-status" role="status"></p><button id="backup" disabled>포인트·영수증 백업 다운로드</button><p>백업에는 영수증 개인정보가 포함됩니다. 접근이 제한된 곳에 보관해 주세요.</p></section>
   <section id="queue" class="queue"></section>
   <h2>300원 계좌 지급</h2><p>실제 송금은 은행에서 진행합니다. 송금 여부가 불확실하면 반려·재송금하지 말고 거래 내역을 먼저 확인하세요.</p>
-  <div id="payout-summary" aria-live="polite"></div>
+  <div id="payout-summary" class="payout-summary" aria-live="polite"></div>
   <div id="payout-queue" class="queue"></div><p id="payout-message" role="status"></p>
 </main><script>
   const $=id=>document.getElementById(id);let token='';
@@ -53,4 +56,4 @@
     finally { $('backup').disabled = false; }
   };
   $('load').onclick=load;$('filter').onchange=()=>token&&load();
-</script><script src="/static/admin-payouts.js?v=20261002-1"></script></body></html>
+</script><script src="/static/admin-payouts.js?v=20261003-3"></script></body></html>
