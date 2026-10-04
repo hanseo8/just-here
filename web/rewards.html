@@ -43,7 +43,7 @@
     <h2>영수증 현황</h2>
     <div id="reward-list" class="reward-list"><p>불러오는 중…</p></div>
   </main>
-  <script src="/static/auth.js?v=20260924-visit-menu"></script>
+  <script src="/static/auth.js?v=20261004-auth1"></script>
   <script>
     const label={pending:'검토 중',approved:'적립 완료',rejected:'반려'};
     async function jsonApi(path,opts={}){const token=window.JustHereAuth?.getToken?.()||'';const res=await fetch(path,{...opts,headers:{'Content-Type':'application/json',...(token?{'X-Guest-Token':token}:{}),...(opts.headers||{})}});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.detail?.reason||data.detail||'request failed');return data}

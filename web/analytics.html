@@ -205,16 +205,17 @@
     </div>
   </main>
   <script>
-    const TOKEN_KEY = "jh_admin_token";
     const $ = (id) => document.getElementById(id);
 
     function loadToken() {
-      const q = new URLSearchParams(location.search).get("token");
-      if (q) {
-        try { localStorage.setItem(TOKEN_KEY, q); } catch (_) {}
-        return q;
-      }
-      try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (_) { return ""; }
+      try { localStorage.removeItem("jh_admin_token"); } catch (_) {}
+      return "";
+    }
+
+    function escapeText(value) {
+      const node = document.createElement("span");
+      node.textContent = String(value ?? "");
+      return node.innerHTML;
     }
 
     function bars(rows, max) {
@@ -222,8 +223,9 @@
       const m = max || Math.max(...rows.map((r) => r[1]), 1);
       return rows
         .map(([k, v]) => {
-          const pct = Math.round((v / m) * 100);
-          return `<div class="bar-row"><span>${k}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><span class="num">${v}</span></div>`;
+          const percent = Math.round((Number(v) / m) * 100);
+          const pct = Number.isFinite(percent) ? Math.max(0, Math.min(100, percent)) : 0;
+          return `<div class="bar-row"><span>${escapeText(k)}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><span class="num">${escapeText(v)}</span></div>`;
         })
         .join("");
     }
@@ -237,10 +239,10 @@
         $("err").classList.remove("hidden");
         return;
       }
-      try { localStorage.setItem(TOKEN_KEY, token); } catch (_) {}
       try {
         const res = await fetch(
-          `/v1/analytics/summary?token=${encodeURIComponent(token)}&days=${days}`
+          `/v1/analytics/summary?days=${days}`,
+          { headers: { "X-Admin-Token": token }, cache: "no-store" }
         );
         if (!res.ok) {
           const t = await res.text();
@@ -328,7 +330,7 @@
 
       const totals = Object.entries(data.totals || {}).sort((a, b) => b[1] - a[1]);
       $("totals").innerHTML = totals
-        .map(([k, v]) => `<tr><td>${k}</td><td class="num">${v}</td></tr>`)
+        .map(([k, v]) => `<tr><td>${escapeText(k)}</td><td class="num">${escapeText(v)}</td></tr>`)
         .join("") || `<tr><td colspan="2">이벤트 없음</td></tr>`;
 
       $("meta")?.remove();

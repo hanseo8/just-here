@@ -1,6 +1,6 @@
 /** Guest-First identity (web).
  * - device_id: localStorage (IP/와이파이 변경과 무관)
- * - Firebase Anonymous: FIREBASE_* 설정 시 선택 연동
+ * - 서버가 검증한 식별자만 사용
  * - Kakao link: 공유/도감 저장 시 계정 병합
  */
 (function (global) {
@@ -39,19 +39,9 @@
 
   async function ensureGuest(api) {
     const device_id = getDeviceId();
-    let firebase_uid = null;
-    // Optional Firebase Anonymous (env injected later via meta/config)
-    if (global.firebaseAuth && typeof global.firebaseAuth.signInAnonymously === "function") {
-      try {
-        const cred = await global.firebaseAuth.signInAnonymously();
-        firebase_uid = cred?.user?.uid || null;
-      } catch (err) {
-        console.warn("firebase anonymous skipped", err);
-      }
-    }
     const data = await api("/v1/auth/guest", {
       method: "POST",
-      body: JSON.stringify({ device_id, firebase_uid }),
+      body: JSON.stringify({ device_id }),
     });
     setIdentity(data.uid, data.auth_type || "anonymous", data.guest_token);
     return data;

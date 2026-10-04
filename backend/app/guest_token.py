@@ -45,9 +45,11 @@ def issue(uid: str, device_id: str = "") -> str:
 
 
 def verify(token: str | None) -> dict[str, Any] | None:
-    if not token or "." not in token:
+    if not isinstance(token, str) or not token or len(token) > 4096 or token.count(".") != 1:
         return None
     raw, _, sig = token.partition(".")
+    if not raw.isascii() or len(sig) != 64 or any(c not in "0123456789abcdef" for c in sig):
+        return None
     expect = hmac.new(_secret(), raw.encode("ascii"), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(expect, sig):
         return None
@@ -56,9 +58,14 @@ def verify(token: str | None) -> dict[str, Any] | None:
         payload = json.loads(base64.urlsafe_b64decode(raw + pad))
     except Exception:
         return None
-    if int(payload.get("exp") or 0) < int(time.time()):
+    if not isinstance(payload, dict) or type(payload.get("exp")) is not int:
         return None
-    uid = str(payload.get("uid") or "").strip()
+    if payload["exp"] <= int(time.time()):
+        return None
+    uid = payload.get("uid")
+    if not isinstance(uid, str):
+        return None
+    uid = uid.strip()
     if not uid:
         return None
     return payload

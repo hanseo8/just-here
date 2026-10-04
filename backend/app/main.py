@@ -56,8 +56,10 @@ app.add_middleware(
 @app.middleware("http")
 async def private_rewards_responses(request: Request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith(("/v1/rewards", "/v1/admin/payouts", "/v1/admin/rewards")):
+    if request.url.path.startswith(("/v1/rewards", "/v1/admin/", "/v1/analytics/summary", "/v1/me", "/v1/auth/")):
         response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "same-origin"
     return response
 
 
@@ -74,7 +76,7 @@ async def hide_internal_review(request: Request, call_next):
         return await call_next(request)
     from .verified_menus import review_exposed
 
-    token = request.query_params.get("token") or request.headers.get("x-admin-token")
+    token = request.headers.get("x-admin-token")
     if review_exposed() or analytics.admin_token_ok(token):
         return await call_next(request)
     return JSONResponse({"detail": "not found"}, status_code=404)
@@ -130,8 +132,8 @@ class SessionStartBody(BaseModel):
 
 
 class GuestAuthBody(BaseModel):
-    device_id: str
-    firebase_uid: str | None = None
+    device_id: str = Field(min_length=1, max_length=128)
+    firebase_uid: str | None = Field(default=None, max_length=256)
 
 
 class KakaoLinkBody(BaseModel):
@@ -270,7 +272,7 @@ _ADMIN_NO_STORE = {
 
 
 def _require_admin(request: Request, token: str | None = None) -> None:
-    raw = token or request.query_params.get("token") or request.headers.get("x-admin-token")
+    raw = request.headers.get("x-admin-token")
     if not analytics.admin_token_ok(raw):
         raise HTTPException(
             401,
@@ -410,13 +412,13 @@ def analytics_event(body: AnalyticsEventBody):
 
 @app.get("/v1/analytics/summary")
 def analytics_summary(
+    request: Request,
     token: str | None = Query(None),
     days: int = Query(7, ge=1, le=30),
 ):
     """ADMIN_TOKEN 필요. CTO 대시보드용 집계."""
-    if not analytics.admin_token_ok(token):
-        raise HTTPException(401, "admin token required")
-    return analytics.summarize(since_days=days)
+    _require_admin(request)
+    return _admin_json(analytics.summarize(since_days=days))
 
 
 @app.get("/v1/admin/storage")
@@ -488,7 +490,9 @@ def meta():
 @app.post("/v1/auth/guest")
 def auth_guest(body: GuestAuthBody):
     """1단계: 회원가입 없이 기기 기준 익명 uid 발급/재연결."""
-    profile = users.STORE.ensure_guest(body.device_id, firebase_uid=body.firebase_uid)
+    if body.firebase_uid:
+        raise HTTPException(400, "unverified identity is not accepted")
+    profile = users.STORE.ensure_guest(body.device_id)
     token = guest_token.issue(profile["uid"], body.device_id)
     return {
         "ok": True,
@@ -1202,7 +1206,7 @@ def admin_reward_decision(
     request: Request,
     token: str | None = Query(None),
 ):
-    raw = token or request.query_params.get("token") or request.headers.get("x-admin-token") or ""
+    raw = request.headers.get("x-admin-token") or ""
     _require_admin(request, raw)
     _require_rewards()
     admin_id = f"admin_{hashlib.sha256(raw.encode()).hexdigest()[:12]}"

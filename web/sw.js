@@ -1,5 +1,5 @@
 /* just-here soft-launch SW: shell cache only */
-const CACHE = "just-here-shell-v55";
+const CACHE = "just-here-shell-v56";
 const SHELL = [
   "/",
   "/static/styles.css?v=20260930-rewards1",
@@ -7,7 +7,7 @@ const SHELL = [
   "/static/instagram.js?v=20260926-ig1",
   "/static/badges.js?v=20260930-badges1",
   "/static/instagram-places.json",
-  "/static/auth.js?v=20260924-visit-menu",
+  "/static/auth.js?v=20261004-auth1",
   "/static/story.js?v=20260930-receipt2",
   "/manifest.webmanifest",
   "/static/icons/icon-192.png",

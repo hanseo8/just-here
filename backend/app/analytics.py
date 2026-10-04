@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import hmac
 import os
 import threading
 from collections import Counter, defaultdict
@@ -379,4 +380,4 @@ def admin_token_ok(token: str | None) -> bool:
     expected = (os.getenv("ADMIN_TOKEN") or "").strip()
     if not expected:
         return False
-    return (token or "").strip() == expected
+    return hmac.compare_digest((token or "").strip().encode("utf-8"), expected.encode("utf-8"))
