@@ -43,6 +43,7 @@ data/users.json
 data/events.jsonl
 data/*.tmp
 data/.guest_secret
+data/admin-security.sqlite3*
 data/deals.json
 data/verified-menus.json
 data/_persist-probe/

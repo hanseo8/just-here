@@ -4,7 +4,7 @@ import asyncio
 import json
 import time
 from collections import OrderedDict, deque
-from . import guest_token
+from . import guest_token, admin_security
 
 MAX_UPLOAD_BODY = 9 * 1024 * 1024  # 8MB image plus multipart fields
 UPLOAD_TIMEOUT_SECONDS = 20
@@ -40,6 +40,9 @@ class RequestGuard:
         self.uploads = 0
 
     async def reject(self, send, status, message):
+        kind = {429: 'rate_limited', 413: 'upload_denied', 408: 'upload_timeout'}.get(status)
+        if kind:
+            await asyncio.to_thread(admin_security.alert, kind)
         headers = [(b'content-type', b'application/json'), (b'cache-control', b'no-store'),
                    (b'x-content-type-options', b'nosniff')]
         if status == 429:
@@ -53,7 +56,9 @@ class RequestGuard:
         path, method = scope['path'], scope['method']
         upload = path == '/v1/rewards/receipts' and method == 'POST'
         group = None
-        if path.startswith('/v1/auth/') and method == 'POST':
+        if path == '/v1/admin/auth':
+            group, per_client, total = 'admin_login', 5, 30
+        elif path.startswith('/v1/auth/') and method == 'POST':
             group, per_client, total = 'auth', 30, 300
         elif path == '/v1/analytics/event' and method == 'POST':
             group, per_client, total = 'events', 120, 1200

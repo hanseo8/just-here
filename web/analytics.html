@@ -154,7 +154,7 @@
     <p class="meta">소프트런치용 · ADMIN_TOKEN 필요</p>
 
     <div class="gate">
-      <input id="token" type="password" placeholder="ADMIN_TOKEN" autocomplete="off" />
+      <input id="otp" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="2단계 인증 설정 시 6자리 번호" /><input id="token" type="password" placeholder="ADMIN_TOKEN" autocomplete="off" />
       <select id="days">
         <option value="1">오늘</option>
         <option value="7" selected>7일</option>
@@ -204,6 +204,7 @@
       </table>
     </div>
   </main>
+  <script src="/static/admin-auth.js?v=20261004-1"></script>
   <script>
     const $ = (id) => document.getElementById(id);
 
@@ -240,9 +241,10 @@
         return;
       }
       try {
+        await JustHereAdminAuth.ensure(token, $("otp").value.trim());
         const res = await fetch(
           `/v1/analytics/summary?days=${days}`,
-          { headers: { "X-Admin-Token": token }, cache: "no-store" }
+          { headers: JustHereAdminAuth.headers(token), cache: "no-store" }
         );
         if (!res.ok) {
           const t = await res.text();

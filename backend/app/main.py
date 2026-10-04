@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from . import analytics
+from . import admin_security
 from . import deals
 from . import duo
 from . import engine
@@ -79,7 +80,10 @@ async def hide_internal_review(request: Request, call_next):
     from .verified_menus import review_exposed
 
     token = request.headers.get("x-admin-token")
-    if review_exposed() or analytics.admin_token_ok(token):
+    authorized = analytics.admin_token_ok(token) and (
+        not admin_security.required() or admin_security.session_valid(request.headers.get('x-admin-session'))
+    )
+    if review_exposed() or authorized:
         return await call_next(request)
     return JSONResponse({"detail": "not found"}, status_code=404)
 
@@ -276,11 +280,15 @@ _ADMIN_NO_STORE = {
 def _require_admin(request: Request, token: str | None = None) -> None:
     raw = request.headers.get("x-admin-token")
     if not analytics.admin_token_ok(raw):
+        admin_security.alert('admin_denied')
         raise HTTPException(
             401,
             "admin token required",
             headers=_ADMIN_NO_STORE,
         )
+    if admin_security.required() and not admin_security.session_valid(request.headers.get('x-admin-session')):
+        admin_security.alert('otp_denied')
+        raise HTTPException(401, 'admin second factor required', headers=_ADMIN_NO_STORE)
 
 
 def _admin_json(payload: dict) -> JSONResponse:
@@ -421,6 +429,42 @@ def analytics_summary(
     """ADMIN_TOKEN 필요. CTO 대시보드용 집계."""
     _require_admin(request)
     return _admin_json(analytics.summarize(since_days=days))
+
+
+class AdminLoginBody(BaseModel):
+    otp: str = Field(default="", max_length=6)
+
+
+@app.post("/v1/admin/auth")
+def admin_login(request: Request, body: AdminLoginBody):
+    if not analytics.admin_token_ok(request.headers.get('x-admin-token')):
+        admin_security.alert('admin_denied')
+        raise HTTPException(401, 'admin token required', headers=_ADMIN_NO_STORE)
+    if not admin_security.required():
+        return _admin_json({'two_factor_required': False, 'session_token': '', 'expires_in': 0})
+    try:
+        admin_security.key()
+    except ValueError:
+        raise HTTPException(503, 'admin second factor configuration unavailable', headers=_ADMIN_NO_STORE)
+    try:
+        session = admin_security.login(body.otp)
+    except ValueError:
+        admin_security.alert('otp_denied')
+        raise HTTPException(401, 'invalid or reused second factor', headers=_ADMIN_NO_STORE)
+    return _admin_json({'two_factor_required': True, 'session_token': session, 'expires_in': admin_security.TTL})
+
+
+@app.post("/v1/admin/logout")
+def admin_logout(request: Request):
+    _require_admin(request)
+    admin_security.revoke(request.headers.get('x-admin-session'))
+    return _admin_json({'ok': True})
+
+
+@app.get("/v1/admin/security")
+def admin_security_status(request: Request):
+    _require_admin(request)
+    return _admin_json(admin_security.snapshot())
 
 
 @app.get("/v1/admin/storage")

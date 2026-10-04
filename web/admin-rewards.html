@@ -10,7 +10,7 @@
   </style>
 </head><body><main>
   <header><h1>영수증 검토</h1><a href="/analytics">통계</a></header>
-  <section class="toolbar"><input id="token" type="password" placeholder="관리자 토큰"><select id="filter"><option value="pending">검토 중</option><option value="approved">승인</option><option value="rejected">반려</option><option value="all">전체</option></select><button id="load" class="primary">불러오기</button></section>
+  <section class="toolbar"><input id="token" type="password" placeholder="관리자 토큰"><input id="otp" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="2단계 인증 설정 시 6자리 번호"><select id="filter"><option value="pending">검토 중</option><option value="approved">승인</option><option value="rejected">반려</option><option value="all">전체</option></select><button id="load" class="primary">불러오기</button></section>
   <p id="message" class="message">관리자 토큰은 브라우저에 저장하지 않습니다.</p>
   <section id="summary" class="summary"></section>
   <section aria-label="보상 운영 현황"><p id="budget-status" role="status"></p><button id="backup" disabled>포인트·영수증 백업 다운로드</button><p>백업에는 영수증 개인정보가 포함됩니다. 접근이 제한된 곳에 보관해 주세요.</p></section>
@@ -18,13 +18,13 @@
   <h2>300원 계좌 지급</h2><p>실제 송금은 은행에서 진행합니다. 송금 여부가 불확실하면 반려·재송금하지 말고 거래 내역을 먼저 확인하세요.</p>
   <div id="payout-summary" class="payout-summary" aria-live="polite"></div>
   <div id="payout-queue" class="queue"></div><p id="payout-message" role="status"></p>
-</main><script>
+</main><script src="/static/admin-auth.js?v=20261004-1"></script><script>
   const $=id=>document.getElementById(id);let token='';
   function safe(v){const d=document.createElement('div');d.textContent=String(v??'');return d.innerHTML}
-  async function call(path,opts={}){const res=await fetch(path,{...opts,headers:{'Content-Type':'application/json','X-Admin-Token':token,...(opts.headers||{})},cache:'no-store'});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.detail||'요청 실패');return data}
-  async function load(){token=$('token').value.trim();if(!token){$('message').textContent='관리자 토큰을 입력해 주세요.';return}try{const filter=$('filter').value;const data=await call('/v1/admin/rewards?status='+encodeURIComponent(filter));const c=data.summary?.receipts||{};$('summary').innerHTML=`<div class="metric">검토 중 <b>${c.pending||0}</b></div><div class="metric">승인 <b>${c.approved||0}</b></div><div class="metric">반려 <b>${c.rejected||0}</b></div><div class="metric">발행 <b>${data.summary?.points_issued||0}P</b></div>`;const rows=data.receipts||[];$('queue').innerHTML=rows.length?rows.map(card).join(''):'<p>해당 영수증이 없습니다.</p>';await Promise.all([...document.querySelectorAll('img[data-receipt]')].map(loadImage));$('message').textContent=`${rows.length}건을 불러왔습니다.`}catch(err){$('message').textContent='불러오지 못했습니다. 토큰과 기능 상태를 확인해 주세요.';$('queue').innerHTML=''}}
+  async function call(path,opts={}){await JustHereAdminAuth.ensure(token,$('otp').value.trim());const res=await fetch(path,{...opts,headers:{'Content-Type':'application/json',...JustHereAdminAuth.headers(token),...(opts.headers||{})},cache:'no-store'});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.detail||'요청 실패');return data}
+  async function load(){token=$('token').value.trim();if(!token){$('message').textContent='관리자 토큰을 입력해 주세요.';return}try{const filter=$('filter').value;const data=await call('/v1/admin/rewards?status='+encodeURIComponent(filter));const c=data.summary?.receipts||{};$('summary').innerHTML=`<div class="metric">검토 중 <b>${c.pending||0}</b></div><div class="metric">승인 <b>${c.approved||0}</b></div><div class="metric">반려 <b>${c.rejected||0}</b></div><div class="metric">발행 <b>${data.summary?.points_issued||0}P</b></div>`;const rows=data.receipts||[];$('queue').innerHTML=rows.length?rows.map(card).join(''):'<p>해당 영수증이 없습니다.</p>';await Promise.all([...document.querySelectorAll('img[data-receipt]')].map(loadImage));$('message').textContent=`${rows.length}건을 불러왔습니다.`}catch(err){$('message').textContent='불러오지 못했습니다. 토큰·새 인증번호와 기능 상태를 확인해 주세요.';$('queue').innerHTML=''}}
   function card(r){return `<article class="card" data-id="${safe(r.id)}"><img data-receipt="${safe(r.id)}" alt="영수증"><div class="meta"><h2>${safe(r.place_name)}</h2><p><b>${safe(r.menu_name||'메뉴 미상')}</b> · ${Number(r.amount_krw||0).toLocaleString()}원</p><p>결제 ${safe(r.purchased_at)} · 접수 ${safe(r.created_at)}</p><p>재방문 ${safe(r.review_return)} · ${safe((r.review_tags||[]).join(', '))}</p><p>${safe(r.review_note||'후기 없음')}</p><p class="flags">${safe((r.risk_flags||[]).join(', '))}</p><textarea class="reason" rows="2" placeholder="반려 사유 또는 검토 메모"></textarea><div class="actions"><button class="primary" onclick="decide('${safe(r.id)}',true)">300P 승인</button><button class="reject" onclick="decide('${safe(r.id)}',false)">반려</button></div></div></article>`}
-  async function loadImage(img){const id=img.dataset.receipt;const res=await fetch('/v1/admin/rewards/'+encodeURIComponent(id)+'/image',{headers:{'X-Admin-Token':token},cache:'no-store'});if(!res.ok)return;img.src=URL.createObjectURL(await res.blob())}
+  async function loadImage(img){const id=img.dataset.receipt;const res=await fetch('/v1/admin/rewards/'+encodeURIComponent(id)+'/image',{headers:{...JustHereAdminAuth.headers(token)},cache:'no-store'});if(!res.ok)return;img.src=URL.createObjectURL(await res.blob())}
   async function decide(id,approve){const el=document.querySelector(`[data-id="${CSS.escape(id)}"]`);const reason=el.querySelector('.reason').value.trim();if(!approve&&!reason){$('message').textContent='반려 사유를 입력해 주세요.';return}try{await call('/v1/admin/rewards/'+encodeURIComponent(id)+'/decision',{method:'POST',body:JSON.stringify({approve,reason})});$('message').textContent=approve?'300P를 적립했습니다.':'반려했습니다.';await load()}catch(err){$('message').textContent='처리하지 못했습니다.'}}
   const loadQueue = load;
   load = async function() {
@@ -45,7 +45,7 @@
   $('backup').onclick = async () => {
     $('backup').disabled = true;
     try {
-      const response = await fetch('/v1/admin/rewards/backup', {headers:{'X-Admin-Token':token},cache:'no-store'});
+      const response = await fetch('/v1/admin/rewards/backup', {headers:{...JustHereAdminAuth.headers(token)},cache:'no-store'});
       if (!response.ok) throw new Error('backup failed');
       const url = URL.createObjectURL(await response.blob());
       const link = document.createElement('a');
