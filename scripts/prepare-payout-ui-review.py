@@ -5,6 +5,7 @@ It never sends money or contacts an external service.
 """
 import argparse
 import json
+from scripts.receipt_image_fixture import receipt_image
 import os
 import sys
 from pathlib import Path
@@ -41,7 +42,7 @@ def main():
             uid=uid, attribution_id=attribution["id"],
             purchased_at=rewards._iso(datetime.now(timezone.utc) - timedelta(days=days_ago)), amount_krw=12000,
             approval_number="770000" + str(number), content_type="image/jpeg",
-            image=b"\xff\xd8\xffui-review-" + str(number).encode(), review_return="yes",
+            image=receipt_image(number), review_return="yes",
             review_tags=["맛있어요"], review_note="화면 검수용 가상 영수증", photo_reuse_consent=False,
         )
         store.decide(receipt["id"], approve=True, reason="local ui review", admin_id="fixture")

@@ -25,6 +25,7 @@ from . import google_places
 from . import kakao
 from . import rewards
 from . import payouts
+from .request_guard import RequestGuard
 from . import share
 from . import titles
 from . import users
@@ -44,6 +45,7 @@ WEB_DIR = Path(__file__).resolve().parents[2] / "web"
 
 app = FastAPI(title="그냥여기 MVP", version="0.3.0")
 _ACTIVE_STORAGE_REQUESTS = 0
+app.add_middleware(RequestGuard)
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 app.add_middleware(
     CORSMiddleware,

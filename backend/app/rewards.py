@@ -6,6 +6,7 @@ RECEIPT_REWARDS_ALLOW_VOLATILE=on으로만 허용한다.
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import secrets
@@ -17,6 +18,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
+from PIL import Image, UnidentifiedImageError
 
 from .config import data_dir
 from .storage import is_persistent_dir
@@ -27,6 +29,7 @@ _STORE_PATH: Path | None = None
 REWARD_POINTS = 300
 KST = ZoneInfo("Asia/Seoul")
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
+MAX_IMAGE_PIXELS = 16_000_000  # common 4032x3024 phone images fit
 ALLOWED_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 
 
@@ -88,13 +91,22 @@ def _hash(value: str) -> str:
 
 
 def _valid_image_signature(content_type: str, image: bytes) -> bool:
-    if content_type == "image/jpeg":
-        return image.startswith(b"\xff\xd8\xff")
-    if content_type == "image/png":
-        return image.startswith(b"\x89PNG\r\n\x1a\n")
-    if content_type == "image/webp":
-        return len(image) >= 12 and image[:4] == b"RIFF" and image[8:12] == b"WEBP"
-    return False
+    expected = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP"}.get(content_type)
+    if not expected:
+        return False
+    try:
+        with Image.open(io.BytesIO(image), formats=[expected]) as decoded:
+            if decoded.format != expected or decoded.width * decoded.height > MAX_IMAGE_PIXELS:
+                return False
+            if getattr(decoded, "n_frames", 1) != 1:
+                return False
+            decoded.verify()
+        # verify() alone does not decode every format's pixel data.
+        with Image.open(io.BytesIO(image), formats=[expected]) as decoded:
+            decoded.load()
+        return True
+    except (OSError, ValueError, SyntaxError, UnidentifiedImageError, Image.DecompressionBombError):
+        return False
 
 
 class RewardStore:

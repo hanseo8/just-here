@@ -1,4 +1,5 @@
 """Offline settlement tests: no bank or Npay requests are sent."""
+from scripts.receipt_image_fixture import receipt_image
 import os
 import tempfile
 import json
@@ -28,7 +29,7 @@ with tempfile.TemporaryDirectory() as raw:
             place_name='Test',menu_id='menu',menu_name='Test',intent='visit')
         r = store.submit_receipt(uid=owner,attribution_id=att['id'],purchased_at=rewards._iso(),
             amount_krw=12000,approval_number='111100'+str(n),content_type='image/jpeg',
-            image=b'\xff\xd8\xff'+str(n).encode(),review_return='yes',review_tags=[],review_note='',photo_reuse_consent=False)
+            image=receipt_image(n),review_return='yes',review_tags=[],review_note='',photo_reuse_consent=False)
         store.decide(r['id'],approve=True,reason='test',admin_id='test')
         return owner,r['id']
 

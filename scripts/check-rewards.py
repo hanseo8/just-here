@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import tempfile
+from scripts.receipt_image_fixture import receipt_image
 import os
 import sqlite3
 from datetime import datetime, timezone
@@ -35,7 +36,7 @@ with tempfile.TemporaryDirectory() as raw:
         amount_krw=12000,
         approval_number="12345678",
         content_type="image/jpeg",
-        image=b"\xff\xd8\xff" + b"test-receipt-a",
+        image=receipt_image("test-receipt-a"),
         review_return="yes",
         review_tags=["맛있어요"],
         review_note="다시 먹고 싶어요",
@@ -58,7 +59,7 @@ with tempfile.TemporaryDirectory() as raw:
             uid="guest_b", attribution_id=att2["id"],
             purchased_at=datetime.now(timezone.utc).isoformat(), amount_krw=9000,
             approval_number="12345678", content_type="image/jpeg",
-            image=b"\xff\xd8\xff" + b"another-image", review_return="maybe",
+            image=receipt_image("another-image"), review_return="maybe",
             review_tags=[], review_note="", photo_reuse_consent=False,
         )
     except ValueError as exc:
@@ -71,7 +72,7 @@ with tempfile.TemporaryDirectory() as raw:
             uid="guest_b", attribution_id=att2["id"],
             purchased_at=datetime.now(timezone.utc).isoformat(), amount_krw=9000,
             approval_number="87654321", content_type="image/jpeg",
-            image=b"\xff\xd8\xffcapacity", review_return="no",
+            image=receipt_image("capacity"), review_return="no",
             review_tags=[], review_note="", photo_reuse_consent=False,
         )
         raise AssertionError("capacity was not enforced")

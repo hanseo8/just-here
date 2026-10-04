@@ -1,6 +1,7 @@
 """영수증 보상 API 인증·업로드·관리자 승인을 통합 검증한다."""
 from __future__ import annotations
 
+from scripts.receipt_image_fixture import receipt_image
 import os
 import tempfile
 import runpy
@@ -51,7 +52,7 @@ with tempfile.TemporaryDirectory() as raw:
             "review_note": "다시 갈래요",
             "photo_reuse_consent": "false",
         },
-        files={"image": ("receipt.jpg", b"\xff\xd8\xfftest-api-image", "image/jpeg")},
+        files={"image": ("receipt.jpg", receipt_image("test-api-image"), "image/jpeg")},
     )
     check(upload.status_code == 200, "인증된 사용자 영수증 업로드")
     receipt_id = upload.json()["receipt"]["id"]
