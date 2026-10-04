@@ -1030,6 +1030,7 @@ def _swipe_locked(body: SwipeBody, request: Request):
                 "points": rewards.REWARD_POINTS,
                 "expires_at": attribution["expires_at"],
                 "status": "eligible",
+                "pilot": rewards.pilot_terms(),
             }
             try:
                 analytics.append_event(
@@ -1138,7 +1139,7 @@ def reward_me(request: Request, uid: str = Query(...)):
     if not (rewards.data_dir() / "rewards.sqlite3").exists():
         _require_rewards()
     store = rewards.get_store()
-    return _admin_json({"ok": True, **store.list_for_user(uid), "payout_config": payouts.status(), "payouts": payouts.listing(store, uid)})
+    return _admin_json({"ok": True, **store.list_for_user(uid), "pilot": rewards.pilot_terms(), "payout_config": payouts.status(), "payouts": payouts.listing(store, uid)})
 
 
 @app.post("/v1/rewards/payouts")

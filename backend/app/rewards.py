@@ -105,6 +105,15 @@ def pilot_end():
         raise ValueError("invalid_pilot_configuration") from None
 
 
+def pilot_terms() -> dict[str, Any]:
+    end = pilot_end()
+    return {
+        "claim_limit": claim_limit(),
+        "max_claims_per_user": _limit("RECEIPT_REWARDS_MAX_CLAIMS_PER_USER", 0),
+        "ends_at": _iso(end) if end else None,
+    }
+
+
 def _hash(value: str) -> str:
     secret = (os.getenv("GUEST_SIGNING_SECRET") or "just-here-rewards").encode()
     return hashlib.sha256(secret + str(value or "").strip().encode()).hexdigest()
