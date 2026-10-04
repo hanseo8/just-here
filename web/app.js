@@ -2739,7 +2739,7 @@ function renderRewardOffer(data) {
     if (Number.isInteger(info.claim_limit)) parts.push(`총 ${info.claim_limit}건 모집`);
     if (Number.isInteger(info.max_claims_per_user) && info.max_claims_per_user > 0) parts.push(`계정당 ${info.max_claims_per_user}건`);
     const end = info.ends_at ? new Date(info.ends_at) : null;
-    if (end && Number.isFinite(end.getTime())) parts.push(`${end.toLocaleString("ko-KR", {timeZone:"Asia/Seoul"})} 마감`);
+    if (end && Number.isFinite(end.getTime())) parts.push(`${new Date(end.getTime()-1).toLocaleString("ko-KR", {timeZone:"Asia/Seoul",year:"numeric",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})} 마감`);
     terms.textContent = parts.join(" · ");
   }
   const purchased = $("reward-purchased-at");
