@@ -3386,7 +3386,8 @@ function openDesignPreview() {
       persona: { sub_text: "근처에서 바로 골랐어요", sticker: "🛋️", theme: "bg_basic" },
       receipt: { match_reason: "확인된 메뉴와 거리가 맞았어요" },
       reward_offer: params.get("reward") === "1"
-        ? { attribution_id: "design-reward", points: 300, status: "eligible" }
+        ? { attribution_id: "design-reward", points: 300, status: "eligible",
+            pilot: { claim_limit: 20, max_claims_per_user: 1, ends_at: "2026-11-01T00:00:00+09:00" } }
         : null,
       handoff:
         kind === "done-delivery"

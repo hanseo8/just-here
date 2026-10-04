@@ -39,5 +39,5 @@
     finally { button.disabled = false; }
   };
   await start();
-  try { await refresh(); } catch (_) { message.textContent = '지급 내역을 불러오지 못했어요.'; }
+  try { await refresh(); } catch (err) { message.textContent = String(err.message||'').includes('disabled') ? '계좌 지급은 모집 시작 후 안내됩니다.' : '지급 내역을 불러오지 못했어요.'; }
 })();
