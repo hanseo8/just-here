@@ -2792,6 +2792,10 @@ async function submitRewardReceipt(event) {
     const raw = String(err || "");
     const message = raw.includes("pilot_capacity_reached")
       ? "이번 보상 모집이 마감됐어요. 이미 접수한 영수증은 계속 검토합니다."
+      : raw.includes("pilot_ended")
+      ? "이번 보상 모집 기간이 끝났어요. 이미 접수한 영수증은 계속 검토합니다."
+      : raw.includes("pilot_user_limit_reached")
+      ? "이번 파일럿은 계정당 1건만 참여할 수 있어요."
       : raw.includes("attribution_expired")
       ? "이 추천의 영수증 접수 기한이 지났어요."
       : raw.includes("duplicate_or_daily_limit")

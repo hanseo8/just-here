@@ -82,7 +82,27 @@ def enabled() -> bool:
 
 
 def claim_limit() -> int:
-    return max(0, int(os.getenv("RECEIPT_REWARDS_MAX_CLAIMS", "100")))
+    return _limit("RECEIPT_REWARDS_MAX_CLAIMS", 100)
+
+
+def _limit(name: str, default: int) -> int:
+    try:
+        return max(0, int(os.getenv(name, str(default))))
+    except ValueError:
+        raise ValueError("invalid_pilot_configuration") from None
+
+
+def pilot_end():
+    raw = os.getenv("RECEIPT_REWARDS_END_AT", "").strip()
+    if not raw:
+        return None
+    try:
+        value = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if value.tzinfo is None:
+            raise ValueError()
+        return value.astimezone(timezone.utc)
+    except ValueError:
+        raise ValueError("invalid_pilot_configuration") from None
 
 
 def _hash(value: str) -> str:
@@ -365,6 +385,16 @@ class RewardStore:
             ).fetchone()[0]
             if reserved >= limit:
                 raise ValueError("pilot_capacity_reached")
+            ends_at = pilot_end()
+            if ends_at is not None and _now() >= ends_at:
+                raise ValueError("pilot_ended")
+            per_user = _limit("RECEIPT_REWARDS_MAX_CLAIMS_PER_USER", 0)
+            if per_user:
+                user_reserved = db.execute(
+                    "SELECT COUNT(*) FROM receipts WHERE uid=? AND status IN ('pending','approved')", (uid,)
+                ).fetchone()[0]
+                if user_reserved >= per_user:
+                    raise ValueError("pilot_user_limit_reached")
             selected = _parse_iso(attribution["selected_at"])
             expires = _parse_iso(attribution["expires_at"])
             if purchase < selected - timedelta(hours=1) or purchase > expires:
@@ -548,6 +578,8 @@ class RewardStore:
             "committed_points": int(points) + int(pending_points),
             "claim_limit": claim_limit(),
             "claims_remaining": max(0, claim_limit() - reserved),
+            "max_claims_per_user": _limit("RECEIPT_REWARDS_MAX_CLAIMS_PER_USER", 0),
+            "ends_at": _iso(pilot_end()) if pilot_end() else None,
         }
 
     def backup_archive(self, directory: Path) -> Path:
