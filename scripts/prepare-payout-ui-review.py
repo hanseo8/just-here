@@ -5,7 +5,6 @@ It never sends money or contacts an external service.
 """
 import argparse
 import json
-from scripts.receipt_image_fixture import receipt_image
 import os
 import sys
 from pathlib import Path
@@ -14,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 from cryptography.fernet import Fernet
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from scripts.receipt_image_fixture import receipt_image
 
 
 def main():
