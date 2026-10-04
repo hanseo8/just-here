@@ -6,6 +6,7 @@ import json
 import runpy
 import subprocess
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from cryptography.fernet import Fernet
@@ -14,8 +15,10 @@ from cryptography.fernet import Fernet
 with tempfile.TemporaryDirectory() as raw:
     os.environ.update(DATA_DIR=raw,RECEIPT_REWARDS='on',RECEIPT_REWARDS_ALLOW_VOLATILE='on',
         REWARD_BANK_PAYOUTS='on',PAYOUT_ENCRYPTION_KEY=Fernet.generate_key().decode(),
-        ADMIN_TOKEN='payout-test-admin',GUEST_SIGNING_SECRET='payout-test-secret')
-    from backend.app import rewards, payouts, guest_token
+        ADMIN_TOKEN='payout-test-admin',GUEST_SIGNING_SECRET='payout-test-secret',
+        ADMIN_REQUIRE_2FA='on',ADMIN_TOTP_SECRET='GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',
+        KAKAO_REST_API_KEY=' ',GOOGLE_PLACES_PHOTOS='off')
+    from backend.app import rewards, payouts, guest_token, admin_security
     from backend.app.main import app
     from fastapi.testclient import TestClient
     store = rewards.get_store()
@@ -23,6 +26,11 @@ with tempfile.TemporaryDirectory() as raw:
     uid = 'kakao_payout_test'
     headers = {'X-Guest-Token':guest_token.issue(uid,'test')}
     admin = {'X-Admin-Token':'payout-test-admin'}
+    assert client.get('/v1/admin/payouts', headers=admin).status_code == 401
+    login = client.post('/v1/admin/auth', headers=admin,
+        json={'otp':admin_security.code(admin_security.key(),int(time.time())//30)})
+    assert login.status_code == 200, login.text
+    admin['X-Admin-Session'] = login.json()['session_token']
     def receipt(n):
         owner = uid + str(n)
         att = store.create_attribution(uid=owner,session_id='session'+str(n),place_id='place',

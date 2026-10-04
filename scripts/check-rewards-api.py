@@ -6,6 +6,7 @@ import os
 import tempfile
 import runpy
 import zipfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -22,9 +23,13 @@ with tempfile.TemporaryDirectory() as raw:
     os.environ["RECEIPT_REWARDS_ALLOW_VOLATILE"] = "on"
     os.environ["ADMIN_TOKEN"] = "test-admin-token"
     os.environ["GUEST_SIGNING_SECRET"] = "test-signing-secret"
+    os.environ["ADMIN_REQUIRE_2FA"] = "on"
+    os.environ["ADMIN_TOTP_SECRET"] = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+    os.environ["KAKAO_REST_API_KEY"] = " "
+    os.environ["GOOGLE_PLACES_PHOTOS"] = "off"
 
     from fastapi.testclient import TestClient
-    from backend.app import rewards
+    from backend.app import rewards, admin_security
     from backend.app.main import app
 
     client = TestClient(app)
@@ -60,6 +65,12 @@ with tempfile.TemporaryDirectory() as raw:
     denied = client.get("/v1/admin/rewards")
     check(denied.status_code == 401, "관리자 목록 무인증 차단")
     admin_headers = {"X-Admin-Token": "test-admin-token"}
+    check(client.get('/v1/admin/rewards/backup', headers=admin_headers).status_code == 401,
+          'backup refuses admin token without second factor')
+    login = client.post('/v1/admin/auth', headers=admin_headers,
+        json={'otp':admin_security.code(admin_security.key(),int(time.time())//30)})
+    check(login.status_code == 200, 'admin second factor login')
+    admin_headers['X-Admin-Session'] = login.json()['session_token']
     queue = client.get("/v1/admin/rewards", headers=admin_headers)
     check(queue.json()["summary"]["pending_points"] == 300, "pending rewards reserve budget")
     check(queue.status_code == 200 and len(queue.json()["receipts"]) == 1, "관리자 검토 큐")
