@@ -30,3 +30,5 @@ services:
         sync: false
       - key: ADMIN_TOKEN
         sync: false
+      - key: RECEIPT_REWARDS
+        value: "off"

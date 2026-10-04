@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+import hashlib
+import tempfile
 import os
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
@@ -20,6 +23,8 @@ from . import engine
 from . import guest_token
 from . import google_places
 from . import kakao
+from . import rewards
+from . import payouts
 from . import share
 from . import titles
 from . import users
@@ -38,6 +43,7 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 WEB_DIR = Path(__file__).resolve().parents[2] / "web"
 
 app = FastAPI(title="그냥여기 MVP", version="0.3.0")
+_ACTIVE_STORAGE_REQUESTS = 0
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 app.add_middleware(
     CORSMiddleware,
@@ -45,6 +51,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def private_rewards_responses(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith(("/v1/rewards", "/v1/admin/payouts", "/v1/admin/rewards")):
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.middleware("http")
@@ -74,6 +88,22 @@ def _bootstrap_verified_menus() -> None:
         bootstrap_persistent_catalog()
     except Exception:
         return
+
+
+@app.middleware("http")
+async def storage_recovery_gate(request: Request, call_next):
+    # Single-worker deployment: let admitted requests drain before file recovery.
+    global _ACTIVE_STORAGE_REQUESTS
+    if request.url.path in {"/health", "/v1/admin/storage", "/v1/admin/storage/backup"}:
+        return await call_next(request)
+    if (users.data_dir() / ".storage-maintenance").exists():
+        return JSONResponse({"detail": "데이터 점검 중이에요. 잠시 후 다시 시도해 주세요."},
+                            status_code=503, headers={"Retry-After": "60", "Cache-Control": "no-store"})
+    _ACTIVE_STORAGE_REQUESTS += 1
+    try:
+        return await call_next(request)
+    finally:
+        _ACTIVE_STORAGE_REQUESTS -= 1
 
 
 class SwipeBody(BaseModel):
@@ -149,6 +179,32 @@ class AnalyticsEventBody(BaseModel):
     props: dict = Field(default_factory=dict)
 
 
+class RewardHandoffBody(BaseModel):
+    uid: str
+
+
+class RewardDecisionBody(BaseModel):
+    approve: bool
+    reason: str = ""
+
+
+class PayoutRequestBody(BaseModel):
+    uid: str
+    receipt_id: str = Field(min_length=1, max_length=100)
+    request_id: str = Field(min_length=8, max_length=100)
+    bank: str = Field(min_length=1, max_length=40)
+    account: str = Field(min_length=8, max_length=30)
+    holder: str = Field(min_length=1, max_length=40)
+    consent: bool
+
+
+class PayoutDecisionBody(BaseModel):
+    action: Literal["processing", "paid", "rejected"]
+    reference: str = Field(default="", max_length=100)
+    reason: str = Field(default="", max_length=240)
+    no_transfer: bool = False
+
+
 def _guest_header(request: Request) -> str:
     return (request.headers.get("x-guest-token") or request.headers.get("X-Guest-Token") or "").strip()
 
@@ -199,7 +255,10 @@ def _admin_storage_status() -> dict:
     try:
         from . import storage
 
-        return storage.admin_snapshot()
+        return {**storage.admin_snapshot(), "maintenance": {
+            "enabled": (users.data_dir() / ".storage-maintenance").exists(),
+            "active_requests": _ACTIVE_STORAGE_REQUESTS,
+        }}
     except Exception as exc:
         return {"ok": False, "persistent": False, "error": str(exc)}
 
@@ -222,6 +281,12 @@ def _require_admin(request: Request, token: str | None = None) -> None:
 
 def _admin_json(payload: dict) -> JSONResponse:
     return JSONResponse(payload, headers=_ADMIN_NO_STORE)
+
+
+def _require_rewards() -> None:
+    current = rewards.status()
+    if not current["enabled"]:
+        raise HTTPException(503, detail={"error": "rewards_unavailable", **current})
 
 
 def _strip(cards: list[dict]) -> list[dict]:
@@ -416,6 +481,7 @@ def meta():
         "personas": titles.catalog(),
         "logic_version": engine.LOGIC_VERSION,
         "verified_menus": _verified_menu_status(),
+        "rewards": rewards.status(),
     }
 
 
@@ -435,6 +501,14 @@ def auth_guest(body: GuestAuthBody):
 
 def _finish_kakao_link(guest_uid: str, kakao_user: dict, device_id: str = "") -> dict:
     kakao_uid = f"kakao_{kakao_user['kakao_id']}"
+    if not users.STORE.get(guest_uid):
+        raise HTTPException(404, "guest user not found")
+    # Preserve the guest identity if rewards cannot be migrated. A retry is safe.
+    if (rewards.data_dir() / "rewards.sqlite3").exists():
+        try:
+            rewards.get_store().merge_uid(guest_uid, kakao_uid)
+        except Exception as exc:
+            raise HTTPException(409, "포인트 기록을 연결하지 못했어요. 기존 계정은 유지됩니다. 잠시 후 다시 시도해 주세요.") from exc
     try:
         users.STORE.merge_guest_into(guest_uid, kakao_uid, auth_type="kakao")
     except KeyError:
@@ -889,6 +963,34 @@ def _swipe_locked(body: SwipeBody, request: Request):
         sticker=persona.get("sticker", "🛋️"),
         asset_id=persona.get("asset_id", persona["theme"]),
     )
+    reward_offer = None
+    if uid and s.intent == "visit" and rewards.enabled() and not engine.is_preview_session_id(s.id):
+        try:
+            attribution = rewards.get_store().create_attribution(
+                uid=uid,
+                session_id=s.id,
+                place_id=str(place.get("place_id") or ""),
+                place_name=str(place.get("name") or ""),
+                menu_id=str(place.get("menu_id") or body.menu_id),
+                menu_name=display_menu,
+                intent=s.intent,
+            )
+            reward_offer = {
+                "attribution_id": attribution["id"],
+                "points": rewards.REWARD_POINTS,
+                "expires_at": attribution["expires_at"],
+                "status": "eligible",
+            }
+            try:
+                analytics.append_event(
+                    "reward_offer",
+                    uid=uid,
+                    props={"session_id": s.id, "attribution_id": attribution["id"]},
+                )
+            except Exception:
+                pass
+        except Exception:
+            reward_offer = None
     payload = {
         "ok": True,
         "action": "lets_go",
@@ -909,6 +1011,7 @@ def _swipe_locked(body: SwipeBody, request: Request):
         "pack_id": s.pack_id,
         "logic_version": engine.LOGIC_VERSION,
         "receipt": share.share_payload(receipt, str(request.base_url)),
+        "reward_offer": reward_offer,
         "replayed": False,
     }
     engine.store_action(
@@ -917,6 +1020,204 @@ def _swipe_locked(body: SwipeBody, request: Request):
         {"kind": "lets_go", "action_id": engine.normalize_action_id(body.action_id), "payload": payload},
     )
     return payload
+
+
+@app.post("/v1/rewards/attributions/{attribution_id}/handoff")
+def reward_handoff(attribution_id: str, body: RewardHandoffBody, request: Request):
+    _require_rewards()
+    uid = _require_uid(request, body.uid)
+    try:
+        rewards.get_store().mark_handoff(attribution_id, uid)
+    except KeyError:
+        raise HTTPException(404, "attribution not found") from None
+    return {"ok": True}
+
+
+@app.post("/v1/rewards/receipts")
+async def reward_receipt_submit(
+    request: Request,
+    uid: str = Form(...),
+    attribution_id: str = Form(...),
+    purchased_at: str = Form(...),
+    amount_krw: int = Form(...),
+    approval_number: str = Form(...),
+    review_return: str = Form(...),
+    review_tags: str = Form(""),
+    review_note: str = Form(""),
+    photo_reuse_consent: bool = Form(False),
+    image: UploadFile = File(...),
+):
+    _require_rewards()
+    uid = _require_uid(request, uid)
+    content_type = str(image.content_type or "").split(";", 1)[0].lower()
+    content = await image.read(rewards.MAX_IMAGE_BYTES + 1)
+    try:
+        row = rewards.get_store().submit_receipt(
+            uid=uid,
+            attribution_id=attribution_id,
+            purchased_at=purchased_at,
+            amount_krw=amount_krw,
+            approval_number=approval_number,
+            content_type=content_type,
+            image=content,
+            review_return=review_return,
+            review_tags=[part.strip() for part in review_tags.split(",") if part.strip()],
+            review_note=review_note,
+            photo_reuse_consent=photo_reuse_consent,
+        )
+    except KeyError:
+        raise HTTPException(404, "attribution not found") from None
+    except ValueError as exc:
+        code = str(exc)
+        status_code = 409 if code == "duplicate_or_daily_limit" else 400
+        raise HTTPException(status_code, code) from exc
+    try:
+        analytics.append_event(
+            "receipt_submit",
+            uid=uid,
+            props={"receipt_id": row["id"], "attribution_id": attribution_id},
+        )
+    except Exception:
+        pass
+    return {"ok": True, "receipt": row}
+
+
+@app.get("/v1/rewards/me")
+def reward_me(request: Request, uid: str = Query(...)):
+    uid = _require_uid(request, uid)
+    if not (rewards.data_dir() / "rewards.sqlite3").exists():
+        _require_rewards()
+    store = rewards.get_store()
+    return _admin_json({"ok": True, **store.list_for_user(uid), "payout_config": payouts.status(), "payouts": payouts.listing(store, uid)})
+
+
+@app.post("/v1/rewards/payouts")
+def request_reward_payout(body: PayoutRequestBody, request: Request):
+    uid = _require_uid(request, body.uid)
+    if not payouts.status()["enabled"]:
+        raise HTTPException(503, "bank_payouts_unavailable")
+    if not body.consent:
+        raise HTTPException(400, "payout_consent_required")
+    try:
+        result = payouts.request(rewards.get_store(), uid=uid, receipt_id=body.receipt_id,
+            request_id=body.request_id, bank=body.bank, account=body.account, holder=body.holder)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _admin_json({"ok": True, "payout": result})
+
+
+@app.get("/v1/admin/payouts")
+def admin_payouts(request: Request):
+    _require_admin(request)
+    store = rewards.get_store() if (rewards.data_dir() / "rewards.sqlite3").exists() else None
+    rows = payouts.listing(store) if store else []
+    return _admin_json({"payouts": rows, "config": payouts.status(),
+                        "reconciliation": payouts.reconciliation(store) if store else None})
+
+
+@app.post("/v1/admin/payouts/{ident}/recipient")
+def admin_payout_recipient(ident: str, request: Request):
+    _require_admin(request)
+    actor = hashlib.sha256((request.headers.get("x-admin-token") or "").encode()).hexdigest()[:12]
+    try:
+        result = payouts.recipient(rewards.get_store(), ident, actor)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _admin_json(result)
+
+
+@app.post("/v1/admin/payouts/{ident}/decision")
+def admin_payout_decision(ident: str, body: PayoutDecisionBody, request: Request):
+    _require_admin(request)
+    actor = hashlib.sha256((request.headers.get("x-admin-token") or "").encode()).hexdigest()[:12]
+    try:
+        result = payouts.decide(rewards.get_store(), ident, body.action, body.reference, body.reason, body.no_transfer, actor)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _admin_json({"ok": True, "payout": result})
+
+
+@app.get("/v1/admin/rewards")
+def admin_rewards(
+    request: Request,
+    token: str | None = Query(None),
+    status: str = Query("pending"),
+):
+    _require_admin(request, token)
+    current = rewards.status()
+    if not (rewards.data_dir() / "rewards.sqlite3").exists() and not current["enabled"]:
+        return _admin_json({"ok": True, "rewards": current, "summary": {}, "receipts": []})
+    store = rewards.get_store()
+    return _admin_json(
+        {
+            "ok": True,
+            "rewards": current,
+            "summary": store.summary(),
+            "receipts": store.admin_receipts(status=status),
+        }
+    )
+
+
+@app.get("/v1/admin/rewards/backup")
+def admin_reward_backup(request: Request):
+    _require_admin(request)
+    if not (rewards.data_dir() / "rewards.sqlite3").exists():
+        raise HTTPException(404, "reward database not found")
+    temporary = tempfile.TemporaryDirectory(prefix="reward-backup-")
+    try:
+        archive = rewards.get_store().backup_archive(Path(temporary.name))
+    except Exception as exc:
+        temporary.cleanup()
+        raise HTTPException(503, "Reward backup failed; check storage and receipt files") from exc
+    return FileResponse(
+        archive,
+        media_type="application/zip",
+        filename="rewards-backup.zip",
+        headers=_ADMIN_NO_STORE,
+        background=BackgroundTask(temporary.cleanup),
+    )
+
+
+@app.get("/v1/admin/rewards/{receipt_id}/image")
+def admin_reward_image(
+    receipt_id: str,
+    request: Request,
+    token: str | None = Query(None),
+):
+    _require_admin(request, token)
+    _require_rewards()
+    try:
+        path, content_type = rewards.get_store().image_path(receipt_id)
+    except (KeyError, ValueError):
+        raise HTTPException(404, "receipt not found") from None
+    if not path.exists():
+        raise HTTPException(404, "receipt image missing")
+    return FileResponse(path, media_type=content_type, headers=_ADMIN_NO_STORE)
+
+
+@app.post("/v1/admin/rewards/{receipt_id}/decision")
+def admin_reward_decision(
+    receipt_id: str,
+    body: RewardDecisionBody,
+    request: Request,
+    token: str | None = Query(None),
+):
+    raw = token or request.query_params.get("token") or request.headers.get("x-admin-token") or ""
+    _require_admin(request, raw)
+    _require_rewards()
+    admin_id = f"admin_{hashlib.sha256(raw.encode()).hexdigest()[:12]}"
+    try:
+        row = rewards.get_store().decide(
+            receipt_id,
+            approve=body.approve,
+            reason=body.reason,
+            admin_id=admin_id,
+        )
+    except KeyError:
+        raise HTTPException(404, "receipt not found") from None
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return _admin_json({"ok": True, "receipt": row})
 
 
 class AdjustBody(BaseModel):
@@ -1029,6 +1330,20 @@ if WEB_DIR.is_dir():
         if not path.exists():
             raise HTTPException(404, "analytics page missing")
         return FileResponse(path)
+
+    @app.get("/rewards")
+    def rewards_page():
+        path = WEB_DIR / "rewards.html"
+        if not path.exists():
+            raise HTTPException(404, "rewards page missing")
+        return FileResponse(path, headers={"Cache-Control": "no-store"})
+
+    @app.get("/admin/rewards")
+    def rewards_admin_page():
+        path = WEB_DIR / "admin-rewards.html"
+        if not path.exists():
+            raise HTTPException(404, "rewards admin page missing")
+        return FileResponse(path, headers=_ADMIN_NO_STORE)
 
     @app.get("/review-songdo")
     def review_songdo_page():

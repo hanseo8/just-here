@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ko"><head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>내 포인트 · 그냥여기</title>
+  <link rel="stylesheet" href="/static/styles.css?v=20260930-rewards1">
+  <style>
+    html,body{overflow:auto;touch-action:pan-y}.reward-page{max-width:430px;min-height:100vh;margin:auto;padding:20px;background:#fbfdfb}
+    .reward-page header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}.reward-page h1{margin:0;color:#ff5a1f;font-size:24px}.reward-page a{color:#426653}
+    .balance{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}.balance div{padding:18px;border-radius:14px;background:#e4f3e9}.balance strong{display:block;font-size:25px;color:#183d2d}.balance span{font-size:12px;color:#577360}
+    .reward-list{display:grid;gap:10px}.reward-item{padding:15px;border:1px solid #d2e4d8;border-radius:12px;background:#fff}.reward-item h3{margin:0 0 5px;font-size:16px}.reward-item p{margin:3px 0;color:#426653;font-size:13px}.status{font-weight:700}.status.approved{color:#248552}.status.rejected{color:#e0533d}
+    .empty{padding:24px;border-radius:14px;background:#fff0e5;color:#426653;text-align:center}.error{color:#e0533d}
+    .claim{margin:0 0 24px;padding:18px;border:1px solid #b9dcc6;border-radius:14px;background:linear-gradient(145deg,#eef9f1,#fff6ed)}.claim h2{margin:0 0 5px}.claim p{margin:3px 0 14px;color:#426653;font-size:13px}.claim form{display:grid;gap:11px}.claim label,.claim legend{font-size:13px;font-weight:650}.claim input,.claim textarea{width:100%;margin-top:5px;padding:10px;border:1px solid #9cbfaa;border-radius:8px;background:#fff;font:inherit}.claim fieldset{margin:0;padding:0;border:0}.claim .choices{display:flex;gap:8px}.claim .choices label{flex:1;padding:8px;border:1px solid #d2e4d8;border-radius:8px;background:#fff;text-align:center}.claim .choices input{width:auto;margin:0}.claim button{padding:12px;border:0;border-radius:9px;background:#ff5a1f;color:#fff;font:inherit;font-weight:700}.claim button:disabled{opacity:.55}
+    .claim select{width:100%;margin-top:5px;padding:10px;border:1px solid #9cbfaa;border-radius:8px;background:#fff;font:inherit}#bank-payout>p{padding:10px;border-left:3px solid #ff5a1f;background:#fff6ed}#bank-payout label:has(input[name="consent"]){display:flex;align-items:flex-start;gap:8px;padding:11px;border-radius:9px;background:#fff;font-weight:400;line-height:1.45}#bank-payout input[name="consent"]{width:auto;margin:2px 0 0;flex:0 0 auto}
+  </style>
+</head><body>
+  <main class="reward-page">
+    <header><h1>그냥여기.</h1><a href="/">홈으로</a></header>
+    <h2>내 포인트</h2>
+    <section class="balance"><div><span>사용 가능</span><strong id="balance">-</strong></div><div><span>검토 중</span><strong id="pending">-</strong></div></section>
+    <section id="claim" class="claim" hidden><h2>영수증 인증하고 300P</h2><p id="claim-place"></p><form id="claim-form">
+      <input id="attribution" name="attribution_id" type="hidden">
+      <label>영수증 사진<input name="image" type="file" accept="image/jpeg,image/png,image/webp" required></label>
+      <label>결제 시각<input id="purchased-at" name="purchased_at" type="datetime-local" required></label>
+      <label>결제 금액<input name="amount_krw" type="number" min="1000" max="10000000" inputmode="numeric" required></label>
+      <label>영수증 승인번호<input name="approval_number" type="text" minlength="6" maxlength="32" inputmode="numeric" required></label>
+      <fieldset><legend>다시 방문하고 싶나요?</legend><div class="choices"><label><input type="radio" name="review_return" value="yes" required> 네</label><label><input type="radio" name="review_return" value="maybe"> 고민</label><label><input type="radio" name="review_return" value="no"> 아니요</label></div></fieldset>
+      <label>한 줄 후기 (선택)<textarea name="review_note" maxlength="300" rows="2"></textarea></label>
+      <button id="claim-submit" type="submit">검토 요청하기</button><p id="claim-status"></p>
+    </form></section>
+    <section id="bank-payout" class="claim" hidden>
+      <h2>승인된 영수증, 300원 받기</h2>
+      <p>영수증 1건부터 신청할 수 있어요. 운영자가 계좌로 송금한 뒤 지급 상태를 알려드립니다. 신청 중인 300P는 지급용으로 예약됩니다.</p>
+      <form id="bank-form">
+        <label>승인 영수증<select id="bank-receipt" required></select></label>
+        <label>은행<input name="bank" maxlength="40" autocomplete="off" required></label>
+        <label>계좌번호<input name="account" inputmode="numeric" minlength="8" maxlength="30" autocomplete="off" required></label>
+        <label>예금주<input name="holder" maxlength="40" autocomplete="off" required></label>
+        <label><input name="consent" type="checkbox" style="width:auto" required> 300원 송금을 위한 은행·계좌번호·예금주 수집에 동의합니다. 암호화해 보관하며 지급 완료·반려 후 원문을 삭제합니다. 동의하지 않으면 계좌 지급을 신청할 수 없습니다.</label>
+        <button type="submit">300원 계좌 지급 신청</button>
+      </form>
+    </section>
+    <p id="bank-message" role="status"></p><div id="bank-history" class="reward-list"></div>
+    <h2>영수증 현황</h2>
+    <div id="reward-list" class="reward-list"><p>불러오는 중…</p></div>
+  </main>
+  <script src="/static/auth.js?v=20260924-visit-menu"></script>
+  <script>
+    const label={pending:'검토 중',approved:'적립 완료',rejected:'반려'};
+    async function jsonApi(path,opts={}){const token=window.JustHereAuth?.getToken?.()||'';const res=await fetch(path,{...opts,headers:{'Content-Type':'application/json',...(token?{'X-Guest-Token':token}:{}),...(opts.headers||{})}});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.detail?.reason||data.detail||'request failed');return data}
+    let currentUid='';
+    async function start(){const list=document.getElementById('reward-list');try{let uid=window.JustHereAuth.getUid();if(!uid){const guest=await window.JustHereAuth.ensureGuest(jsonApi);uid=guest.uid}currentUid=uid;const data=await jsonApi('/v1/rewards/me?uid='+encodeURIComponent(uid));document.getElementById('balance').textContent=`${data.balance||0}P`;document.getElementById('pending').textContent=`${data.pending_points||0}P`;const eligible=(data.eligible_attributions||[])[0];const claim=document.getElementById('claim');claim.hidden=!eligible;if(eligible){document.getElementById('attribution').value=eligible.id;document.getElementById('claim-place').textContent=`${eligible.place_name} · ${eligible.menu_name||'선택한 메뉴'}`;const now=new Date(Date.now()-new Date().getTimezoneOffset()*60000);document.getElementById('purchased-at').value=now.toISOString().slice(0,16)}const rows=data.receipts||[];list.innerHTML=rows.length?rows.map(r=>`<article class="reward-item"><h3>${safe(r.place_name)}</h3><p>${safe(r.menu_name||'메뉴')} · ${Number(r.amount_krw||0).toLocaleString()}원</p><p class="status ${r.status}">${label[r.status]||r.status}${r.admin_reason?` · ${safe(r.admin_reason)}`:''}</p><p>${safe((r.created_at||'').slice(0,10))}</p></article>`).join(''):'<p class="empty">아직 접수한 영수증이 없어요.<br>추천받은 가게에서 식사한 뒤 인증해 보세요.</p>'}catch(err){list.innerHTML='<p class="empty error">현재 포인트 파일럿을 이용할 수 없어요.</p>'}}
+    async function submitClaim(e){e.preventDefault();const form=e.currentTarget;const button=document.getElementById('claim-submit');const status=document.getElementById('claim-status');const data=new FormData(form);const when=new Date(String(data.get('purchased_at')||''));if(Number.isNaN(when.getTime()))return;data.set('purchased_at',when.toISOString());data.set('uid',currentUid);data.set('review_tags','');data.set('photo_reuse_consent','false');button.disabled=true;status.textContent='접수 중…';try{const res=await fetch('/v1/rewards/receipts',{method:'POST',headers:{'X-Guest-Token':window.JustHereAuth.getToken()},body:data});if(!res.ok)throw new Error();status.textContent='접수됐어요. 확인 후 적립됩니다.';await start()}catch(err){status.textContent='접수하지 못했어요. 중복 여부와 입력 내용을 확인해 주세요.'}finally{button.disabled=false}}
+    function safe(v){const d=document.createElement('div');d.textContent=String(v||'');return d.innerHTML}document.getElementById('claim-form').onsubmit=submitClaim;
+  </script>
+  <script src="/static/payouts.js?v=20261003-2"></script>
+</body></html>

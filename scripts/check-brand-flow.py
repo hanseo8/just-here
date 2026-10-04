@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
-from datetime import datetime, timezone  # noqa: E402
+from datetime import datetime, timezone, timedelta  # noqa: E402
 import uuid  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -226,15 +226,16 @@ try:
         "혜택이 부족하면 확인된 혜택 버튼을 숨긴다",
     )
 
-    live_now = "2026-09-15T12:00:00+09:00"
+    fixture_now = datetime.now(timezone.utc)
+    live_now = fixture_now.isoformat()
     expired = {
         "id": "old",
         "brand_id": "kyochon",
         "source": "brand_notice",
         "title": "지난 혜택",
         "condition": "종료",
-        "starts_at": "2026-08-01T00:00:00+09:00",
-        "ends_at": "2026-08-31T23:59:59+09:00",
+        "starts_at": (fixture_now - timedelta(days=60)).isoformat(),
+        "ends_at": (fixture_now - timedelta(days=30)).isoformat(),
         "verified_at": live_now,
     }
     one = {
@@ -243,8 +244,8 @@ try:
         "source": "brand_notice",
         "title": "세트 1천원 할인",
         "condition": "공식 주문",
-        "starts_at": "2026-09-01T00:00:00+09:00",
-        "ends_at": "2026-09-30T23:59:59+09:00",
+        "starts_at": (fixture_now - timedelta(days=1)).isoformat(),
+        "ends_at": (fixture_now + timedelta(days=1)).isoformat(),
         "min_order_krw": 15000,
         "delivery_fee_included": False,
         "verified_at": live_now,
