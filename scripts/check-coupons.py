@@ -96,3 +96,19 @@ with tempfile.TemporaryDirectory() as directory:
     os.environ['PARTNER_COUPONS']='off'
     assert client.post(check,json={'code':code},headers=merchant_headers).status_code==503
     print('PASS: merchant-only key, branch scope, customer ownership, code rotation, expiry, single use, OFF gate, no UID leakage')
+
+    from backend.app import account_requests
+    destination='kakao_coupon_migration_test'
+    account_requests.submit(store,guest['uid'])
+    try:
+        store.merge_uid(guest['uid'],destination)
+        raise AssertionError('Pending privacy request must block account merge')
+    except ValueError as exc:
+        assert str(exc)=='account_deletion_pending'
+    assert len(coupons.listing(store,guest['uid']))==5
+    account_requests.withdraw(store,guest['uid'])
+    store.merge_uid(guest['uid'],destination)
+    assert coupons.listing(store,guest['uid'])==[]
+    assert len(coupons.listing(store,destination))==5
+    assert account_requests.get(store,destination)['status']=='withdrawn'
+    print('PASS: coupon and withdrawn-request ownership migrate; pending deletion blocks merge atomically')

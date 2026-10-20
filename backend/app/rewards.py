@@ -651,10 +651,19 @@ class RewardStore:
         with _LOCK, self._db() as db:
             db.execute("BEGIN IMMEDIATE")
             try:
+                has_requests = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='account_deletion_requests'").fetchone()
+                if has_requests:
+                    pending = db.execute("SELECT 1 FROM account_deletion_requests WHERE uid IN (?,?) AND status IN ('requested','reviewing')", (source_uid,target_uid)).fetchone()
+                    if pending:
+                        raise ValueError('account_deletion_pending')
                 db.execute("UPDATE attributions SET uid=? WHERE uid=?", (target_uid, source_uid))
                 db.execute("UPDATE receipts SET uid=? WHERE uid=?", (target_uid, source_uid))
                 db.execute("UPDATE reward_ledger SET uid=? WHERE uid=?", (target_uid, source_uid))
                 db.execute("UPDATE payouts SET uid=? WHERE uid=?", (target_uid, source_uid))
+                if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='partner_coupons'").fetchone():
+                    db.execute("UPDATE partner_coupons SET uid=? WHERE uid=?", (target_uid,source_uid))
+                if has_requests and not db.execute("SELECT 1 FROM account_deletion_requests WHERE uid=?",(target_uid,)).fetchone():
+                    db.execute("UPDATE account_deletion_requests SET uid=? WHERE uid=?",(target_uid,source_uid))
                 db.execute("COMMIT")
             except Exception:
                 db.execute("ROLLBACK")

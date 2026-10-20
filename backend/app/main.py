@@ -560,6 +560,8 @@ def _finish_kakao_link(guest_uid: str, kakao_user: dict, device_id: str = "") ->
         try:
             rewards.get_store().merge_uid(guest_uid, kakao_uid)
         except Exception as exc:
+            if isinstance(exc, ValueError) and str(exc) == 'account_deletion_pending':
+                raise HTTPException(409, "삭제 검토 중인 계정은 연결할 수 없어요. MY에서 삭제 요청을 철회한 뒤 다시 시도해 주세요.") from exc
             raise HTTPException(409, "포인트 기록을 연결하지 못했어요. 기존 계정은 유지됩니다. 잠시 후 다시 시도해 주세요.") from exc
     try:
         users.STORE.merge_guest_into(guest_uid, kakao_uid, auth_type="kakao")
