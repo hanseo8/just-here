@@ -1,0 +1,19 @@
+# Explicit build inputs only; runtime records and local credentials never enter images.
+**
+!Dockerfile
+!backend/
+!backend/**
+!web/
+!web/**
+!data/
+!data/verified-menus.songdo.priority.json
+!data/verified-menus.songdo.official.json
+!data/verified-menus.songdo.example.json
+**/.env
+**/.env.*
+**/__pycache__/
+**/*.pyc
+**/*.sqlite3*
+**/venv/
+**/.venv/
+web/marketing/

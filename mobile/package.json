@@ -1,0 +1,26 @@
+{
+  "name": "just-here-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "bundle": "node scripts/bundle.cjs",
+    "check": "node scripts/check.cjs && node scripts/check-bridge.cjs",
+    "release:check": "node scripts/release-gate.cjs",
+    "sync": "npm run bundle && cap sync && node scripts/normalize-ios.cjs",
+    "android": "cap open android",
+    "ios": "cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.4.3",
+    "@capacitor/app": "^8.0.0",
+    "@capacitor/browser": "^8.0.0",
+    "@capacitor/camera": "8.2.6",
+    "@capacitor/core": "8.4.3",
+    "@capacitor/geolocation": "^8.0.0",
+    "@capacitor/ios": "8.4.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.4.0",
+    "esbuild": "^0.25.0"
+  }
+}

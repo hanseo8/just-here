@@ -58,6 +58,12 @@ class RequestGuard:
         group = None
         if path == '/v1/admin/auth':
             group, per_client, total = 'admin_login', 5, 30
+        elif path in ('/v1/me/deletion', '/v1/me/deletion/withdraw') and method == 'POST':
+            group, per_client, total = 'account_delete', 5, 30
+        elif path.startswith('/v1/merchant/'):
+            group, per_client, total = 'merchant', 20, 120
+        elif path.startswith('/v1/rewards/coupons/') and method == 'POST':
+            group, per_client, total = 'rewards', 10, 120
         elif path.startswith('/v1/auth/') and method == 'POST':
             group, per_client, total = 'auth', 30, 300
         elif path == '/v1/analytics/event' and method == 'POST':

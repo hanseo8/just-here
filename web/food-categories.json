@@ -13,7 +13,8 @@
       {
         "key": "gukbap",
         "label": "국밥",
-        "image": 20
+        "image": 20,
+        "photo": "gukbap"
       },
       {
         "key": "kimchi_jjigae",
@@ -24,6 +25,18 @@
         "key": "doenjang",
         "label": "된장찌개",
         "image": 19
+      },
+      {
+        "key": "sundaeguk",
+        "label": "순대국",
+        "image": 20,
+        "photo": "sundaeguk"
+      },
+      {
+        "key": "kalguksu",
+        "label": "칼국수",
+        "image": 27,
+        "photo": "kalguksu"
       }
     ]
   },
@@ -123,7 +136,8 @@
       {
         "key": "jjamppong",
         "label": "짬뽕",
-        "image": 28
+        "image": 28,
+        "photo": "jjamppong"
       },
       {
         "key": "tangsuyuk",
@@ -161,7 +175,8 @@
       {
         "key": "udon",
         "label": "우동",
-        "image": 27
+        "image": 27,
+        "photo": "udon"
       }
     ]
   },
@@ -220,7 +235,8 @@
       {
         "key": "pork",
         "label": "삼겹살",
-        "image": 9
+        "image": 9,
+        "photo": "pork"
       },
       {
         "key": "jokbal",
@@ -236,6 +252,12 @@
         "key": "gopchang",
         "label": "곱창",
         "image": 14
+      },
+      {
+        "key": "galbi",
+        "label": "갈비",
+        "image": 9,
+        "photo": "galbi"
       }
     ]
   },

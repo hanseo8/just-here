@@ -1,0 +1,59 @@
+name: Verify native mobile builds
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to compile (no store upload)
+        required: true
+        default: android
+        type: choice
+        options: [android, ios]
+permissions:
+  contents: read
+jobs:
+  android:
+    if: inputs.platform == 'android'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - run: npm run sync && npm run check
+      - run: npm audit --audit-level=low
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - run: bash android/gradlew -p android assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-not-for-store
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
+  ios:
+    if: inputs.platform == 'ios'
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: xcodebuild -version
+      - run: npm ci
+      - run: npm run sync && npm run check
+      - run: npm audit --audit-level=low
+      - run: xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug -derivedDataPath ios-build CODE_SIGNING_ALLOWED=NO build

@@ -1,0 +1,11 @@
+{
+  "appId": "kr.co.justthis.app",
+  "appName": "그냥여기",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "hostname": "localhost"
+  },
+  "android": { "allowMixedContent": false },
+  "ios": { "contentInset": "automatic" }
+}

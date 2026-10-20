@@ -1,0 +1,14 @@
+{
+  "applicationIdConfirmed": false,
+  "publisherAndSupportConfirmed": true,
+  "androidSignedAabVerified": false,
+  "iosSignedArchiveVerified": false,
+  "nativeAccountLinkAndRecoveryVerified": false,
+  "accountDeletionCompletedEndToEnd": false,
+  "privacyAndStoreDataDisclosureReviewed": false,
+  "productionBackupRestoreVerified": false,
+  "androidDeviceFlowsVerified": false,
+  "iosDeviceFlowsVerified": false,
+  "brandingIconsAndScreenshotsReviewed": false,
+  "productionNativeApiDeployed": false
+}

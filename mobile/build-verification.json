@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-19",
+  "android_build": "passed",
+  "android_release_vital_lint": "passed",
+  "ios_build": "not_run",
+  "device_tests": "not_run",
+  "artifacts": [
+    {
+      "artifact": "mobile/android/app/build/outputs/apk/debug/app-debug.apk",
+      "bytes": 45851449,
+      "sha256": "232618dcf0b527c57f2f9d536c829a7781261b899b0413378e406f461170fa48",
+      "jar_signature_present": false
+    },
+    {
+      "artifact": "mobile/android/app/build/outputs/bundle/release/app-release.aab",
+      "bytes": 42871324,
+      "sha256": "6cb8506cf62b667f33c602e03b1e6bb516881b15d9410776f30a9a0d1e70eda6",
+      "jar_signature_present": false
+    }
+  ],
+  "android_debug_signature_verified": true,
+  "android_release_aab_signed": false
+}

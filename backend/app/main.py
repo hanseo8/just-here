@@ -26,6 +26,8 @@ from . import google_places
 from . import kakao
 from . import rewards
 from . import payouts
+from . import coupons
+from . import account_requests
 from .request_guard import RequestGuard
 from . import share
 from . import titles
@@ -59,7 +61,7 @@ app.add_middleware(
 @app.middleware("http")
 async def private_rewards_responses(request: Request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith(("/v1/rewards", "/v1/admin/", "/v1/analytics/summary", "/v1/me", "/v1/auth/")):
+    if request.url.path.startswith(("/v1/rewards", "/v1/merchant/", "/v1/admin/", "/v1/analytics/summary", "/v1/me", "/v1/auth/")):
         response.headers["Cache-Control"] = "no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "same-origin"
@@ -1137,9 +1139,156 @@ async def reward_receipt_submit(
 def reward_me(request: Request, uid: str = Query(...)):
     uid = _require_uid(request, uid)
     if not (rewards.data_dir() / "rewards.sqlite3").exists():
-        _require_rewards()
+        current = rewards.status()
+        if not current["enabled"]:
+            return _admin_json({"ok": True, "balance": 0, "pending_points": 0,
+                                "receipts": [], "eligible_attributions": [], "payouts": [],
+                                "pilot": rewards.pilot_terms(), "reward_config": current,
+                                "payout_config": payouts.status()})
     store = rewards.get_store()
-    return _admin_json({"ok": True, **store.list_for_user(uid), "pilot": rewards.pilot_terms(), "payout_config": payouts.status(), "payouts": payouts.listing(store, uid)})
+    return _admin_json({"ok": True, **store.list_for_user(uid), "pilot": rewards.pilot_terms(), "reward_config": rewards.status(), "payout_config": payouts.status(), "payouts": payouts.listing(store, uid)})
+
+
+class AccountDeletionBody(BaseModel):
+    uid: str = Field(min_length=1, max_length=160)
+    confirm: bool
+
+
+@app.get("/v1/me/deletion")
+def my_deletion(request: Request, uid: str = Query(...)):
+    uid = _require_uid(request, uid)
+    if not (rewards.data_dir() / "rewards.sqlite3").exists():
+        return _admin_json({"ok": True, "request": None})
+    return _admin_json({"ok": True, "request": account_requests.get(rewards.get_store(), uid)})
+
+
+@app.post("/v1/me/deletion")
+def request_account_deletion(body: AccountDeletionBody, request: Request):
+    uid = _require_uid(request, body.uid)
+    if not body.confirm:
+        raise HTTPException(400, "explicit_confirmation_required")
+    if not (rewards.status()["persistent"] or os.environ.get("RECEIPT_REWARDS_ALLOW_VOLATILE", "").lower() == "on"):
+        raise HTTPException(503, "persistent_storage_required")
+    return _admin_json({"ok": True, "request": account_requests.submit(rewards.get_store(), uid)})
+
+
+@app.post("/v1/me/deletion/withdraw")
+def withdraw_account_deletion(body: AccountDeletionBody, request: Request):
+    uid = _require_uid(request, body.uid)
+    if not body.confirm:
+        raise HTTPException(400, "explicit_confirmation_required")
+    try:
+        result = account_requests.withdraw(rewards.get_store(), uid)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _admin_json({"ok": True, "request": result})
+
+
+@app.get("/v1/admin/account-deletions/{request_id}/preflight")
+def deletion_preflight(request_id: str, request: Request):
+    _require_admin(request)
+    try:
+        result = account_requests.preflight(rewards.get_store(), request_id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return _admin_json({"ok": True, **result})
+
+
+@app.get("/v1/admin/account-deletions")
+def deletion_queue(request: Request):
+    _require_admin(request)
+    return _admin_json({"ok": True, "requests": account_requests.queue(rewards.get_store())})
+
+
+@app.post("/v1/admin/account-deletions/{request_id}/review")
+def review_deletion(request_id: str, request: Request):
+    _require_admin(request)
+    try:
+        account_requests.reviewing(rewards.get_store(), request_id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return _admin_json({"ok": True})
+
+
+class CouponIssueBody(BaseModel):
+    uid: str = Field(min_length=1, max_length=160)
+    merchant_id: str = Field(min_length=1, max_length=100)
+    merchant_name: str = Field(min_length=1, max_length=100)
+    benefit: str = Field(min_length=1, max_length=200)
+    terms: str = Field(min_length=1, max_length=1000)
+    contract_reference: str = Field(min_length=1, max_length=200)
+    expires_at: str = Field(min_length=1, max_length=50)
+    request_id: str = Field(min_length=8, max_length=100)
+
+
+class CouponActionBody(BaseModel):
+    merchant_id: str = Field(min_length=1, max_length=100)
+    action: Literal["used", "cancelled"]
+
+
+@app.get("/v1/rewards/coupons")
+def my_coupons(request: Request, uid: str = Query(...)):
+    uid = _require_uid(request, uid)
+    if not (rewards.data_dir() / "rewards.sqlite3").exists():
+        return _admin_json({"ok": True, "coupons": []})
+    return _admin_json({"ok": True, "coupons": coupons.listing(rewards.get_store(), uid)})
+
+
+def _require_coupons():
+    if not coupons.enabled() or not (rewards.status()["persistent"] or os.environ.get("RECEIPT_REWARDS_ALLOW_VOLATILE", "").lower() == "on"):
+        raise HTTPException(503, "partner_coupons_unavailable")
+
+
+@app.post("/v1/admin/coupons")
+def issue_partner_coupon(body: CouponIssueBody, request: Request):
+    _require_admin(request)
+    _require_coupons()
+    try:
+        result = coupons.issue(rewards.get_store(), body.model_dump(), "admin")
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _admin_json({"ok": True, "coupon": result})
+
+
+@app.post("/v1/admin/coupons/{coupon_id}/action")
+def use_partner_coupon(coupon_id: str, body: CouponActionBody, request: Request):
+    _require_admin(request)
+    _require_coupons()
+    try:
+        result = coupons.transition(rewards.get_store(), coupon_id, body.merchant_id, body.action, "admin")
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _admin_json({"ok": True, "coupon": result})
+
+
+class CouponCodeBody(BaseModel):
+    code: str = Field(min_length=16, max_length=16, pattern=r"^[A-Fa-f0-9]{16}$")
+
+
+@app.post("/v1/rewards/coupons/{coupon_id}/code")
+def coupon_customer_code(coupon_id: str, request: Request, uid: str = Query(...)):
+    uid = _require_uid(request, uid)
+    _require_coupons()
+    try:
+        result = coupons.create_code(rewards.get_store(), uid, coupon_id)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _admin_json({"ok": True, **result})
+
+
+@app.post("/v1/merchant/coupons/check")
+@app.post("/v1/merchant/coupons/use")
+def merchant_coupon_check(body: CouponCodeBody, request: Request):
+    merchant = coupons.merchant_identity(request.headers.get("X-Merchant-Key", ""))
+    if not merchant:
+        raise HTTPException(401, "merchant authentication required")
+    _require_coupons()
+    try:
+        result = coupons.check_code(rewards.get_store(), merchant, body.code,
+                                    consume=request.url.path.endswith("/use"))
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    return _admin_json({"ok": True, "coupon": result})
 
 
 @app.post("/v1/rewards/payouts")
@@ -1382,6 +1531,11 @@ if WEB_DIR.is_dir():
             raise HTTPException(404, "analytics page missing")
         return FileResponse(path)
 
+    @app.get("/account/delete")
+    def account_delete_page():
+        return FileResponse(WEB_DIR / "account-delete.html", headers={"Cache-Control":"no-store"})
+
+    @app.get("/my")
     @app.get("/rewards")
     def rewards_page():
         path = WEB_DIR / "rewards.html"
