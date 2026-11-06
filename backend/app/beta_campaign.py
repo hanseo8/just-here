@@ -150,3 +150,9 @@ def apply(store,uid):
         db.execute('INSERT OR IGNORE INTO beta_applications VALUES(?,?,?)',(CAMPAIGN,uid,rewards._iso()))
         db.execute('COMMIT')
     return {'ok':True,'status':'applied','message':'신청 접수, 선정 전이며 지급 대상이 아닙니다.'}
+
+
+def application_status(store, uid):
+    with store._db() as db:
+        row = db.execute('SELECT created_at FROM beta_applications WHERE campaign=? AND uid=?', (CAMPAIGN, uid)).fetchone()
+    return {'applied': bool(row), 'created_at': row['created_at'] if row else None}

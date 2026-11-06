@@ -44,6 +44,11 @@ with tempfile.TemporaryDirectory() as raw:
     check(client.get('/v1/rewards/beta',params={'uid':'kakao_other'},headers=headers).status_code == 401, 'beta cross-account progress blocked')
     own_beta = client.get('/v1/rewards/beta',params={'uid':uid},headers=headers)
     check(own_beta.status_code == 200 and own_beta.json()=={'enrolled':False} and own_beta.headers['cache-control']=='no-store', 'beta private progress response')
+    from backend.app import beta_campaign
+    beta_campaign.apply(rewards.get_store(), 'kakao_private_application')
+    check(beta_campaign.application_status(rewards.get_store(), 'kakao_private_application')['applied'], 'beta application status persists')
+    own_wallet = client.get('/v1/rewards/me', params={'uid': uid}, headers=headers).json()
+    check(own_wallet['beta_application'] == {'applied': False, 'created_at': None}, 'other account application is not exposed in MY')
     att = rewards.get_store().create_attribution(
         uid=uid, session_id="api-session", place_id="api-place",
         place_name="API 테스트 식당", menu_id="api-menu", menu_name="비빔밥", intent="visit",

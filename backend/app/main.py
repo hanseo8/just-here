@@ -1218,7 +1218,7 @@ def reward_me(request: Request, uid: str = Query(...)):
                                 "pilot": rewards.pilot_terms(), "reward_config": current,
                                 "payout_config": payouts.status()})
     store = rewards.get_store()
-    return _admin_json({"ok": True, **store.list_for_user(uid), "beta": beta_campaign.progress(store,uid), "pilot": rewards.pilot_terms(), "reward_config": rewards.status(), "payout_config": payouts.status(), "payouts": payouts.listing(store, uid)})
+    return _admin_json({"ok": True, **store.list_for_user(uid), "beta": beta_campaign.progress(store,uid), "beta_application": beta_campaign.application_status(store,uid), "pilot": rewards.pilot_terms(), "reward_config": rewards.status(), "payout_config": payouts.status(), "payouts": payouts.listing(store, uid)})
 
 
 class AccountDeletionBody(BaseModel):
