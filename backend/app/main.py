@@ -1193,6 +1193,20 @@ async def reward_receipt_submit(
     return {"ok": True, "receipt": row}
 
 
+@app.get("/v1/rewards/receipts/{receipt_id}/image")
+def my_reward_image(receipt_id: str, request: Request, uid: str = Query(...)):
+    uid = _require_uid(request, uid)
+    store = rewards.get_store()
+    try:
+        store.get_receipt(receipt_id, uid=uid)
+        path, content_type = store.image_path(receipt_id)
+    except (KeyError, ValueError):
+        raise HTTPException(404, "receipt image not found") from None
+    if not path.is_file():
+        raise HTTPException(404, "receipt image no longer available")
+    return FileResponse(path, media_type=content_type, headers=_ADMIN_NO_STORE)
+
+
 @app.get("/v1/rewards/me")
 def reward_me(request: Request, uid: str = Query(...)):
     uid = _require_uid(request, uid)

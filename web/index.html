@@ -26,7 +26,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=20261106-location3" />
+  <link rel="stylesheet" href="/static/styles.css?v=20261106-location4" />
 </head>
 <body>
   <!-- 진입 인트로: 첫 페인트를 브랜드로 채우고, 그 사이 init()이 끝난다 -->
@@ -222,7 +222,7 @@
             <button type="button" id="btn-meal-skip" class="link-btn">아직이에요</button>
           </div>
         </div>
-        <a id="reward-entry" class="reward-entry" href="/my"><span class="reward-entry-icon" aria-hidden="true">P</span><span><strong id="reward-entry-title">영수증 보상 참여 안내</strong><small id="reward-entry-copy">모집 상태와 참여 조건 확인하기</small></span><span aria-hidden="true">↗</span></a>
+        <a id="reward-entry" class="reward-entry" href="/my#beta-apply"><span class="reward-entry-icon" aria-hidden="true">P</span><span><strong id="reward-entry-title">영수증 보상 · 베타테스터 참여하기</strong><small id="reward-entry-copy">선정 후 승인 건당 300원 · MY에서 참여 조건 확인</small></span><span aria-hidden="true">↗</span></a>
         <section id="reward-panel" class="reward-panel hidden" aria-labelledby="reward-title">
           <div class="reward-head">
             <div>
@@ -235,11 +235,15 @@
           <p id="reward-pilot-terms" class="reward-copy" aria-live="polite"></p>
           <p class="reward-copy">좋았던 점과 아쉬웠던 점 모두 남길 수 있어요. 긍정적인 후기는 승인 조건이 아니에요. 적립만으로 자동 송금되지 않으며, 지원하는 교환 방법은 내 포인트 화면에서 확인해 주세요.</p>
           <details id="reward-details" class="reward-details">
-            <summary>영수증 인증하기</summary>
+            <summary>식사 후 영수증 사진 올리기</summary>
             <form id="reward-form" class="reward-form">
-              <label>영수증 사진
+              <label class="reward-upload">영수증 사진 선택
+                <small>가게명·결제 시각·금액·승인번호가 보이게 찍어 주세요.</small>
                 <input id="reward-image" name="image" type="file" accept="image/jpeg,image/png,image/webp" required />
               </label>
+              <img id="reward-image-preview" alt="선택한 영수증 사진 미리보기" hidden />
+              <p id="reward-image-status" class="reward-copy" role="status">JPG · PNG · WEBP / 최대 8MB</p>
+              <p class="reward-copy">카드번호 등 불필요한 개인정보는 가려 주세요. 사진은 인증용으로만 사용해요.</p>
               <div class="reward-grid">
                 <label>결제 시각
                   <input id="reward-purchased-at" name="purchased_at" type="datetime-local" required />
@@ -333,6 +337,6 @@
   <script src="/static/badges.js?v=20260930-badges1"></script>
   <script src="/static/story.js?v=20260930-receipt2"></script>
   <script src="/static/instagram.js?v=20260926-ig1"></script>
-  <script src="/static/app.js?v=20261106-beta4"></script>
+  <script src="/static/app.js?v=20261106-beta5"></script>
 </body>
 </html>

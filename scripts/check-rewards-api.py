@@ -67,6 +67,20 @@ with tempfile.TemporaryDirectory() as raw:
     check(upload.status_code == 200, "인증된 사용자 영수증 업로드")
     receipt_id = upload.json()["receipt"]["id"]
 
+    photo_url = f"/v1/rewards/receipts/{receipt_id}/image"
+    check(client.get(photo_url, params={"uid": uid}).status_code == 401, "own receipt image requires authentication")
+    own_image = client.get(photo_url, params={"uid": uid}, headers=headers)
+    check(own_image.status_code == 200 and own_image.content == receipt_image("test-api-image") and own_image.headers["cache-control"].startswith("no-store"), "owner can view private receipt image without caching")
+    other = client.post("/v1/auth/guest", json={"device_id": "other-receipt-viewer"}).json()
+    other_headers = {"X-Guest-Token": other["guest_token"]}
+    check(client.get(photo_url, params={"uid": other["uid"]}, headers=other_headers).status_code == 404, "other account cannot view receipt image")
+    check(client.get(photo_url, params={"uid": uid}, headers=other_headers).status_code == 401, "spoofed image owner blocked")
+    history = client.get("/v1/rewards/me", params={"uid": uid}, headers=headers).json()["receipts"]
+    check(history[0]["review_note"] == "다시 갈래요" and history[0]["place_id"] == "api-place", "own history preserves review and restaurant")
+    os.environ["RECEIPT_REWARDS"] = "off"
+    check(client.get(photo_url, params={"uid": uid}, headers=headers).status_code == 200, "existing image remains readable while recruitment is paused")
+    os.environ["RECEIPT_REWARDS"] = "on"
+
     denied = client.get("/v1/admin/rewards")
     check(denied.status_code == 401, "관리자 목록 무인증 차단")
     admin_headers = {"X-Admin-Token": "test-admin-token"}

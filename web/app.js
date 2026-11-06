@@ -2762,8 +2762,9 @@ function renderRewardOffer(data) {
   const entry = $("reward-entry");
   const previewMode = isDesignPreview();
   const rewardState = state.meta?.rewards;
-  if ($("reward-entry-title")) $("reward-entry-title").textContent = rewardState?.reason === "disabled" ? "보상 모집 준비 중" : "영수증 보상 참여 안내";
-  if ($("reward-entry-copy")) $("reward-entry-copy").textContent = rewardState?.reason === "disabled" ? "참여 방법과 내 보상 확인하기" : "모집 상태와 참여 조건 확인하기";
+  if ($("reward-entry-title")) $("reward-entry-title").textContent = rewardState?.enabled === true ? "영수증 보상 · 베타테스터 참여하기" : "영수증 보상 · 참여 상태 확인";
+  if ($("reward-entry-copy")) $("reward-entry-copy").textContent = rewardState?.enabled === true ? "15명 모집 · 선정 후 승인 건당 300원 · MY에서 신청" : "지금은 새 접수를 받지 않아요. MY에서 신청·지급 내역을 확인하세요.";
+  if (entry) entry.href = rewardState?.enabled === true ? "/my#beta-apply" : "/my#activity";
 
   if (entry) entry.classList.toggle("hidden", !!offer || previewMode);
   $("screen-done")?.querySelector(".share-menu")?.removeAttribute("open");
@@ -2781,10 +2782,11 @@ function renderRewardOffer(data) {
   if (terms) {
     const info = offer.pilot || {};
     const parts = [];
-    if (Number.isInteger(info.claim_limit)) parts.push(`총 ${info.claim_limit}건 모집`);
+    if (Number(offer.points) === 300) parts.push("베타 선정자 전용 · 선정일부터 14일 · 최대 42건");
+    else if (Number.isInteger(info.claim_limit) && info.claim_limit > 0) parts.push(`총 ${info.claim_limit}건 모집`);
     parts.push("1인 1일 3건(한국시간 결제일 기준)", "예산 소진 시 종료");
     if (Number.isInteger(info.max_claims_per_user) && info.max_claims_per_user > 0) parts.push(`계정당 ${info.max_claims_per_user}건`);
-    const end = info.ends_at ? new Date(info.ends_at) : null;
+    const end = Number(offer.points) !== 300 && info.ends_at ? new Date(info.ends_at) : null;
     if (end && Number.isFinite(end.getTime())) parts.push(`${new Date(end.getTime()-1).toLocaleString("ko-KR", {timeZone:"Asia/Seoul",year:"numeric",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})} 마감`);
     terms.textContent = parts.join(" · ");
   }
@@ -2799,6 +2801,28 @@ function renderRewardOffer(data) {
     purchased.value = now.toISOString().slice(0, 16);
   }
   form.classList.remove("hidden");
+  if ($("reward-details")) $("reward-details").open = true;
+  const imageInput = $("reward-image");
+  const imagePreview = $("reward-image-preview");
+  const imageStatus = $("reward-image-status");
+  const clearImagePreview = () => {
+    if (imagePreview?.dataset.objectUrl) URL.revokeObjectURL(imagePreview.dataset.objectUrl);
+    if (imagePreview) { imagePreview.removeAttribute("src"); delete imagePreview.dataset.objectUrl; imagePreview.hidden = true; }
+  };
+  clearImagePreview();
+  if (imageStatus) imageStatus.textContent = "JPG · PNG · WEBP / 최대 8MB";
+  if (imageInput) imageInput.onchange = () => {
+    clearImagePreview();
+    const file = imageInput.files?.[0];
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 8 * 1024 * 1024) {
+      imageInput.value = "";
+      if (imageStatus) imageStatus.textContent = "JPG·PNG·WEBP 사진을 8MB 이하로 선택해 주세요.";
+      return;
+    }
+    if (imagePreview) { const url = URL.createObjectURL(file); imagePreview.dataset.objectUrl = url; imagePreview.src = url; imagePreview.hidden = false; }
+    if (imageStatus) imageStatus.textContent = "사진을 선택했어요. 가게명·결제 시각·금액·승인번호가 보이는지 확인해 주세요.";
+  };
   rewardMessage("");
   form.onsubmit = submitRewardReceipt;
   if (preview) {

@@ -5,7 +5,7 @@ window.renderBetaProgress = function (data, wallet={}) {
   document.getElementById('beta-apply').hidden=!!data?.enrolled;
   const applyButton=document.getElementById('beta-apply-button');
   applyButton.disabled=wallet.reward_config?.enabled!==true;
-  if(applyButton.disabled)document.getElementById('beta-apply-message').textContent='모집 준비 중이에요.';
+  document.getElementById('beta-apply-message').textContent=applyButton.disabled?'현재 새 신청 접수가 일시 중지되어 있어요. 기존 신청·지급 내역은 확인할 수 있어요.':'';
   applyButton.onclick=async()=>{applyButton.disabled=true;try{if(!window.JustHereAuth.getUid()?.startsWith('kakao_'))throw Error('카카오 계정 연결 후 신청해 주세요.');await jsonApi('/v1/rewards/beta/apply',{method:'POST',body:JSON.stringify({uid:window.JustHereAuth.getUid()})});document.getElementById('beta-apply-message').textContent='신청을 접수했어요. 선정 결과는 MY에서 확인해 주세요.';}catch(e){document.getElementById('beta-apply-message').textContent=e.message||'접수하지 못했어요.';}finally{applyButton.disabled=wallet.reward_config?.enabled!==true;}};
   if (panel.hidden) return;
   document.getElementById('beta-state').textContent = `영수증 승인 ${data.approved_receipts}건 / 기간 한도 ${data.receipt_limit}건 (참여비 조건 ${data.required_receipts}건) · 설문 ${data.survey_submitted ? '제출 완료' : '미제출'}${data.bonus_eligible ? ' · 참여비 지급 자격 충족' : ''}`;

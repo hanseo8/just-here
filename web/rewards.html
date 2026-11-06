@@ -2,13 +2,20 @@
 <html lang="ko"><head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>MY · 내 지갑 · 그냥여기</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20261019-rewards2">
-  <link rel="stylesheet" href="/static/rewards.css?v=20261019-my1">
+  <link rel="stylesheet" href="/static/styles.css?v=20261106-location4">
+  <link rel="stylesheet" href="/static/rewards.css?v=20261106-history1">
 </head><body>
   <main class="reward-page">
     <header><a class="brand" href="/" aria-label="그냥여기 홈">그냥여기.</a><a href="/">가게 찾기 ↗</a></header>
     <section class="my-heading"><span class="eyebrow">MY · 나의 한 끼 기록</span><h1>내 지갑</h1><p id="account-state" role="status">계정 정보를 확인하고 있어요.</p><a href="/">가게 찾기 · 계정 연결 안내 →</a></section>
-    <nav class="my-nav" aria-label="MY 메뉴"><a href="#wallet">내 지갑</a><a href="#claim">영수증 인증</a><a href="#bank-payout">보상 받기</a><a href="#activity">접수 내역</a><a href="#my-coupons">내 쿠폰</a></nav>
+    <nav class="my-nav" aria-label="MY 메뉴"><a href="#wallet">내 지갑</a><a href="#receipt-upload-entry">영수증 업로드</a><a href="#bank-payout">보상 받기</a><a href="#activity">접수 내역</a><a href="#my-coupons">내 쿠폰</a></nav>
+    <section id="receipt-upload-entry" class="receipt-upload-entry" aria-labelledby="upload-entry-title">
+      <span class="eyebrow">식사 기록 · 영수증 인증</span><h2 id="upload-entry-title">영수증 올리고 후기 남기기</h2>
+      <p>선택한 식당에 사진과 솔직한 후기를 남겨요. 영수증 사진은 공개되지 않아요.</p>
+      <button id="open-receipt-upload" type="button">영수증 업로드</button>
+      <p id="upload-entry-state" role="status" aria-live="polite">업로드 가능 여부를 확인하고 있어요.</p>
+      <div id="upload-entry-actions"><a href="#beta-apply">베타 참여 신청</a><a href="/">가게 고르기</a></div>
+    </section>
     <section id="wallet" aria-label="포인트 지갑"><div class="balance"><div><span>사용 가능</span><strong id="balance">—</strong></div><div><span>검토 중 · 사용 불가</span><strong id="pending">—</strong></div><div><span>지급 신청 중</span><strong id="reserved">—</strong></div><div><span>누적 지급 완료</span><strong id="paid-total">—</strong></div></div><p class="privacy-note">지급 신청 중인 포인트는 사용 가능 잔액에서 이미 차감돼요. 지급 완료 금액은 잔액에 포함되지 않아요.</p></section>
     <section id="beta-apply" class="claim"><h2>안드로이드 베타테스터 15명 모집</h2><p>선정일부터 14일 · 영수증 승인 건당 300원 · 하루 3건, 기간 중 최대 42건. 영수증 3건 승인과 최종 설문을 마치고 14일 테스트 종료 후 참여비 5,000원 별도 지급.</p><p>신청은 선정·지급을 보장하지 않아요. 앱스토어 별점이나 긍정 후기는 요구하지 않아요. 선정 후 MY에서 참여 기한을 확인하세요.</p><p>계정 연결: 가게 선택 완료 화면에서 카카오 계정을 연결한 뒤 돌아와 주세요.</p><button type="button" id="beta-apply-button">테스트 참여 신청</button><p id="beta-apply-message" role="status"></p></section><section id="beta-progress" class="claim" hidden><h2>15명 베타 테스트</h2><p id="beta-state"></p><p id="beta-deadline"></p><p>하루 최대 3건·14일간 최대 42건, 승인 건당 300P. 3건 승인과 최종 설문을 마치고 14일 테스트 종료 후 참여비 5,000원 지급 자격을 확인해요. 긍정적인 평가는 필요하지 않아요.</p><form id="beta-survey"><label>사용하면서 좋았거나 불편했던 점<textarea name="answer" minlength="10" maxlength="2000" required></textarea></label><button type="submit">최종 설문 제출</button><p id="beta-message" role="status"></p></form><form id="beta-payout-form" hidden><h3>참여비 5,000원 지급 신청</h3><label>은행<input name="bank" maxlength="40" required autocomplete="off"></label><label>계좌번호<input name="account" inputmode="numeric" minlength="8" maxlength="30" required autocomplete="off"></label><label>예금주<input name="holder" maxlength="40" required autocomplete="off"></label><label><input type="checkbox" name="consent" required> 참여비 지급을 위한 계좌정보 수집에 동의합니다. 암호화 보관하며 지급 완료·반려 후 원문을 삭제합니다.</label><button type="submit">5,000원 지급 신청</button><p id="beta-payout-message" role="status"></p></form><p>실제 송금은 관리자 확인 후 수동 진행하며, 신청만으로 송금되지 않아요. 지급 결과는 아래 지급 내역에서 확인하세요.</p></section>
     <p id="wallet-action" role="status"></p>
@@ -41,31 +48,76 @@
     </section>
     <h2>지급 내역</h2><p id="bank-message" role="status"></p><div id="bank-history" class="reward-list"></div>
     <section id="my-coupons"><h2>내 쿠폰</h2><p class="privacy-note">확정된 제휴 혜택만 표시해요. 쿠폰은 포인트 잔액과 별개예요.</p><div id="coupon-list" class="reward-list"><p>쿠폰 내역 확인 중…</p></div></section>
-    <h2 id="activity">영수증 현황</h2>
+    <h2 id="activity">내 영수증 · 후기</h2><p class="privacy-note">내가 올린 기록만 보여요. 영수증 사진과 후기는 다른 사용자에게 공개되지 않아요. 보관 기한이 지난 사진은 볼 수 없어요.</p>
     <div id="reward-list" class="reward-list"><p>불러오는 중…</p></div>
     <footer class="my-settings"><h2>계정과 개인정보</h2><p><a href="mailto:help@kangseocorp.com">고객문의 · help@kangseocorp.com</a></p><p><a href="/static/privacy.html">개인정보 처리방침</a></p><p><a href="/account/delete">계정·데이터 삭제 요청</a></p></footer>
   </main>
   <script src="/static/auth.js?v=20261004-auth1"></script>
   <script src="/static/wallet.js?v=20261019-my1"></script>
-  <script src="/static/beta-progress.js?v=20261106-beta2"></script>
+  <script src="/static/beta-progress.js?v=20261106-beta3"></script>
   <script>
     const label={pending:'검토 중',approved:'적립 완료',rejected:'반려'};
     let guestRefresh = null;
     async function jsonApi(path,opts={},retry=true){const token=window.JustHereAuth?.getToken?.()||'';const res=await fetch(path,{...opts,headers:{'Content-Type':'application/json',...(token?{'X-Guest-Token':token}:{}),...(opts.headers||{})}});const data=await res.json().catch(()=>({}));if(res.status===401&&retry&&path.startsWith('/v1/rewards/me?')){if(!guestRefresh)guestRefresh=window.JustHereAuth.ensureGuest(jsonApi).finally(()=>{guestRefresh=null});const guest=await guestRefresh;currentUid=guest.uid;const url=new URL(path,location.origin);url.searchParams.set('uid',guest.uid);return jsonApi(url.pathname+url.search,opts,false)}if(!res.ok)throw new Error(data.detail?.reason||data.detail||'request failed');return data}
     let currentUid='';
+    function renderUploadEntry(data,available){
+      const button=document.getElementById('open-receipt-upload');
+      const message=document.getElementById('upload-entry-state');
+      const actions=document.getElementById('upload-entry-actions');
+      message.textContent=available?'인증할 식사 기록이 있어요. 사진을 선택하고 후기를 남겨 주세요.':!data?'연결 상태를 확인하지 못했어요. 새로고침 후 다시 시도해 주세요.':data.reward_config?.enabled!==true?'현재 새 영수증 접수가 일시 중지되어 있어요. 기존 내역은 아래에서 확인할 수 있어요.':!data.beta?.enrolled&&data.pilot?.claim_limit===0?'현재는 베타 선정자만 보상 영수증을 접수할 수 있어요. 먼저 베타 참여를 신청해 주세요.':'인증할 식사 기록이 없어요. 가게를 추천받고 선택한 뒤 식사 후 올려 주세요.';
+      button.textContent=available?'영수증 사진 업로드':'영수증 업로드 · 참여 조건 확인';
+      actions.hidden=available;
+      actions.querySelector('a[href="#beta-apply"]').hidden=!!data?.beta?.enrolled;
+      button.onclick=()=>{if(available){document.getElementById('claim').scrollIntoView({behavior:'smooth',block:'start'});document.getElementById('receipt-image').focus();}else{message.tabIndex=-1;message.focus();}};
+    }
     let eligibleMeals=[];
     function selectMeal(){const meal=eligibleMeals.find(x=>x.id===document.getElementById('claim-selection').value);if(!meal)return;document.getElementById('attribution').value=meal.id;document.getElementById('claim-place').textContent=meal.place_name+' · '+(meal.menu_name||'선택한 메뉴');}
     document.getElementById('claim-selection').onchange=selectMeal;
     function renderWallet(data){const summary=window.JustHereWallet.summarize(data);document.getElementById('reserved').textContent=summary.reserved.toLocaleString()+'P';document.getElementById('paid-total').textContent=summary.paid.toLocaleString()+'원';document.getElementById('account-state').textContent=currentUid.startsWith('kakao_')?'카카오 계정 연결됨':'이 브라우저의 임시 계정이에요. 브라우저 데이터를 지우면 기록을 잃을 수 있어요. 가게 선택 완료 화면에서 카카오 계정을 연결해 주세요.';document.getElementById('wallet-action').textContent=summary.reserved?'지급 신청을 확인 중이에요. 완료 여부는 아래 지급 내역에서 확인해 주세요.':summary.available>0?'승인된 포인트가 있어요. 지급 가능 여부를 아래에서 확인해 주세요.':'식사 후 영수증이 승인되면 이곳에 포인트가 쌓여요.';}
 
-    async function start(){const list=document.getElementById('reward-list');try{let uid=window.JustHereAuth.getUid();if(!uid){const guest=await window.JustHereAuth.ensureGuest(jsonApi);uid=guest.uid}currentUid=uid;const data=await jsonApi('/v1/rewards/me?uid='+encodeURIComponent(uid));renderBetaProgress(data.beta,data);document.getElementById('receipt-rate-title').textContent='영수증 인증하고 '+(data.beta?.enrolled?300:(data.reward_config?.reward_points||100))+'P';renderPilotTerms(data.beta?.enrolled?{beta:true}:data.pilot);renderWallet(data);loadCoupons();document.getElementById('page-state').textContent=(data.eligible_attributions||[]).length?'인증할 수 있는 식사 기록이 있어요. 아래에서 영수증을 올려 주세요.':'인증할 식사 기록이 없어요. 먼저 가게를 추천받고 방문해 주세요.';document.getElementById('balance').textContent=`${data.balance||0}P`;document.getElementById('pending').textContent=`${data.pending_points||0}P`;eligibleMeals=data.eligible_attributions||[];document.getElementById('claim-selection').replaceChildren(...eligibleMeals.map(x=>new Option(x.place_name+' · '+(x.menu_name||'선택한 메뉴'),x.id)));const eligible=eligibleMeals[0];const claim=document.getElementById('claim');claim.hidden=!eligible||data.reward_config?.enabled!==true;if(data.reward_config?.enabled===false)document.getElementById('page-state').textContent='보상 모집 준비 중이에요. 기존 접수·지급 내역은 아래에서 확인할 수 있어요.';if(eligible){document.getElementById('attribution').value=eligible.id;document.getElementById('claim-place').textContent=`${eligible.place_name} · ${eligible.menu_name||'선택한 메뉴'}`;const now=new Date(Date.now()-new Date().getTimezoneOffset()*60000);document.getElementById('purchased-at').value=now.toISOString().slice(0,16)}const rows=data.receipts||[];list.innerHTML=rows.length?rows.map(r=>`<article class="reward-item"><h3>${safe(r.place_name)}</h3><p>${safe(r.menu_name||'메뉴')} · ${Number(r.amount_krw||0).toLocaleString()}원</p><p class="status ${r.status}">${label[r.status]||r.status}${r.admin_reason?` · ${safe(r.admin_reason)}`:''}</p><p>${safe((r.created_at||'').slice(0,10))}</p></article>`).join(''):'<p class="empty">아직 접수한 영수증이 없어요.<br>추천받은 가게에서 식사한 뒤 인증해 보세요.</p>';return data;}catch(err){document.getElementById('coupon-list').textContent='지갑 정보를 불러온 뒤 쿠폰을 확인할 수 있어요.';document.getElementById('account-state').textContent='계정·지갑 정보를 불러오지 못했어요. 새로고침해 주세요.';document.getElementById('claim').hidden=true;document.getElementById('page-state').textContent=String(err.message||'').includes('disabled')?'지금은 모집 준비 중이에요. 접수가 열리면 이곳에서 참여할 수 있어요.':'연결 상태를 확인한 뒤 새로고침해 주세요.';list.innerHTML=String(err.message||'').includes('disabled')?'<p class="empty">아직 보상 모집 전이에요. 모집이 시작되면 추천받은 가게에서 식사한 영수증으로 참여할 수 있어요.</p>':'<p class="empty error">포인트 현황을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</p>'}}
+    async function start(){const list=document.getElementById('reward-list');try{let uid=window.JustHereAuth.getUid();if(!uid){const guest=await window.JustHereAuth.ensureGuest(jsonApi);uid=guest.uid}currentUid=uid;const data=await jsonApi('/v1/rewards/me?uid='+encodeURIComponent(uid));renderBetaProgress(data.beta,data);document.getElementById('receipt-rate-title').textContent='영수증 인증하고 '+(data.beta?.enrolled?300:(data.reward_config?.reward_points||100))+'P';renderPilotTerms(data.beta?.enrolled?{beta:true}:data.pilot);renderWallet(data);loadCoupons();document.getElementById('page-state').textContent=(data.eligible_attributions||[]).length?'인증할 수 있는 식사 기록이 있어요. 아래에서 영수증을 올려 주세요.':'인증할 식사 기록이 없어요. 먼저 가게를 추천받고 방문해 주세요.';document.getElementById('balance').textContent=`${data.balance||0}P`;document.getElementById('pending').textContent=`${data.pending_points||0}P`;eligibleMeals=data.eligible_attributions||[];document.getElementById('claim-selection').replaceChildren(...eligibleMeals.map(x=>new Option(x.place_name+' · '+(x.menu_name||'선택한 메뉴'),x.id)));const eligible=eligibleMeals[0];const claim=document.getElementById('claim');claim.hidden=!eligible||data.reward_config?.enabled!==true;renderUploadEntry(data,!!eligible&&!claim.hidden);if(data.reward_config?.enabled===false)document.getElementById('page-state').textContent='새 영수증 접수가 일시 중지되어 있어요. 기존 접수·지급 내역은 아래에서 확인할 수 있어요.';if(eligible){document.getElementById('attribution').value=eligible.id;document.getElementById('claim-place').textContent=`${eligible.place_name} · ${eligible.menu_name||'선택한 메뉴'}`;const now=new Date(Date.now()-new Date().getTimezoneOffset()*60000);document.getElementById('purchased-at').value=now.toISOString().slice(0,16)}const rows=data.receipts||[];renderReceiptHistory(rows);return data;}catch(err){document.getElementById('coupon-list').textContent='지갑 정보를 불러온 뒤 쿠폰을 확인할 수 있어요.';document.getElementById('account-state').textContent='계정·지갑 정보를 불러오지 못했어요. 새로고침해 주세요.';document.getElementById('claim').hidden=true;renderUploadEntry(null,false);document.getElementById('page-state').textContent=String(err.message||'').includes('disabled')?'지금은 모집 준비 중이에요. 접수가 열리면 이곳에서 참여할 수 있어요.':'연결 상태를 확인한 뒤 새로고침해 주세요.';list.innerHTML=String(err.message||'').includes('disabled')?'<p class="empty">아직 보상 모집 전이에요. 모집이 시작되면 추천받은 가게에서 식사한 영수증으로 참여할 수 있어요.</p>':'<p class="empty error">포인트 현황을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</p>'}}
+    let receiptImageUrls=[];
+    let receiptHistoryVersion=0;
+    function renderReceiptHistory(rows){
+      const generation=++receiptHistoryVersion;
+      receiptImageUrls.forEach(url=>URL.revokeObjectURL(url));receiptImageUrls=[];
+      const list=document.getElementById('reward-list');list.replaceChildren();
+      if(!rows.length){const p=document.createElement('p');p.className='empty';p.textContent='아직 올린 영수증과 후기가 없어요. 식사 후 위의 영수증 업로드에서 남겨 주세요.';list.append(p);return;}
+      const returns={yes:'다시 방문하고 싶어요',maybe:'재방문은 고민 중이에요',no:'다시 방문하지 않을 것 같아요'};
+      for(const r of rows){
+        const article=document.createElement('article');article.className='reward-item receipt-history-card';
+        const add=(tag,text,cls)=>{const e=document.createElement(tag);e.textContent=text;if(cls)e.className=cls;article.append(e);return e;};
+        add('h3',r.place_name||'식당');
+        const date=new Date(r.purchased_at||r.created_at);add('p',(Number.isFinite(date.getTime())?date.toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}):'날짜 확인 필요')+' · '+Number(r.amount_krw||0).toLocaleString()+'원');
+        add('p',r.menu_name||'선택한 메뉴');
+        add('p',(label[r.status]||'상태 확인 중')+(r.admin_reason?' · '+r.admin_reason:''),'status '+(Object.hasOwn(label,r.status)?r.status:'pending'));
+        add('h4','내가 남긴 후기');add('p',returns[r.review_return]||'재방문 응답 없음');
+        if(Array.isArray(r.review_tags)&&r.review_tags.length)add('p',r.review_tags.join(' · '),'review-tags');
+        add('p',r.review_note||'한 줄 후기를 남기지 않았어요.','review-note');
+        const button=add('button','내 영수증 사진 보기');button.type='button';
+        const image=add('img','');image.alt='내가 올린 영수증 사진';image.hidden=true;
+        const message=add('p','','privacy-note');message.setAttribute('role','status');
+        button.onclick=async()=>{
+          if(image.src){image.hidden=!image.hidden;button.textContent=image.hidden?'내 영수증 사진 보기':'사진 접기';return;}
+          const uid=currentUid;button.disabled=true;message.textContent='사진을 불러오고 있어요.';
+          try{
+            const response=await fetch('/v1/rewards/receipts/'+encodeURIComponent(r.id)+'/image?uid='+encodeURIComponent(uid),{headers:{'X-Guest-Token':window.JustHereAuth.getToken()||''},cache:'no-store'});
+            if(!response.ok)throw Error(response.status===404?'사진의 보관 기한이 지났거나 원본이 없어요.':'사진을 불러오지 못했어요. 계정 연결과 네트워크를 확인해 주세요.');
+            const blob=await response.blob();
+            if(generation!==receiptHistoryVersion||uid!==currentUid||uid!==window.JustHereAuth.getUid())return;
+            const url=URL.createObjectURL(blob);receiptImageUrls.push(url);image.src=url;image.hidden=false;button.textContent='사진 접기';message.textContent='본인만 확인할 수 있는 영수증이에요.';
+          }catch(e){if(generation===receiptHistoryVersion)message.textContent=e.message;}finally{button.disabled=false;}
+        };
+        list.append(article);
+      }
+    }
     async function loadCoupons(){const box=document.getElementById('coupon-list');try{const data=await jsonApi('/v1/rewards/coupons?uid='+encodeURIComponent(currentUid),{},false);const names={issued:'매장 확인 후 사용',used:'사용 완료',cancelled:'취소됨',expired:'기한 만료'};box.replaceChildren(...(data.coupons||[]).map(c=>{const article=document.createElement('article');article.className='reward-item';const heading=document.createElement('h3');heading.textContent=c.merchant_name+' · '+c.benefit;article.append(heading);for(const text of [c.terms,'사용 기한: '+new Date(c.expires_at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}),names[c.status]||'상태 확인 필요']){const p=document.createElement('p');p.textContent=text;article.append(p)}if(c.status==='issued'){const button=document.createElement('button');button.type='button';button.textContent='매장에서 사용할 코드 받기';button.onclick=async()=>{button.disabled=true;try{const data=await jsonApi('/v1/rewards/coupons/'+encodeURIComponent(c.id)+'/code?uid='+encodeURIComponent(currentUid),{method:'POST'},false);button.textContent='사용 코드: '+data.code+' · 2분 이내 점주에게 보여주세요.';}catch(_){button.textContent='코드를 받지 못했어요. 모집 상태를 확인하고 다시 시도해 주세요.';}finally{button.disabled=false}};article.append(button)}return article}));if(!data.coupons?.length)box.textContent='아직 받은 쿠폰이 없어요. 제휴 혜택이 발급되면 여기에서 확인할 수 있어요.';}catch(_){box.textContent='쿠폰 내역을 불러오지 못했어요. 새로고침해 주세요.';}}
     function renderPilotTerms(info={}){if(info.beta){document.getElementById("pilot-terms").textContent="베타 선정자: 14일 · 하루 3건 · 최대 42건 · 승인 건당 300원";return}if(info.claim_limit===0){document.getElementById("pilot-terms").textContent="일반 영수증 모집은 닫혀 있어요. 베타 선정자만 별도 조건으로 참여할 수 있어요.";return}const parts=["1인 1일 3건(한국시간 결제일 기준)","예산 소진 시 종료"];if(Number.isInteger(info.claim_limit))parts.push(`총 ${info.claim_limit}건 모집`);if(Number.isInteger(info.max_claims_per_user)&&info.max_claims_per_user>0)parts.push(`계정당 ${info.max_claims_per_user}건`);const end=info.ends_at?new Date(info.ends_at):null;if(end&&Number.isFinite(end.getTime()))parts.push(`${new Date(end.getTime()-1).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})} 마감`);document.getElementById('pilot-terms').textContent=parts.join(' · ')}
     async function submitClaim(e){e.preventDefault();const form=e.currentTarget;const button=document.getElementById('claim-submit');const status=document.getElementById('claim-status');const data=new FormData(form);const when=new Date(String(data.get('purchased_at')||''));if(Number.isNaN(when.getTime()))return;data.set('purchased_at',when.toISOString());data.set('uid',currentUid);data.set('review_tags','');data.set('photo_reuse_consent','false');button.disabled=true;status.textContent='접수 중…';try{const res=await fetch('/v1/rewards/receipts',{method:'POST',headers:{'X-Guest-Token':window.JustHereAuth.getToken()},body:data});if(!res.ok)throw new Error();status.textContent='접수됐어요. 확인 후 적립됩니다.';await start()}catch(err){status.textContent='접수하지 못했어요. 중복 여부와 입력 내용을 확인해 주세요.'}finally{button.disabled=false}}
     let previewUrl='';
     document.getElementById('receipt-image').addEventListener('change',event=>{const input=event.target;const file=input.files[0];const preview=document.getElementById('receipt-preview');const message=document.getElementById('image-status');if(previewUrl)URL.revokeObjectURL(previewUrl);preview.hidden=true;preview.removeAttribute('src');message.textContent='';if(!file)return;if(file.size>8*1024*1024||!['image/jpeg','image/png','image/webp'].includes(file.type)){input.value='';message.textContent='8MB 이하의 JPG, PNG, WEBP 사진을 선택해 주세요.';return}previewUrl=URL.createObjectURL(file);preview.src=previewUrl;preview.hidden=false;message.textContent='사진을 선택했어요. 검토 요청을 누르기 전까지 전송되지 않아요.';});
     window.addEventListener('pagehide',()=>{if(previewUrl)URL.revokeObjectURL(previewUrl)});
-    document.querySelectorAll('.my-nav a').forEach(link=>link.addEventListener('click',event=>{const section=document.querySelector(link.getAttribute('href'));if(section?.hidden){event.preventDefault();const message=document.getElementById('page-state');message.textContent=section.id==='claim'?'현재 인증할 수 있는 식사가 없거나 모집 준비 중이에요. 먼저 가게 추천과 모집 상태를 확인해 주세요.':'보상 신청은 승인된 영수증·계정 연결·지급 운영 상태를 확인한 뒤 가능해요.';message.scrollIntoView({behavior:'smooth',block:'center'});}}));
+    document.querySelectorAll('.my-nav a').forEach(link=>link.addEventListener('click',event=>{const section=document.querySelector(link.getAttribute('href'));if(section?.hidden){event.preventDefault();const message=document.getElementById('page-state');message.textContent=section.id==='claim'?'영수증 업로드는 베타 선정 후 인증 가능한 식사가 있을 때 열려요. 위의 베타 참여 신청과 식사 기록을 확인해 주세요.':'보상 신청은 승인된 영수증·계정 연결·지급 운영 상태를 확인한 뒤 가능해요.';message.scrollIntoView({behavior:'smooth',block:'center'});}}));
     document.getElementById('refresh-rewards').onclick=()=>location.reload();
     function safe(v){const d=document.createElement('div');d.textContent=String(v||'');return d.innerHTML}document.getElementById('claim-form').onsubmit=submitClaim;
   </script>
