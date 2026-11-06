@@ -12,7 +12,7 @@
     <section id="receipt-upload-entry" class="receipt-upload-entry" aria-labelledby="upload-entry-title">
       <span class="eyebrow">식사 기록 · 영수증 인증</span><h2 id="upload-entry-title">영수증 올리고 후기 남기기</h2>
       <p>선택한 식당에 사진과 솔직한 후기를 남겨요. 영수증 사진은 공개되지 않아요.</p>
-      <button id="open-receipt-upload" type="button">영수증 업로드</button>
+      <button id="open-receipt-upload" type="button" disabled>업로드 가능 여부 확인 중…</button>
       <p id="upload-entry-state" role="status" aria-live="polite">업로드 가능 여부를 확인하고 있어요.</p>
       <div id="upload-entry-actions"><a href="#beta-apply">베타 참여 신청</a><a href="/">가게 고르기</a></div>
     </section>
@@ -62,6 +62,7 @@
     let currentUid='';
     function renderUploadEntry(data,available){
       const button=document.getElementById('open-receipt-upload');
+      button.disabled=false;
       const message=document.getElementById('upload-entry-state');
       const actions=document.getElementById('upload-entry-actions');
       message.textContent=available?'인증할 식사 기록이 있어요. 사진을 선택하고 후기를 남겨 주세요.':!data?'연결 상태를 확인하지 못했어요. 새로고침 후 다시 시도해 주세요.':data.reward_config?.enabled!==true?'현재 새 영수증 접수가 일시 중지되어 있어요. 기존 내역은 아래에서 확인할 수 있어요.':!data.beta?.enrolled&&data.pilot?.claim_limit===0?'현재는 베타 선정자만 보상 영수증을 접수할 수 있어요. 먼저 베타 참여를 신청해 주세요.':'인증할 식사 기록이 없어요. 가게를 추천받고 선택한 뒤 식사 후 올려 주세요.';
