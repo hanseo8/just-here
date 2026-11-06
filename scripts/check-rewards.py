@@ -4,6 +4,7 @@ from __future__ import annotations
 import tempfile
 from scripts.receipt_image_fixture import receipt_image
 import os
+os.environ['REWARD_IDENTITY_REQUIRED'] = 'off'
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path

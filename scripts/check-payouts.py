@@ -1,6 +1,7 @@
 """Offline settlement tests: no bank or Npay requests are sent."""
 from scripts.receipt_image_fixture import receipt_image
 import os
+os.environ['REWARD_IDENTITY_REQUIRED'] = 'off'
 import tempfile
 import json
 import runpy

@@ -17,9 +17,9 @@ window.renderBetaProgress = function (data, wallet={}) {
     if(applied){showMessage('신청이 이미 접수됐어요. 선정 결과가 나오면 MY에 참여 기간이 표시돼요.');return;}
     if(!enabled){showMessage('지금은 참여 신청 접수가 중지되어 있어요. 접수가 열리면 이 버튼으로 신청할 수 있어요.');return;}
     const uid=window.JustHereAuth.getUid();
-    if(!uid?.startsWith('kakao_')){
+    if(wallet.identity?.required!==false&&!wallet.identity?.verified){
       if(connectAction)connectAction.hidden=false;
-      showMessage('카카오 계정 연결이 필요해요. 아래 안내를 눌러 가게 선택 완료 화면에서 카카오 계정을 연결한 뒤 돌아와 주세요.');return;
+      showMessage('보상 참여에는 휴대폰 본인인증이 필요해요. 아래 ‘휴대폰 본인인증하기’를 눌러 주세요.');return;
     }
     applyButton.disabled=true;applyButton.textContent='신청 접수 중…';showMessage('참여 신청을 보내고 있어요. 잠시만 기다려 주세요.');
     const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),15000);
@@ -28,7 +28,7 @@ window.renderBetaProgress = function (data, wallet={}) {
       applyButton.textContent='신청 접수 완료';showMessage('참여 신청을 접수했어요. 아직 선정 전이며, 선정 결과는 MY에서 확인해 주세요.');
       applyButton.onclick=()=>showMessage('신청이 접수됐어요. 선정 결과는 MY에서 확인해 주세요.');
     }catch(e){
-      const errors={linked_account_required:'카카오 계정을 연결한 뒤 다시 신청해 주세요.',beta_capacity_reached:'현재 베타 선정 인원이 모두 찼어요.',beta_application_capacity_reached:'현재 신청 정원이 모두 찼어요.'};
+      const errors={phone_identity_required:'휴대폰 본인인증 후 다시 신청해 주세요.',beta_capacity_reached:'현재 베타 선정 인원이 모두 찼어요.',beta_application_capacity_reached:'현재 신청 정원이 모두 찼어요.'};
       applyButton.textContent='참여 신청 다시 시도';
       showMessage(e.name==='AbortError'?'응답이 늦어지고 있어요. 새로고침해 접수 상태를 확인한 뒤 다시 시도해 주세요.':errors[e.message]||'신청 결과를 확인하지 못했어요. 새로고침해 접수 상태를 확인한 뒤 다시 시도해 주세요.');
     }finally{clearTimeout(timer);applyButton.disabled=false;}
@@ -38,7 +38,7 @@ window.renderBetaProgress = function (data, wallet={}) {
   document.getElementById('beta-deadline').textContent = '참여 기한: ' + new Date(data.ends_at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'});
   const payoutForm=document.getElementById('beta-payout-form');
   const active=(wallet.payouts||[]).some(p=>p.id.startsWith('bpay_')&&p.status!=='rejected');
-  payoutForm.hidden=!data.bonus_eligible||!wallet.payout_config?.enabled||active;
+  payoutForm.hidden=!data.bonus_eligible||!wallet.payout_config?.enabled||active||(wallet.identity?.required!==false&&!wallet.identity?.verified);
   let payoutRequestId=crypto.randomUUID();
   payoutForm.onsubmit=async event=>{event.preventDefault();const b=payoutForm.querySelector('button');b.disabled=true;const fields=new FormData(payoutForm);try{await jsonApi('/v1/rewards/beta/payout',{method:'POST',body:JSON.stringify({uid:window.JustHereAuth.getUid(),request_id:payoutRequestId,bank:fields.get('bank'),account:fields.get('account'),holder:fields.get('holder'),consent:fields.has('consent')})});payoutForm.reset();document.getElementById('beta-payout-message').textContent='지급 신청을 접수했어요. 실제 송금 완료 후 내역에 표시돼요.';await start();}catch(_){document.getElementById('beta-payout-message').textContent='신청 결과를 확인하지 못했어요. 지급 내역을 확인한 뒤 다시 시도해 주세요.';}finally{b.disabled=false;}};
   const form = document.getElementById('beta-survey');

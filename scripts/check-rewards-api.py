@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from scripts.receipt_image_fixture import receipt_image
 import os
+os.environ['REWARD_IDENTITY_REQUIRED'] = 'off'
 import tempfile
 import runpy
 import zipfile

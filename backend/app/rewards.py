@@ -270,6 +270,8 @@ class RewardStore:
         from . import beta_campaign
         with self._db() as db:
             beta_campaign.initialize(db)
+            from . import reward_identity
+            reward_identity.initialize(db)
         self._purge_expired_images()
 
     def _purge_expired_images(self) -> None:
@@ -412,6 +414,8 @@ class RewardStore:
                 raise ValueError("attribution_expired")
             from . import beta_campaign
             beta_points = beta_campaign.receipt_terms(db, uid, attribution, purchase)
+            from . import reward_identity
+            reward_identity.require_db(db, uid)
             limit = claim_limit()
             reserved = db.execute(
                 "SELECT COUNT(*) FROM receipts WHERE status IN ('pending','approved')"
@@ -679,6 +683,9 @@ class RewardStore:
         with _LOCK, self._db() as db:
             db.execute("BEGIN IMMEDIATE")
             try:
+                from . import reward_identity
+                if reward_identity.verified_db(db, source_uid):
+                    raise ValueError('phone_identity_account_conflict')
                 has_requests = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='account_deletion_requests'").fetchone()
                 if has_requests:
                     pending = db.execute("SELECT 1 FROM account_deletion_requests WHERE uid IN (?,?) AND status IN ('requested','reviewing')", (source_uid,target_uid)).fetchone()
@@ -692,6 +699,8 @@ class RewardStore:
                     db.execute("UPDATE partner_coupons SET uid=? WHERE uid=?", (target_uid,source_uid))
                 if has_requests and not db.execute("SELECT 1 FROM account_deletion_requests WHERE uid=?",(target_uid,)).fetchone():
                     db.execute("UPDATE account_deletion_requests SET uid=? WHERE uid=?",(target_uid,source_uid))
+                for table in ('beta_members','beta_applications','beta_receipts','beta_awards','beta_payouts'):
+                    db.execute('UPDATE '+table+' SET uid=? WHERE uid=?', (target_uid,source_uid))
                 db.execute("COMMIT")
             except Exception:
                 db.execute("ROLLBACK")

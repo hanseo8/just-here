@@ -2,7 +2,7 @@
 import json
 import secrets
 from datetime import timedelta
-from . import rewards
+from . import rewards, reward_identity
 
 CAMPAIGN = 'beta30-20261106'
 CAPACITY, RECEIPTS, DAYS, PER_RECEIPT, BONUS = 15, 42, 14, 300, 5000
@@ -38,10 +38,9 @@ def initialize(db):
 
 
 def enroll(store, uid, actor):
-    if not uid.startswith('kakao_'):
-        raise ValueError('linked_account_required')
     with rewards._LOCK, store._db() as db:
         db.execute('BEGIN IMMEDIATE')
+        reward_identity.require_db(db, uid, legacy_link=True)
         row = db.execute('SELECT * FROM beta_members WHERE campaign=? AND uid=?', (CAMPAIGN,uid)).fetchone()
         if not row:
             if db.execute('SELECT COUNT(*) FROM beta_members WHERE campaign=?',(CAMPAIGN,)).fetchone()[0] >= CAPACITY:
@@ -86,6 +85,7 @@ def survey(store, uid, answer):
         raise ValueError('survey_length_invalid')
     with rewards._LOCK, store._db() as db:
         db.execute('BEGIN IMMEDIATE')
+        reward_identity.require_db(db, uid)
         m = db.execute('SELECT * FROM beta_members WHERE campaign=? AND uid=?',(CAMPAIGN,uid)).fetchone()
         if not m:
             raise ValueError('beta_enrollment_required')
@@ -99,14 +99,13 @@ def survey(store, uid, answer):
 def request_bonus(store, uid, request_id, bank, account, holder):
     from . import payouts
     import re
-    if not uid.startswith('kakao_'):
-        raise ValueError('linked_account_required')
     account = re.sub(r'[ -]', '', account)
     if not re.fullmatch(r'[0-9]{8,20}', account) or not bank.strip() or not holder.strip():
         raise ValueError('invalid_bank_details')
     encrypted = payouts.cipher().encrypt(json.dumps({'bank':bank.strip(),'account':account,'holder':holder.strip()},ensure_ascii=False).encode()).decode()
     with rewards._LOCK, store._db() as db:
         db.execute('BEGIN IMMEDIATE')
+        reward_identity.require_db(db, uid, legacy_link=True)
         old = db.execute('SELECT * FROM beta_payouts WHERE uid=? AND request_id=?',(uid,request_id)).fetchone()
         if old:
             return payouts.public(old)
@@ -139,10 +138,9 @@ def roster(store):
 
 
 def apply(store,uid):
-    if not uid.startswith('kakao_'):
-        raise ValueError('linked_account_required')
     with rewards._LOCK, store._db() as db:
         db.execute('BEGIN IMMEDIATE')
+        reward_identity.require_db(db, uid, legacy_link=True)
         if db.execute('SELECT COUNT(*) FROM beta_members WHERE campaign=?',(CAMPAIGN,)).fetchone()[0] >= CAPACITY:
             raise ValueError('beta_capacity_reached')
         if db.execute('SELECT COUNT(*) FROM beta_applications WHERE campaign=?',(CAMPAIGN,)).fetchone()[0] >= 200:

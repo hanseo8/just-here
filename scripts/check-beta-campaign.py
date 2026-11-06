@@ -1,6 +1,7 @@
 """Isolated beta budget/progress checks. No production or bank requests."""
 import tempfile
 import os
+os.environ['REWARD_IDENTITY_REQUIRED'] = 'off'
 from pathlib import Path
 from datetime import timedelta
 from unittest.mock import patch

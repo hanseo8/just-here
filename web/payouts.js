@@ -11,8 +11,8 @@
     if (!data) return;
     const active = new Set((data.payouts || []).filter(p => p.status !== 'rejected').map(p => p.receipt_id));
     const eligible = (data.receipts || []).filter(r => r.status === 'approved' && !active.has(r.id));
-    document.getElementById('bank-payout').hidden = !data.payout_config?.enabled || !eligible.length || !uid.startsWith('kakao_');
-    if (data.payout_config?.enabled && eligible.length && !uid.startsWith('kakao_')) message.textContent = '지급 신청 전에 가게 선택 완료 화면에서 카카오 계정을 연결해 주세요.';
+    document.getElementById('bank-payout').hidden = !data.payout_config?.enabled || !eligible.length || (data.identity?.required!==false?!data.identity?.verified:!uid.startsWith('kakao_'));
+    if (data.payout_config?.enabled && eligible.length && (data.identity?.required!==false?!data.identity?.verified:!uid.startsWith('kakao_'))) message.textContent = '지급 신청 전에 휴대폰 본인인증을 완료해 주세요.';
     if (!data.payout_config?.enabled) message.textContent=' 계좌 지급은 현재 열려 있지 않아요. 기존 지급 내역은 계속 확인할 수 있어요.';
     const select = document.getElementById('bank-receipt');
     select.replaceChildren(...eligible.map(r => new Option(r.place_name + ' · ' + Number(r.reward_points) + '원', r.id)));

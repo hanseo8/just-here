@@ -1,5 +1,6 @@
 """Twenty-claim pilot boundaries, without production requests or payments."""
 import os
+os.environ['REWARD_IDENTITY_REQUIRED'] = 'off'
 import tempfile
 from pathlib import Path
 from datetime import timedelta

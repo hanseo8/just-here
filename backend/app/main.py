@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import tempfile
+import sqlite3
 import os
 from datetime import datetime
 from pathlib import Path
@@ -30,6 +31,7 @@ from . import payouts
 from . import coupons
 from . import account_requests
 from . import native_auth
+from . import reward_identity
 from .request_guard import RequestGuard
 from . import share
 from . import titles
@@ -1207,6 +1209,42 @@ def my_reward_image(receipt_id: str, request: Request, uid: str = Query(...)):
     return FileResponse(path, media_type=content_type, headers=_ADMIN_NO_STORE)
 
 
+class RewardIdentityBody(BaseModel):
+    uid: str = Field(min_length=1, max_length=160)
+    consent: bool = False
+    identity_verification_id: str = Field(default='', max_length=100)
+
+
+@app.post('/v1/rewards/identity/start')
+def reward_identity_start(body: RewardIdentityBody, request: Request):
+    uid = _require_uid(request, body.uid)
+    if not body.consent:
+        raise HTTPException(400, 'phone_identity_consent_required')
+    try:
+        return _admin_json(reward_identity.start(rewards.get_store(), uid))
+    except ValueError as exc:
+        raise HTTPException(503 if str(exc)=='phone_identity_not_configured' else 429, str(exc)) from None
+
+
+@app.post('/v1/rewards/identity/complete')
+def reward_identity_complete(body: RewardIdentityBody, request: Request):
+    uid = _require_uid(request, body.uid)
+    store = rewards.get_store()
+    try:
+        target = reward_identity.complete(store, uid, body.identity_verification_id)
+        if not users.STORE.get(uid) or not users.STORE.get(target):
+            raise ValueError('phone_identity_user_missing')
+        if target != uid:
+            store.merge_uid(uid, target)
+            users.STORE.merge_guest_into(uid, target, auth_type='phone')
+    except (ValueError, sqlite3.IntegrityError) as exc:
+        code = str(exc) if isinstance(exc,ValueError) else 'phone_identity_account_conflict'
+        raise HTTPException(409, code) from None
+    verified = guest_token.verify(request.headers.get('X-Guest-Token')) or {}
+    return _admin_json({'ok':True, 'uid':target, 'auth_type':'phone',
+        'guest_token':guest_token.issue(target,verified.get('did','')), 'identity':reward_identity.status(store,target)})
+
+
 @app.get("/v1/rewards/me")
 def reward_me(request: Request, uid: str = Query(...)):
     uid = _require_uid(request, uid)
@@ -1218,7 +1256,7 @@ def reward_me(request: Request, uid: str = Query(...)):
                                 "pilot": rewards.pilot_terms(), "reward_config": current,
                                 "payout_config": payouts.status()})
     store = rewards.get_store()
-    return _admin_json({"ok": True, **store.list_for_user(uid), "beta": beta_campaign.progress(store,uid), "beta_application": beta_campaign.application_status(store,uid), "pilot": rewards.pilot_terms(), "reward_config": rewards.status(), "payout_config": payouts.status(), "payouts": payouts.listing(store, uid)})
+    return _admin_json({"ok": True, **store.list_for_user(uid), "beta": beta_campaign.progress(store,uid), "beta_application": beta_campaign.application_status(store,uid), "identity": reward_identity.status(store,uid), "pilot": rewards.pilot_terms(), "reward_config": rewards.status(), "payout_config": payouts.status(), "payouts": payouts.listing(store, uid)})
 
 
 class AccountDeletionBody(BaseModel):

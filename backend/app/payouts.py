@@ -7,7 +7,7 @@ import sqlite3
 
 from cryptography.fernet import Fernet, InvalidToken
 
-from . import rewards
+from . import rewards, reward_identity
 
 
 def cipher():
@@ -34,8 +34,6 @@ def public(row):
 
 
 def request(store, *, uid, receipt_id, request_id, bank, account, holder):
-    if not uid.startswith("kakao_"):
-        raise ValueError("linked_account_required")
     account = re.sub(r"[ -]", "", account)
     if not re.fullmatch(r"[0-9]{8,20}", account) or not bank.strip() or not holder.strip():
         raise ValueError("invalid_bank_details")
@@ -44,6 +42,7 @@ def request(store, *, uid, receipt_id, request_id, bank, account, holder):
     }, ensure_ascii=False).encode()).decode()
     with rewards._LOCK, store._db() as db:
         db.execute("BEGIN IMMEDIATE")
+        reward_identity.require_db(db, uid, legacy_link=True)
         existing = db.execute("SELECT * FROM payouts WHERE uid=? AND request_id=?", (uid, request_id)).fetchone()
         if existing:
             if existing["receipt_id"] != receipt_id:
