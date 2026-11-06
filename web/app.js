@@ -699,6 +699,8 @@ function syncFulfillment() {
   $("delivery-range-panel").classList.toggle("hidden",visit);
   $("visit-range").value=state.visitRadius;
   $("visit-range-value").textContent=state.visitRadius<1000 ? `${state.visitRadius}m` : `${Number((state.visitRadius/1000).toFixed(1))}km`;
+  if ($("range-map-distance")) $("range-map-distance").textContent = `반경 ${$("visit-range-value").textContent}`;
+  $("visit-range-panel").style.setProperty("--range-scale", String(.38 + .62 * (state.visitRadius - 100) / 2900));
   $("btn-fulfillment-start").textContent=visit ? "주변 가게 찾기" : "배달 브랜드 찾기";
 }
 async function submitFulfillment() {

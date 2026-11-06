@@ -26,7 +26,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=20261106-location4" />
+  <link rel="stylesheet" href="/static/styles.css?v=20261106-location5" />
 </head>
 <body>
   <!-- 진입 인트로: 첫 페인트를 브랜드로 채우고, 그 사이 init()이 끝난다 -->
@@ -82,15 +82,25 @@
           <h1 class="taste-prompt">어떻게 먹을까요?</h1>
           <p id="fulfillment-taste" class="taste-sub"></p>
           <div class="fulfillment-options" role="group" aria-label="방문 또는 배달">
-            <button type="button" class="fulfillment-option" data-fulfillment="visit" aria-pressed="true"><span class="fulfillment-icon" aria-hidden="true">↗</span><strong>걸어서 방문</strong><span>내 주변에서 찾아요</span></button>
+            <button type="button" class="fulfillment-option" data-fulfillment="visit" aria-pressed="true"><span class="fulfillment-icon" aria-hidden="true">↗</span><strong>매장 방문</strong><span>도보·차량으로 직접 방문</span></button>
             <button type="button" class="fulfillment-option" data-fulfillment="delivery" aria-pressed="false"><span class="fulfillment-icon" aria-hidden="true">⌂</span><strong>편하게 배달</strong><span>브랜드 공식 주문으로</span></button>
           </div>
           <div id="visit-range-panel" class="visit-range-panel">
-            <div class="range-visual" aria-hidden="true"><span class="range-orbit"></span><span class="range-pin">●</span><span class="range-house">내 주변</span></div>
+            <div class="range-map" aria-hidden="true">
+              <svg viewBox="0 0 360 190" preserveAspectRatio="xMidYMid slice">
+                <rect width="360" height="190" fill="#f6f3ee"/>
+                <g fill="#e9e5df"><rect x="18" y="16" width="60" height="40" rx="8"/><rect x="104" y="12" width="77" height="45" rx="8"/><rect x="253" y="16" width="90" height="41" rx="8"/><rect x="16" y="110" width="65" height="62" rx="8"/><rect x="106" y="125" width="65" height="50" rx="8"/><rect x="266" y="116" width="75" height="56" rx="8"/></g>
+                <rect x="268" y="68" width="79" height="34" rx="12" fill="#deeadc"/>
+                <g fill="none" stroke="#fff" stroke-width="14"><path d="M-10 85L370 85M91-10L91 200M226-10L226 200M-10 183L370 24"/></g>
+                <path d="M-10 183L370 24" fill="none" stroke="#efdac9" stroke-width="2"/>
+                <g class="range-map-radius"><circle cx="180" cy="95" r="78" fill="#ff6a2b" fill-opacity=".10" stroke="#ff783f" stroke-width="1.5" stroke-dasharray="5 4"/><circle cx="180" cy="95" r="51" fill="#ff6a2b" fill-opacity=".07"/></g>
+                <circle cx="180" cy="95" r="16" fill="#ff5a1f" fill-opacity=".17"/><circle cx="180" cy="95" r="7" fill="#ff5a1f" stroke="white" stroke-width="3"/>
+              </svg><span class="range-map-location">검색 기준 위치</span><span class="range-map-badge" id="range-map-distance">반경 700m</span>
+            </div><p class="range-map-caption">검색 범위 시각화 · 실제 지도가 아니에요</p>
             <label for="visit-range">어디까지 찾아볼까요? <output id="visit-range-value" for="visit-range">700m</output></label>
             <input id="visit-range" type="range" min="100" max="3000" step="100" value="700">
             <div class="range-ends"><span>100m</span><span>3km</span></div>
-            <p>기본은 도보 700m · 현재 위치에서 직선거리 기준이에요.</p>
+            <p>기본 반경 700m · 검색 기준 위치에서 직선거리예요. 이동 경로와 소요 시간은 지도에서 확인해 주세요.</p>
           </div>
           <div id="delivery-range-panel" class="delivery-range-panel hidden"><strong>거리 제한 없이 찾아요</strong><p>공식 주문 페이지가 있는 브랜드를 추천해요. 배달 가능 지역과 메뉴는 주문 페이지에서 확인해 주세요.</p></div>
           <p class="food-image-note">메뉴 검색 결과를 참고해 찾아요. 실제 판매 여부는 가게에서 확인해 주세요.</p>
@@ -337,6 +347,6 @@
   <script src="/static/badges.js?v=20260930-badges1"></script>
   <script src="/static/story.js?v=20260930-receipt2"></script>
   <script src="/static/instagram.js?v=20260926-ig1"></script>
-  <script src="/static/app.js?v=20261106-beta5"></script>
+  <script src="/static/app.js?v=20261106-beta6"></script>
 </body>
 </html>
