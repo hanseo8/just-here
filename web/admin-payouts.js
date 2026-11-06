@@ -26,7 +26,7 @@
       }
       for (const p of data.payouts) {
         const box = document.createElement('article'); box.className = 'payout-item';
-        const title = document.createElement('h3'); title.textContent = `300원 · ${labels[p.status]}`;
+        const title = document.createElement('h3'); title.textContent = `${Number(p.amount_krw).toLocaleString()}원 · ${labels[p.status]}`;
         const meta = document.createElement('p'); meta.className = 'muted';
         meta.textContent = `신청 ${new Date(p.created_at).toLocaleString('ko-KR')} · 계좌 끝 ${p.account_tail} · ${p.id.slice(-8)}`;
         const details = document.createElement('div'); details.className = 'payout-recipient'; details.hidden = true;
@@ -54,7 +54,7 @@
           }), paidButton);
           box.append(reference);
         }
-        if (['pending','processing'].includes(p.status)) actions.append(button('반려 및 300P 반환', () => act('rejected')));
+        if (['pending','processing'].includes(p.status)) actions.append(button(`반려 및 ${Number(p.amount_krw)}P 반환`, () => act('rejected')));
         box.append(actions);
         if (['pending','processing'].includes(p.status)) box.append(reason, label);
         queue.append(box);

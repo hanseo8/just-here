@@ -39,6 +39,11 @@ with tempfile.TemporaryDirectory() as raw:
     uid = identity["uid"]
     headers = {"X-Guest-Token": identity["guest_token"]}
 
+    check(client.get('/v1/rewards/beta',params={'uid':uid}).status_code == 401, 'beta progress requires authentication')
+    check(client.post('/v1/admin/rewards/beta/enroll',json={'uid':uid}).status_code == 401, 'beta selection requires admin authentication')
+    check(client.get('/v1/rewards/beta',params={'uid':'kakao_other'},headers=headers).status_code == 401, 'beta cross-account progress blocked')
+    own_beta = client.get('/v1/rewards/beta',params={'uid':uid},headers=headers)
+    check(own_beta.status_code == 200 and own_beta.json()=={'enrolled':False} and own_beta.headers['cache-control']=='no-store', 'beta private progress response')
     att = rewards.get_store().create_attribution(
         uid=uid, session_id="api-session", place_id="api-place",
         place_name="API 테스트 식당", menu_id="api-menu", menu_name="비빔밥", intent="visit",
@@ -72,7 +77,7 @@ with tempfile.TemporaryDirectory() as raw:
     check(login.status_code == 200, 'admin second factor login')
     admin_headers['X-Admin-Session'] = login.json()['session_token']
     queue = client.get("/v1/admin/rewards", headers=admin_headers)
-    check(queue.json()["summary"]["pending_points"] == 300, "pending rewards reserve budget")
+    check(queue.json()["summary"]["pending_points"] == 100, "pending rewards reserve budget")
     check(queue.status_code == 200 and len(queue.json()["receipts"]) == 1, "관리자 검토 큐")
     image = client.get(f"/v1/admin/rewards/{receipt_id}/image", headers=admin_headers)
     check(image.status_code == 200 and image.headers["cache-control"].startswith("no-store"), "영수증 이미지 보호")
@@ -81,16 +86,16 @@ with tempfile.TemporaryDirectory() as raw:
         headers=admin_headers,
         json={"approve": True, "reason": "확인"},
     )
-    check(decision.status_code == 200, "관리자 300P 승인")
+    check(decision.status_code == 200, "관리자 100P 승인")
     mine = client.get(f"/v1/rewards/me?uid={uid}", headers=headers)
-    check(mine.status_code == 200 and mine.json()["balance"] == 300, "사용자 잔액 300P")
+    check(mine.status_code == 200 and mine.json()["balance"] == 100, "사용자 잔액 100P")
 
     summary = client.get("/v1/admin/rewards", headers=admin_headers).json()["summary"]
-    check(summary["claims_remaining"] == 99 and summary["committed_points"] == 300, "pilot budget summary")
+    check(summary["claims_remaining"] == 99 and summary["committed_points"] == 100, "pilot budget summary")
     check(client.get("/v1/admin/rewards/backup").status_code == 401, "backup requires admin authentication")
     os.environ["RECEIPT_REWARDS"] = "off"
     stopped = client.get("/v1/admin/rewards", headers=admin_headers).json()
-    check(not stopped["rewards"]["enabled"] and stopped["summary"]["points_issued"] == 300, "stopped pilot retains admin visibility")
+    check(not stopped["rewards"]["enabled"] and stopped["summary"]["points_issued"] == 100, "stopped pilot retains admin visibility")
     result = client.get("/v1/admin/rewards/backup", headers=admin_headers)
     check(result.status_code == 200 and "no-store" in result.headers["cache-control"], "backup available when pilot stopped")
     archive = Path(raw) / "backup.zip"
@@ -99,14 +104,14 @@ with tempfile.TemporaryDirectory() as raw:
     target = Path(raw) / "restored"
     restore(archive, target)
     restored = rewards.RewardStore(target / "rewards.sqlite3")
-    check(restored.list_for_user(uid)["balance"] == 300, "restored ledger matches balance")
+    check(restored.list_for_user(uid)["balance"] == 100, "restored ledger matches balance")
     restored_image, _ = restored.image_path(receipt_id)
     check(restored_image.read_bytes() == image.content, "restored receipt image matches original")
     try:
         restore(archive, target)
         raise AssertionError("existing target was accepted")
     except ValueError:
-        check(restored.list_for_user(uid)["balance"] == 300, "restore refuses overwriting existing data")
+        check(restored.list_for_user(uid)["balance"] == 100, "restore refuses overwriting existing data")
     corrupt = Path(raw) / "corrupt.zip"
     with zipfile.ZipFile(archive) as source, zipfile.ZipFile(corrupt, "w") as out:
         for name in source.namelist():

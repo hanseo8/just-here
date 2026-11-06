@@ -85,7 +85,9 @@ def preflight(store, ident):
             'receipts': scalar('SELECT COUNT(*) FROM receipts WHERE uid=?'),
             'pending_receipts': scalar("SELECT COUNT(*) FROM receipts WHERE uid=? AND status='pending'"),
             'payouts': scalar('SELECT COUNT(*) FROM payouts WHERE uid=?'),
-            'pending_payouts': scalar("SELECT COUNT(*) FROM payouts WHERE uid=? AND status IN ('pending','processing')"),
+            'pending_payouts': scalar("SELECT COUNT(*) FROM payouts WHERE uid=? AND status IN ('pending','processing')") + scalar("SELECT COUNT(*) FROM beta_payouts WHERE uid=? AND status IN ('pending','processing')"),
+            'beta_memberships': scalar('SELECT COUNT(*) FROM beta_members WHERE uid=?'),
+            'beta_surveys': scalar('SELECT COUNT(*) FROM beta_members WHERE uid=? AND survey_at IS NOT NULL'),
             'balance_points': scalar('SELECT COALESCE(SUM(amount),0) FROM reward_ledger WHERE uid=?'),
             'attributions': scalar('SELECT COUNT(*) FROM attributions WHERE uid=?'),
         }

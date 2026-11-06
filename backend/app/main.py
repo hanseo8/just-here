@@ -10,7 +10,7 @@ from typing import Literal
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.background import BackgroundTask
 from pydantic import BaseModel, Field
@@ -24,10 +24,12 @@ from . import engine
 from . import guest_token
 from . import google_places
 from . import kakao
+from . import beta_campaign
 from . import rewards
 from . import payouts
 from . import coupons
 from . import account_requests
+from . import native_auth
 from .request_guard import RequestGuard
 from . import share
 from . import titles
@@ -64,7 +66,8 @@ async def private_rewards_responses(request: Request, call_next):
     if request.url.path.startswith(("/v1/rewards", "/v1/merchant/", "/v1/admin/", "/v1/analytics/summary", "/v1/me", "/v1/auth/")):
         response.headers["Cache-Control"] = "no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["Referrer-Policy"] = "same-origin"
+    if "Referrer-Policy" not in response.headers:
+        response.headers["Referrer-Policy"] = "same-origin"
     return response
 
 
@@ -155,6 +158,18 @@ class KakaoCodeBody(BaseModel):
     redirect_uri: str
 
 
+class NativeKakaoStartBody(BaseModel):
+    guest_uid: str = Field(min_length=1, max_length=80)
+    challenge: str = Field(pattern=r'^[a-f0-9]{64}$')
+
+
+class NativeKakaoCompleteBody(BaseModel):
+    guest_uid: str = Field(min_length=1, max_length=80)
+    attempt_id: str = Field(min_length=20, max_length=80)
+    verifier: str = Field(min_length=40, max_length=128)
+    ticket: str = Field(min_length=40, max_length=128)
+
+
 class TasteSyncBody(BaseModel):
     uid: str
     taste: list[str] = Field(default_factory=list)
@@ -213,6 +228,15 @@ class PayoutDecisionBody(BaseModel):
     reference: str = Field(default="", max_length=100)
     reason: str = Field(default="", max_length=240)
     no_transfer: bool = False
+
+
+class BetaPayoutBody(BaseModel):
+    uid: str = Field(min_length=1, max_length=160)
+    request_id: str = Field(min_length=8, max_length=100)
+    bank: str = Field(min_length=1, max_length=40)
+    account: str = Field(min_length=8, max_length=30)
+    holder: str = Field(min_length=1, max_length=40)
+    consent: bool
 
 
 def _guest_header(request: Request) -> str:
@@ -591,6 +615,38 @@ def auth_kakao_link(body: KakaoLinkBody, request: Request):
     except ValueError as e:
         raise HTTPException(401, f"kakao auth failed: {e}") from e
     return _finish_kakao_link(body.guest_uid, kakao_user)
+
+
+@app.post('/v1/auth/kakao/native/start')
+def native_kakao_start(body: NativeKakaoStartBody, request: Request):
+    _require_uid(request, body.guest_uid)
+    if not users.STORE.get(body.guest_uid):
+        raise HTTPException(404, 'guest user not found')
+    try:
+        return native_auth.start(body.guest_uid, body.challenge, (os.getenv('KAKAO_REST_API_KEY') or '').strip())
+    except ValueError as exc:
+        raise HTTPException(503, str(exc)) from None
+
+
+@app.post('/v1/auth/kakao/native/complete')
+def native_kakao_complete(body: NativeKakaoCompleteBody, request: Request):
+    _require_uid(request, body.guest_uid)
+    device = guest_token.verify(_guest_header(request)).get('did','')
+    def finish(profile):
+        target = f"kakao_{profile['kakao_id']}"
+        current = users.STORE.get(body.guest_uid)
+        if not current:
+            raise HTTPException(404, 'guest user not found')
+        # Retransmission after a lost response must not merge balances or logs twice.
+        if body.guest_uid == target or current.get('linked_to') == target:
+            return {'ok':True,'uid':target,'auth_type':'kakao',
+                    'guest_token':guest_token.issue(target,device),
+                    'user':users.STORE.public_profile(target)}
+        return _finish_kakao_link(body.guest_uid, profile, device)
+    try:
+        return native_auth.complete(body.guest_uid,body.attempt_id,body.verifier,body.ticket,finish)
+    except ValueError:
+        raise HTTPException(401, 'native login proof invalid or expired') from None
 
 
 @app.post("/v1/auth/kakao/code")
@@ -1148,7 +1204,7 @@ def reward_me(request: Request, uid: str = Query(...)):
                                 "pilot": rewards.pilot_terms(), "reward_config": current,
                                 "payout_config": payouts.status()})
     store = rewards.get_store()
-    return _admin_json({"ok": True, **store.list_for_user(uid), "pilot": rewards.pilot_terms(), "reward_config": rewards.status(), "payout_config": payouts.status(), "payouts": payouts.listing(store, uid)})
+    return _admin_json({"ok": True, **store.list_for_user(uid), "beta": beta_campaign.progress(store,uid), "pilot": rewards.pilot_terms(), "reward_config": rewards.status(), "payout_config": payouts.status(), "payouts": payouts.listing(store, uid)})
 
 
 class AccountDeletionBody(BaseModel):
@@ -1315,6 +1371,26 @@ def admin_payouts(request: Request):
     rows = payouts.listing(store) if store else []
     return _admin_json({"payouts": rows, "config": payouts.status(),
                         "reconciliation": payouts.reconciliation(store) if store else None})
+
+
+@app.post("/v1/rewards/beta/payout")
+def request_beta_payout(body: BetaPayoutBody, request: Request):
+    uid = _require_uid(request,body.uid)
+    if not payouts.status()['enabled']:
+        raise HTTPException(503,'bank_payouts_unavailable')
+    if not body.consent:
+        raise HTTPException(400,'payout_consent_required')
+    try:
+        result = beta_campaign.request_bonus(rewards.get_store(),uid,body.request_id,body.bank,body.account,body.holder)
+    except ValueError as exc:
+        raise HTTPException(409,str(exc)) from None
+    return _admin_json({'ok':True,'payout':result})
+
+
+@app.get("/v1/admin/rewards/beta")
+def beta_roster(request: Request):
+    _require_admin(request)
+    return _admin_json(beta_campaign.roster(rewards.get_store()))
 
 
 @app.post("/v1/admin/payouts/{ident}/recipient")
@@ -1563,8 +1639,70 @@ if WEB_DIR.is_dir():
 
 
 @app.get("/")
-def index():
+def index(request: Request):
+    state = request.query_params.get('state','')
+    if state.startswith('native_'):
+        try:
+            result = native_auth.callback(state, request.query_params.get('code',''),
+                                         request.query_params.get('error',''),users.exchange_kakao_auth_code)
+            from urllib.parse import urlencode
+            url = 'justthis://auth-complete?' + urlencode(result)
+            # Only server-generated base64url identifiers enter this fixed URL.
+            body = f'<h1>카카오 확인을 마쳤어요</h1><p>아래 버튼으로 원래 앱에 돌아가 연결을 마쳐 주세요.</p><a href="{url.replace("&", "&amp;")}">그냥여기 앱으로 돌아가기</a>'
+        except ValueError:
+            body = '<h1>연결을 완료하지 못했어요</h1><p>취소됐거나 연결 시간이 지났어요. 원래 앱으로 돌아가 다시 시도해 주세요.</p>'
+        return HTMLResponse('<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>그냥여기 계정 연결</title><style>body{font-family:sans-serif;margin:40px 24px;color:#222}h1{font-size:26px}p{line-height:1.7}a{display:block;padding:20px;background:#ff5a1f;border-radius:16px;color:white;text-align:center;text-decoration:none}</style>'+body+'</html>',headers={
+            'Cache-Control':'no-store','Referrer-Policy':'no-referrer',
+            'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+            'X-Content-Type-Options':'nosniff'})
     index_path = WEB_DIR / "index.html"
     if not index_path.exists():
         return {"message": "web UI missing", "docs": "/docs"}
     return FileResponse(index_path)
+
+
+class BetaEnrollmentBody(BaseModel):
+    uid: str = Field(min_length=1, max_length=160)
+
+
+class BetaSurveyBody(BetaEnrollmentBody):
+    answer: str = Field(min_length=10, max_length=2000)
+
+
+@app.post("/v1/rewards/beta/apply")
+def beta_apply(body: BetaEnrollmentBody, request: Request):
+    uid = _require_uid(request,body.uid)
+    _require_rewards()
+    try:
+        return _admin_json(beta_campaign.apply(rewards.get_store(),uid))
+    except ValueError as exc:
+        raise HTTPException(409,str(exc)) from None
+
+
+@app.post("/v1/admin/rewards/beta/enroll")
+def beta_enroll(body: BetaEnrollmentBody, request: Request):
+    _require_admin(request)
+    _require_rewards()
+    if users.STORE.get(body.uid) is None:
+        raise HTTPException(404, "account_not_found")
+    try:
+        return _admin_json(beta_campaign.enroll(rewards.get_store(),body.uid,"admin"))
+    except ValueError as exc:
+        raise HTTPException(409,str(exc)) from None
+
+
+@app.get("/v1/rewards/beta")
+def beta_status(request: Request, uid: str = Query(...)):
+    uid = _require_uid(request,uid)
+    _require_rewards()
+    return _admin_json(beta_campaign.progress(rewards.get_store(),uid))
+
+
+@app.post("/v1/rewards/beta/survey")
+def beta_survey(body: BetaSurveyBody, request: Request):
+    uid = _require_uid(request,body.uid)
+    _require_rewards()
+    try:
+        return _admin_json(beta_campaign.survey(rewards.get_store(),uid,body.answer))
+    except ValueError as exc:
+        raise HTTPException(409,str(exc)) from None

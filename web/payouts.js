@@ -5,7 +5,7 @@
   const history = document.getElementById('bank-history');
   let key = crypto.randomUUID();
   let keyReceipt = '';
-  const labels = {pending:'지급 대기',processing:'송금 확인 중',paid:'300원 지급 완료',rejected:'반려 · 300P 반환'};
+  const labels = {pending:'지급 대기',processing:'송금 확인 중',paid:'지급 완료',rejected:'반려 · 포인트 반환'};
   async function refresh(data) {
     const uid = window.JustHereAuth.getUid();
     if (!data) return;
@@ -15,10 +15,11 @@
     if (data.payout_config?.enabled && eligible.length && !uid.startsWith('kakao_')) message.textContent = '지급 신청 전에 가게 선택 완료 화면에서 카카오 계정을 연결해 주세요.';
     if (!data.payout_config?.enabled) message.textContent=' 계좌 지급은 현재 열려 있지 않아요. 기존 지급 내역은 계속 확인할 수 있어요.';
     const select = document.getElementById('bank-receipt');
-    select.replaceChildren(...eligible.map(r => new Option(r.place_name + ' · 300원', r.id)));
+    select.replaceChildren(...eligible.map(r => new Option(r.place_name + ' · ' + Number(r.reward_points) + '원', r.id)));
+    const updateAmount=()=>{const r=eligible.find(x=>x.id===select.value);const amount=Number(r?.reward_points||data.payout_config?.amount_krw||100);form.querySelector('button').textContent=amount+'원 계좌 지급 신청';document.getElementById('bank-amount-terms').textContent=amount+'원 송금을 위한 은행·계좌번호·예금주 수집에 동의합니다.';};select.onchange=updateAmount;updateAmount();
     history.replaceChildren(...(data.payouts || []).map(p => {
       const el = document.createElement('article'); el.className = 'reward-item';
-      el.textContent = `${labels[p.status] || p.status} · 계좌 끝 ${p.account_tail}${p.reason ? ' · ' + p.reason : ''}`;
+      el.textContent = `${Number(p.amount_krw)}원 · ${labels[p.status] || p.status} · 계좌 끝 ${p.account_tail}${p.reason ? ' · ' + p.reason : ''}`;
       return el;
     }));
   }
@@ -34,7 +35,7 @@
         bank:fields.get('bank'),account:fields.get('account'),holder:fields.get('holder'),consent:fields.has('consent'),
       })});
       form.reset(); key = crypto.randomUUID(); keyReceipt = '';
-      message.textContent = '300원 지급 신청을 접수했어요. 실제 송금 후 지급 완료로 표시됩니다.';
+      message.textContent = '지급 신청을 접수했어요. 실제 송금 후 지급 완료로 표시됩니다.';
       await refresh(await start());
     } catch (_) { message.textContent = '신청 결과를 확인하지 못했어요. 지급 내역을 새로고침해 확인하거나 같은 내용으로 다시 시도해 주세요.'; }
     finally { button.disabled = false; }

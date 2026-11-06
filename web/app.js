@@ -534,7 +534,7 @@ async function applySmartIntent() {
   }
 }
 
-const FOOD_GROUPS = [{"key": "korean", "label": "한식", "image": 0, "category": "korean", "items": [{"key": "bibimbap", "label": "비빔밥", "image": 0}, {"key": "gukbap", "label": "국밥", "image": 20, "photo": "gukbap"}, {"key": "kimchi_jjigae", "label": "김치찌개", "image": 18}, {"key": "doenjang", "label": "된장찌개", "image": 19}, {"key": "sundaeguk", "label": "순대국", "image": 20, "photo": "sundaeguk"}, {"key": "kalguksu", "label": "칼국수", "image": 27, "photo": "kalguksu"}]}, {"key": "stew", "label": "찜·탕", "image": 1, "category": "korean", "items": [{"key": "kimchi_jjigae", "label": "김치찌개", "image": 18}, {"key": "jjimdak", "label": "찜닭", "image": 21}, {"key": "gamjatang", "label": "감자탕", "image": 22}, {"key": "haemuljjim", "label": "해물찜", "image": 23}]}, {"key": "sashimi", "label": "회", "image": 2, "category": "japanese", "items": [{"key": "sashimi", "label": "회", "image": 2}, {"key": "sushi", "label": "초밥", "image": 6}]}, {"key": "fastfood", "label": "패스트푸드", "image": 3, "category": "western", "items": [{"key": "burger", "label": "햄버거", "image": 3}, {"key": "pizza", "label": "피자", "image": 17}]}, {"key": "chicken", "label": "치킨", "image": 4, "category": "meat", "items": [{"key": "chicken", "label": "치킨", "image": 4}, {"key": "skewers", "label": "닭꼬치", "image": 13}]}, {"key": "chinese", "label": "중식", "image": 5, "category": "chinese", "items": [{"key": "jjajang", "label": "짜장면", "image": 5}, {"key": "jjamppong", "label": "짬뽕", "image": 28, "photo": "jjamppong"}, {"key": "tangsuyuk", "label": "탕수육", "image": 29}]}, {"key": "japanese", "label": "일식", "image": 6, "category": "japanese", "items": [{"key": "sushi", "label": "초밥", "image": 6}, {"key": "donkatsu", "label": "돈까스", "image": 24}, {"key": "curry", "label": "카레", "image": 25}, {"key": "ramen", "label": "라멘", "image": 26}, {"key": "udon", "label": "우동", "image": 27, "photo": "udon"}]}, {"key": "western", "label": "양식", "image": 7, "category": "western", "items": [{"key": "pasta", "label": "파스타", "image": 7}, {"key": "pizza", "label": "피자", "image": 17}, {"key": "steak", "label": "스테이크", "image": 32}]}, {"key": "snack", "label": "분식", "image": 8, "category": "korean", "items": [{"key": "tteokbokki", "label": "떡볶이", "image": 8}, {"key": "gimbap", "label": "김밥", "image": 30}, {"key": "mandu", "label": "만두", "image": 31}]}, {"key": "meat", "label": "고기", "image": 9, "category": "meat", "items": [{"key": "pork", "label": "삼겹살", "image": 9, "photo": "pork"}, {"key": "jokbal", "label": "족발", "image": 15}, {"key": "bossam", "label": "보쌈", "image": 16}, {"key": "gopchang", "label": "곱창", "image": 14}, {"key": "galbi", "label": "갈비", "image": 9, "photo": "galbi"}]}, {"key": "asian", "label": "아시안", "image": 10, "category": "asian", "items": [{"key": "pho", "label": "쌀국수", "image": 10}, {"key": "padthai", "label": "팟타이", "image": 33}]}, {"key": "mexican", "label": "멕시칸", "image": 11, "category": "western", "items": [{"key": "taco", "label": "타코", "image": 11}, {"key": "burrito", "label": "브리또", "image": 34}, {"key": "quesadilla", "label": "퀘사디아", "image": 35}]}, {"key": "late_night", "label": "야식", "image": 12, "category": "meat", "items": [{"key": "dakbal", "label": "닭발", "image": 12}, {"key": "skewers", "label": "꼬치", "image": 13}, {"key": "gopchang", "label": "곱창", "image": 14}, {"key": "jokbal", "label": "족발", "image": 15}, {"key": "bossam", "label": "보쌈", "image": 16}]}];
+const FOOD_GROUPS = [{"key": "japanese", "label": "돈까스/회", "image": 24, "category": "japanese", "items": [{"key": "sushi", "label": "초밥", "image": 6}, {"key": "donkatsu", "label": "돈까스", "image": 24}, {"key": "sashimi", "label": "회", "image": 2}, {"key": "curry", "label": "카레", "image": 25}, {"key": "ramyeon", "image": 0, "label": "라면", "tile": 27}]}, {"key": "korean", "label": "한식", "image": 0, "category": "korean", "items": [{"key": "banchan", "image": 0, "label": "반찬", "tile": 0}, {"key": "bibimbap", "label": "비빔밥", "image": 0}, {"key": "soup", "image": 0, "label": "국", "tile": 1}, {"key": "donburi", "image": 0, "label": "덮밥", "tile": 2}, {"key": "juk", "image": 0, "label": "죽", "tile": 3}, {"key": "gukbap", "label": "국밥", "image": 20, "photo": "gukbap"}, {"key": "naengmyeon", "image": 0, "label": "냉면", "tile": 4}]}, {"key": "asian", "label": "아시안", "image": 10, "category": "asian", "items": [{"key": "pho", "label": "쌀국수", "image": 10}, {"key": "padthai", "label": "팟타이", "image": 33}]}, {"key": "snack", "label": "분식", "image": 8, "category": "korean", "items": [{"key": "tteokbokki", "label": "떡볶이", "image": 8}, {"key": "gimbap", "label": "김밥", "image": 30}, {"key": "mandu", "label": "만두", "image": 31}]}, {"key": "chicken", "label": "치킨", "image": 4, "category": "meat", "items": []}, {"key": "stew", "label": "찜/탕", "image": 22, "category": "korean", "items": [{"key": "haemuljjim", "label": "해물찜", "image": 23}, {"key": "dakbokkeumtang", "image": 0, "label": "닭볶음탕", "tile": 5}, {"key": "samgyetang", "image": 0, "label": "삼계탕", "tile": 6}, {"key": "gamjatang", "label": "감자탕", "image": 22}, {"key": "kimchijjim", "image": 0, "label": "김치찜", "tile": 7}]}, {"key": "fastfood", "label": "패스트푸드", "image": 3, "tile": 28, "category": "western", "items": []}, {"key": "meat", "label": "고기", "image": 9, "photo": "pork", "category": "meat", "items": [{"key": "pork", "label": "삼겹살", "image": 9, "photo": "pork"}, {"key": "dakgalbi", "image": 0, "label": "닭갈비", "tile": 8}, {"key": "jjukkumi", "image": 0, "label": "쭈꾸미", "tile": 9}, {"key": "jeyuk", "image": 0, "label": "제육", "tile": 10}]}, {"key": "chinese", "label": "중식", "image": 5, "category": "chinese", "items": [{"key": "jjajang_jjamppong", "image": 0, "label": "짜장/짬뽕"}, {"key": "malatang", "image": 0, "label": "마라탕", "tile": 11}, {"key": "lamb_skewers", "image": 0, "label": "양꼬치", "tile": 12}]}, {"key": "jokbal_bossam", "label": "족발/보쌈", "image": 15, "category": "meat", "items": [{"key": "jokbal", "label": "족발", "image": 15}, {"key": "bossam", "label": "보쌈", "image": 16}]}, {"key": "western", "label": "양식", "image": 7, "category": "western", "items": [{"key": "pasta", "label": "파스타", "image": 7}, {"key": "steak", "label": "스테이크", "image": 32}, {"key": "mexican", "label": "멕시칸", "image": 11, "category": "western", "items": [{"key": "taco", "label": "타코", "image": 11}, {"key": "burrito", "label": "브리또", "image": 34}, {"key": "quesadilla", "label": "퀘사디아", "image": 35}]}, {"key": "salad", "image": 0, "label": "샐러드", "tile": 13}, {"key": "poke", "image": 0, "label": "포케", "tile": 14}]}, {"key": "pizza", "label": "피자", "image": 17, "tile": 29, "category": "western", "items": []}, {"key": "dosirak", "image": 0, "label": "도시락", "tile": 15, "category": "korean", "items": []}, {"key": "late_night", "label": "야식", "image": 12, "category": "meat", "items": [{"key": "dakbal", "label": "닭발", "image": 12}, {"key": "skewers", "label": "꼬치", "image": 13}, {"key": "gopchang", "label": "곱창", "image": 14}, {"key": "makchang", "image": 0, "label": "막창", "tile": 16}, {"key": "yukhoe", "image": 0, "label": "육회", "tile": 17}]}, {"key": "cafe", "image": 0, "label": "카페/디저트", "tile": 19, "category": "cafe", "items": [{"key": "bread", "image": 0, "label": "빵", "tile": 18}, {"key": "coffee", "image": 0, "label": "커피", "tile": 19}, {"key": "cake", "image": 0, "label": "케이크", "tile": 20}, {"key": "yogurt", "image": 0, "label": "요거트", "tile": 21}, {"key": "icecream", "image": 0, "label": "아이스크림", "tile": 22}, {"key": "waffle", "image": 0, "label": "와플", "tile": 23}, {"key": "fruit", "image": 0, "label": "과일", "tile": 24}, {"key": "bingsu", "image": 0, "label": "빙수", "tile": 25}, {"key": "sandwich", "image": 0, "label": "샌드위치", "tile": 26}]}];
 const TASTE_CATEGORIES = [...new Map(FOOD_GROUPS.flatMap(g => [g, ...g.items]).map(c => [c.key,c])).values()];
 let activeFoodGroup = "korean";
 
@@ -581,6 +581,7 @@ function backToTasteCategories() {
 }
 
 function foodImage(c) {
+  if (Number.isInteger(c.tile)) return `<span class="food-image" aria-hidden="true" style="background-image:url('/static/tastes/food-atlas-v2.png');background-size:600% 500%;background-position:${(c.tile%6)*20}% ${Math.floor(c.tile/6)*25}%"></span>`;
   if (["sundaeguk","kalguksu","galbi","gukbap","pork","udon","jjamppong"].includes(c.photo)) return `<span class="food-image food-photo" aria-hidden="true" style="background-image:url('/static/tastes/${c.photo}.jpg')"></span>`;
   return `<span class="food-image" aria-hidden="true" style="background-position:${1.2 + (c.image % 6) * 19.5}% ${1.2 + Math.floor(c.image / 6) * 18.75}%"></span>`;
 }
@@ -1114,6 +1115,22 @@ async function onKakaoCta() {
 async function linkKakaoAccount() {
   try {
     setKakaoLinkBusy(true);
+    if (window.JustHereNative?.linkKakao) {
+      saveKakaoResume();
+      showKakaoOverlay(1, "카카오 확인 후 원래 앱으로 돌아와 주세요.");
+      const linked = await window.JustHereNative.linkKakao();
+      state.uid = linked.uid;
+      state.authType = "kakao";
+      restoreFromResume(consumeKakaoResume());
+      clearKakaoRedirect();
+      updateKakaoLinkButton();
+      track("kakao_link", { channel: "native" });
+      showKakaoOverlay(3, "계정 연결을 마쳤어요.", { showOk: true });
+      const ok = $("btn-kakao-overlay-ok");
+      if (ok) ok.onclick = () => hideKakaoOverlay();
+      setKakaoLinkBusy(false);
+      return;
+    }
     const sdk = ensureKakaoSdk();
     if (!sdk.ok) {
       if (sdk.reason === "no_key") {
@@ -1133,6 +1150,9 @@ async function linkKakaoAccount() {
   } catch (err) {
     console.error(err);
     setAuthStatus("카카오 연동 실패. 잠시 후 다시 시도해 주세요.");
+    showKakaoOverlay(1, window.JustHereNative ? (err.message || "연결을 완료하지 못했어요.") : "카카오 연동 실패. 다시 시도해 주세요.", { showOk: true });
+    const ok = $("btn-kakao-overlay-ok");
+    if (ok) ok.onclick = () => hideKakaoOverlay();
     setKakaoLinkBusy(false);
   }
 }
@@ -1140,6 +1160,11 @@ async function linkKakaoAccount() {
 async function init() {
   if (openDesignPreview()) return;
   state.meta = await api("/v1/meta");
+  let nativeLinked = null;
+  if (window.JustHereNative?.resumeKakao) {
+    try { nativeLinked = await window.JustHereNative.resumeKakao(); }
+    catch (_) { setAuthStatus("계정 연결을 확인하지 못했어요. 다시 시도해 주세요."); }
+  }
   try {
     if (window.JustHereAuth) {
       const guest = await window.JustHereAuth.ensureGuest(api);
@@ -1181,6 +1206,11 @@ async function init() {
     in_app: isInAppBrowser(),
   });
   // 카카오 authorize 콜백 (?code=)
+  if (nativeLinked) {
+    restoreFromResume(consumeKakaoResume());
+    clearKakaoRedirect();
+    updateKakaoLinkButton();
+  }
   try {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
@@ -2746,6 +2776,7 @@ function renderRewardOffer(data) {
     const info = offer.pilot || {};
     const parts = [];
     if (Number.isInteger(info.claim_limit)) parts.push(`총 ${info.claim_limit}건 모집`);
+    parts.push("1인 1일 3건(한국시간 결제일 기준)", "예산 소진 시 종료");
     if (Number.isInteger(info.max_claims_per_user) && info.max_claims_per_user > 0) parts.push(`계정당 ${info.max_claims_per_user}건`);
     const end = info.ends_at ? new Date(info.ends_at) : null;
     if (end && Number.isFinite(end.getTime())) parts.push(`${new Date(end.getTime()-1).toLocaleString("ko-KR", {timeZone:"Asia/Seoul",year:"numeric",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})} 마감`);
@@ -2806,7 +2837,7 @@ async function submitRewardReceipt(event) {
     await apiForm("/v1/rewards/receipts", data);
     form.classList.add("hidden");
     $("reward-details")?.removeAttribute("open");
-    rewardMessage("검토 중이에요. 승인 후 300P가 적립되며, 내 보상에서 지급을 신청할 수 있어요.");
+    rewardMessage("검토 중이에요. 승인 후 100P가 적립되며, 내 보상에서 지급을 신청할 수 있어요.");
   } catch (err) {
     const raw = String(err || "");
     const message = raw.includes("pilot_capacity_reached")
@@ -2817,6 +2848,8 @@ async function submitRewardReceipt(event) {
       ? "이번 파일럿은 계정당 1건만 참여할 수 있어요."
       : raw.includes("attribution_expired")
       ? "이 추천의 영수증 접수 기한이 지났어요."
+      : raw.includes("daily_limit_reached")
+      ? "하루 최대 3건까지 참여할 수 있어요. 한국시간 결제일 기준이에요."
       : raw.includes("duplicate_or_daily_limit")
       ? "오늘 접수한 영수증이 이미 있거나 같은 영수증이 등록됐어요."
       : raw.includes("purchase_time_out_of_range")
@@ -3376,6 +3409,21 @@ function openDesignPreview() {
   setupLongPress();
   setupCardKeys();
 
+  if (kind === "location") {
+    show("screen-onboard");
+    return true;
+  }
+  if (kind === "food" || kind === "distance") {
+    show("screen-onboard");
+    openTasteFlow();
+    if (kind === "distance") {
+      openFulfillment();
+      $("visit-range").oninput=e=>{state.visitRadius=Number(e.target.value);syncFulfillment();};
+      document.querySelectorAll('[data-fulfillment]').forEach(b=>{b.onclick=()=>{state.intent=b.dataset.fulfillment;syncFulfillment();};});
+    }
+    return true;
+  }
+
   if (kind === "adjust") {
     state.adjustNeeded = true;
     state.canUndo = true;
@@ -3399,7 +3447,7 @@ function openDesignPreview() {
       persona: { sub_text: "근처에서 바로 골랐어요", sticker: "🛋️", theme: "bg_basic" },
       receipt: { match_reason: "확인된 메뉴와 거리가 맞았어요" },
       reward_offer: params.get("reward") === "1"
-        ? { attribution_id: "design-reward", points: 300, status: "eligible",
+        ? { attribution_id: "design-reward", points: 100, status: "eligible",
             pilot: { claim_limit: 20, max_claims_per_user: 1, ends_at: "2026-11-01T00:00:00+09:00" } }
         : null,
       handoff:

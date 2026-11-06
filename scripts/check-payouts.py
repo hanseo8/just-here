@@ -51,7 +51,7 @@ with tempfile.TemporaryDirectory() as raw:
     response=client.post('/v1/rewards/payouts',headers=headers,json=body)
     assert response.status_code == 200, response.text
     ident=response.json()['payout']['id']
-    assert response.json()['payout']['amount_krw']==300
+    assert response.json()['payout']['amount_krw']==100
     assert client.post('/v1/rewards/payouts',headers=headers,json=body).json()['payout']['id']==ident
     assert store.list_for_user(owner)['balance']==0
     assert client.post('/v1/rewards/payouts',headers=headers,json={**body,'request_id':'different-request'}).status_code==409
@@ -87,22 +87,22 @@ with tempfile.TemporaryDirectory() as raw:
     assert act('paid',reference='BANK-1').status_code==409
     assert act('rejected',reason='wrong account',no_transfer=True).status_code==200
     assert act('rejected',reason='retry',no_transfer=True).status_code==200
-    assert store.list_for_user(owner2)['balance']==300
-    assert store.summary()['points_issued']==600
+    assert store.list_for_user(owner2)['balance']==100
+    assert store.summary()['points_issued']==200
     assert client.post('/v1/rewards/payouts',headers=headers2,json={**body2,'request_id':'retry-request-2'}).status_code==200
     report = client.get('/v1/admin/payouts', headers=admin)
     assert report.headers['cache-control'] == 'no-store'
     totals = report.json()['reconciliation']
     assert totals['records_match'] and not totals['bank_verified']
-    assert totals['states']['paid'] == {'count': 1, 'amount_krw': 300}
-    assert totals['states']['pending']['amount_krw'] == 300
-    assert totals['states']['rejected']['amount_krw'] == 300
+    assert totals['states']['paid'] == {'count': 1, 'amount_krw': 100}
+    assert totals['states']['pending']['amount_krw'] == 100
+    assert totals['states']['rejected']['amount_krw'] == 100
     # Simulate a damaged ledger, ensure it is detected without silently repairing it.
     with store._db() as db:
-        db.execute("UPDATE reward_ledger SET amount=-299 WHERE kind=?", ('payout_hold:'+ident,))
+        db.execute("UPDATE reward_ledger SET amount=-99 WHERE kind=?", ('payout_hold:'+ident,))
     assert payouts.reconciliation(store)['mismatch_count'] == 1
     with store._db() as db:
-        db.execute("UPDATE reward_ledger SET amount=-300 WHERE kind=?", ('payout_hold:'+ident,))
+        db.execute("UPDATE reward_ledger SET amount=-100 WHERE kind=?", ('payout_hold:'+ident,))
     owner3, rid3 = receipt(3)
     def simultaneous(n):
         try:
@@ -160,7 +160,37 @@ print(json.dumps({'rows': payouts.listing(store), 'totals': payouts.reconciliati
     assert payouts.listing(restored) == before
     assert payouts.reconciliation(restored)['records_match']
     print('PASS: payout backup, fresh-process restore, recipient decryption, wrong-key refusal without data changes')
+    # A pre-change database must retain existing 300 KRW records and accept 100 KRW.
+    legacy_path = Path(raw) / 'legacy' / 'rewards.sqlite3'
+    legacy = rewards.RewardStore(legacy_path)
+    with legacy._db() as db:
+        schema = db.execute("SELECT sql FROM sqlite_master WHERE name='payouts'").fetchone()[0]
+        db.execute('DROP TABLE payouts')
+        db.execute(schema.replace('CHECK(amount_krw IN (100,300))', 'CHECK(amount_krw=300)'))
+        db.execute("CREATE UNIQUE INDEX payout_receipt_active ON payouts(receipt_id) WHERE status IN ('pending','processing','paid')")
+    old_points = rewards.REWARD_POINTS
+    rewards.REWARD_POINTS = 300
+    try:
+        a = legacy.create_attribution(uid='kakao_legacy', session_id='legacy', place_id='old', place_name='Old', menu_id='old', menu_name='Old', intent='visit')
+        r = legacy.submit_receipt(uid='kakao_legacy', attribution_id=a['id'], purchased_at=rewards._iso(), amount_krw=12000, approval_number='legacy123', content_type='image/jpeg', image=receipt_image(90), review_return='yes', review_tags=[], review_note='', photo_reuse_consent=False)
+        legacy.decide(r['id'], approve=True, reason='old terms', admin_id='test')
+    finally:
+        rewards.REWARD_POINTS = old_points
+    old_pay = payouts.request(legacy, uid='kakao_legacy', receipt_id=r['id'], request_id='legacy-pay', bank='Test', account='123456789012', holder='Test')
+    migrated = rewards.RewardStore(legacy_path)
+    assert payouts.listing(migrated)[0]['amount_krw'] == 300
+    payouts.decide(migrated, old_pay['id'], 'rejected', '', 'not transferred', True, 'test')
+    assert migrated.list_for_user('kakao_legacy')['balance'] == 300
+    a = migrated.create_attribution(uid='kakao_new', session_id='new', place_id='new', place_name='New', menu_id='new', menu_name='New', intent='visit')
+    new = migrated.submit_receipt(uid='kakao_new', attribution_id=a['id'], purchased_at=rewards._iso(), amount_krw=12000, approval_number='new100123', content_type='image/jpeg', image=receipt_image(91), review_return='yes', review_tags=[], review_note='', photo_reuse_consent=False)
+    assert new['reward_points'] == 100
+    migrated.decide(new['id'], approve=True, reason='new terms', admin_id='test')
+    assert payouts.request(migrated, uid='kakao_new', receipt_id=new['id'], request_id='new-pay', bank='Test', account='123456789012', holder='Test')['amount_krw'] == 100
+    assert payouts.request(migrated, uid='kakao_legacy', receipt_id=r['id'], request_id='legacy-retry', bank='Test', account='123456789012', holder='Test')['amount_krw'] == 300
+    assert rewards.RewardStore(legacy_path).list_for_user('kakao_legacy')['balance'] == 0
+    assert payouts.reconciliation(migrated)['records_match']
+    print('PASS: legacy 300 KRW migration, original refund, retry and repeated initialization')
     os.environ['REWARD_BANK_PAYOUTS']='off'
     assert client.post('/v1/rewards/payouts',headers=headers2,json=body2).status_code==503
     assert client.get('/v1/rewards/me?uid='+owner,headers=headers).json()['payouts'][0]['status']=='paid'
-    print('PASS: 300 KRW, auth, consent, encrypted recipient, hold, idempotency, transfer reference, refund, feature OFF')
+    print('PASS: 100 KRW, auth, consent, encrypted recipient, hold, idempotency, transfer reference, refund, feature OFF')

@@ -1,4 +1,4 @@
-"""300P 영수증 보상 원장과 중복 방지를 검증한다."""
+"""100P 영수증 보상 원장과 중복 방지를 검증한다."""
 from __future__ import annotations
 
 import tempfile
@@ -47,7 +47,7 @@ with tempfile.TemporaryDirectory() as raw:
     check(approved["status"] == "approved", "관리자 승인")
     store.decide(receipt["id"], approve=True, reason="재시도", admin_id="test")
     me = store.list_for_user("guest_a")
-    check(me["balance"] == REWARD_POINTS, "재승인에도 300P 한 번만 적립")
+    check(me["balance"] == REWARD_POINTS, "재승인에도 100P 한 번만 적립")
 
     att2 = store.create_attribution(
         uid="guest_b", session_id="session_b", place_id="place_b",
@@ -85,11 +85,11 @@ with tempfile.TemporaryDirectory() as raw:
         db.execute("UPDATE receipts SET decided_at='2020-01-01T00:00:00Z' WHERE id=?", (receipt["id"],))
     store._purge_expired_images()
     check(not image_path.exists(), "보관기한 경과 원본 삭제")
-    check(store.list_for_user("guest_a")["balance"] == 300, "원본 삭제 후 포인트 보존")
+    check(store.list_for_user("guest_a")["balance"] == 100, "원본 삭제 후 포인트 보존")
 
     store.merge_uid("guest_a", "kakao_a")
     store.merge_uid("guest_a", "kakao_a")
-    check(store.list_for_user("kakao_a")["balance"] == 300, "account merge preserves points exactly once")
+    check(store.list_for_user("kakao_a")["balance"] == 100, "account merge preserves points exactly once")
     check(store.list_for_user("guest_a")["balance"] == 0, "source balance migrated")
     store.create_attribution(
         uid="collision", session_id="session_a", place_id="place_a",
@@ -99,7 +99,7 @@ with tempfile.TemporaryDirectory() as raw:
         store.merge_uid("kakao_a", "collision")
         raise AssertionError("collision should block merge")
     except sqlite3.IntegrityError:
-        check(store.list_for_user("kakao_a")["balance"] == 300, "failed merge rolls back points")
+        check(store.list_for_user("kakao_a")["balance"] == 100, "failed merge rolls back points")
         check(store.list_for_user("collision")["balance"] == 0, "failed merge leaves target unchanged")
 
 print("영수증 보상 검사 통과")

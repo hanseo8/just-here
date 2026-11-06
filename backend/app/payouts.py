@@ -22,7 +22,7 @@ def status():
         encryption_ready = False
     return {
         "enabled": rewards.enabled() and rewards._on("REWARD_BANK_PAYOUTS") and encryption_ready,
-        "amount_krw": 300,
+        "amount_krw": rewards.REWARD_POINTS,
         "channel": "bank_manual",
     }
 
@@ -53,16 +53,19 @@ def request(store, *, uid, receipt_id, request_id, bank, account, holder):
         if not receipt:
             raise ValueError("approved_receipt_required")
         balance = db.execute("SELECT COALESCE(SUM(amount),0) FROM reward_ledger WHERE uid=?", (uid,)).fetchone()[0]
-        if balance < 300:
+        amount = int(receipt['reward_points'])
+        if amount not in (100, 300):
+            raise ValueError('invalid_reward_amount')
+        if balance < amount:
             raise ValueError("insufficient_balance")
         ident = "pay_" + secrets.token_urlsafe(12)
         now = rewards._iso()
         try:
             db.execute("""INSERT INTO payouts
                 (id,uid,request_id,receipt_id,amount_krw,recipient_encrypted,account_tail,created_at,updated_at)
-                VALUES (?,?,?,?,300,?,?,?,?)""", (ident,uid,request_id,receipt_id,encrypted,account[-4:],now,now))
+                VALUES (?,?,?,?,?,?,?,?,?)""", (ident,uid,request_id,receipt_id,amount,encrypted,account[-4:],now,now))
             db.execute("""INSERT INTO reward_ledger (id,uid,receipt_id,amount,kind,memo,created_at)
-                VALUES (?,?,?,-300,?,?,?)""", ("led_"+secrets.token_urlsafe(12),uid,receipt_id,"payout_hold:"+ident,ident,now))
+                VALUES (?,?,?,?,?,?,?)""", ("led_"+secrets.token_urlsafe(12),uid,receipt_id,-amount,"payout_hold:"+ident,ident,now))
         except sqlite3.IntegrityError as exc:
             raise ValueError("payout_already_requested") from exc
         row = db.execute("SELECT * FROM payouts WHERE id=?", (ident,)).fetchone()
@@ -73,7 +76,8 @@ def request(store, *, uid, receipt_id, request_id, bank, account, holder):
 def listing(store, uid=None):
     with store._db() as db:
         rows = db.execute("SELECT * FROM payouts" + (" WHERE uid=?" if uid else "") + " ORDER BY created_at DESC LIMIT 200", (uid,) if uid else ()).fetchall()
-    return [public(row) for row in rows]
+        extra = db.execute("SELECT * FROM beta_payouts" + (" WHERE uid=?" if uid else ""), (uid,) if uid else ()).fetchall()
+    return [public(row) for row in sorted([*rows,*extra],key=lambda r:r['created_at'],reverse=True)[:200]]
 
 
 def reconciliation(store):
@@ -82,7 +86,7 @@ def reconciliation(store):
     mismatches = []
     with store._db() as db:
         db.execute("BEGIN")
-        rows = db.execute("SELECT id,uid,receipt_id,status,amount_krw FROM payouts").fetchall()
+        rows = db.execute("SELECT id,uid,receipt_id,status,amount_krw FROM payouts UNION ALL SELECT id,uid,receipt_id,status,amount_krw FROM beta_payouts").fetchall()
         ledger = {row["kind"]: row for row in db.execute(
             "SELECT kind,uid,receipt_id,amount FROM reward_ledger WHERE kind LIKE 'payout_%'"
         ).fetchall()}
@@ -115,10 +119,14 @@ def audit(db, actor, action, ident):
     ))
 
 
+def payout_table(ident):
+    return "beta_payouts" if ident.startswith("bpay_") else "payouts"
+
+
 def recipient(store, ident, actor):
     with rewards._LOCK, store._db() as db:
         db.execute("BEGIN IMMEDIATE")
-        row = db.execute("SELECT * FROM payouts WHERE id=? AND status='processing'", (ident,)).fetchone()
+        row = db.execute(f"SELECT * FROM {payout_table(ident)} WHERE id=? AND status='processing'", (ident,)).fetchone()
         if not row:
             raise ValueError("claim_payout_first")
         try:
@@ -133,7 +141,7 @@ def recipient(store, ident, actor):
 def decide(store, ident, action, reference, reason, no_transfer, actor):
     with rewards._LOCK, store._db() as db:
         db.execute("BEGIN IMMEDIATE")
-        row = db.execute("SELECT * FROM payouts WHERE id=?", (ident,)).fetchone()
+        row = db.execute(f"SELECT * FROM {payout_table(ident)} WHERE id=?", (ident,)).fetchone()
         if not row:
             raise ValueError("payout_not_found")
         if row["status"] in {"paid", "rejected"}:
@@ -143,23 +151,26 @@ def decide(store, ident, action, reference, reason, no_transfer, actor):
         if action == "processing":
             if row["status"] != "pending":
                 raise ValueError("payout_already_processing")
-            db.execute("UPDATE payouts SET status='processing',updated_at=? WHERE id=?", (rewards._iso(),ident))
+            db.execute(f"UPDATE {payout_table(ident)} SET status='processing',updated_at=? WHERE id=?", (rewards._iso(),ident))
         elif action == "paid":
             if row["status"] != "processing" or not reference.strip():
                 raise ValueError("transfer_reference_required")
+            other = 'payouts' if payout_table(ident) == 'beta_payouts' else 'beta_payouts'
+            if db.execute(f'SELECT 1 FROM {other} WHERE reference=?',(reference.strip(),)).fetchone():
+                raise ValueError('transfer_reference_already_used')
             try:
-                db.execute("UPDATE payouts SET status='paid',reference=?,recipient_encrypted='',updated_at=? WHERE id=?", (reference.strip(),rewards._iso(),ident))
+                db.execute(f"UPDATE {payout_table(ident)} SET status='paid',reference=?,recipient_encrypted='',updated_at=? WHERE id=?", (reference.strip(),rewards._iso(),ident))
             except sqlite3.IntegrityError as exc:
                 raise ValueError("transfer_reference_already_used") from exc
         elif action == "rejected":
             if not no_transfer or not reason.strip():
                 raise ValueError("confirm_no_transfer_and_reason")
-            db.execute("UPDATE payouts SET status='rejected',reason=?,recipient_encrypted='',updated_at=? WHERE id=?", (reason,rewards._iso(),ident))
+            db.execute(f"UPDATE {payout_table(ident)} SET status='rejected',reason=?,recipient_encrypted='',updated_at=? WHERE id=?", (reason,rewards._iso(),ident))
             db.execute("""INSERT INTO reward_ledger (id,uid,receipt_id,amount,kind,memo,created_at)
-                VALUES (?,?,?,300,?,?,?)""", ("led_"+secrets.token_urlsafe(12),row["uid"],row["receipt_id"],"payout_release:"+ident,ident,rewards._iso()))
+                VALUES (?,?,?,?,?,?,?)""", ("led_"+secrets.token_urlsafe(12),row["uid"],row["receipt_id"],row['amount_krw'],"payout_release:"+ident,ident,rewards._iso()))
         else:
             raise ValueError("invalid_payout_action")
         audit(db, actor, "payout_"+action, ident)
-        result = public(db.execute("SELECT * FROM payouts WHERE id=?", (ident,)).fetchone())
+        result = public(db.execute(f"SELECT * FROM {payout_table(ident)} WHERE id=?", (ident,)).fetchone())
         db.execute("COMMIT")
         return result

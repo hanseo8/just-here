@@ -1,4 +1,4 @@
-"""추천 경유 영수증과 300P 원장.
+"""추천 경유 영수증과 100P 원장. 기존 300P 기록은 보존한다.
 
 포인트는 금전성 부채이므로 휘발 저장소에서는 기능을 열지 않는다. 로컬 검증은
 RECEIPT_REWARDS_ALLOW_VOLATILE=on으로만 허용한다.
@@ -9,6 +9,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import secrets
 import sqlite3
 import threading
@@ -26,7 +27,8 @@ from .storage import is_persistent_dir
 _LOCK = threading.RLock()
 _STORE: "RewardStore | None" = None
 _STORE_PATH: Path | None = None
-REWARD_POINTS = 300
+REWARD_POINTS = 100
+DAILY_CLAIM_LIMIT = 3
 KST = ZoneInfo("Asia/Seoul")
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_IMAGE_PIXELS = 16_000_000  # common 4032x3024 phone images fit
@@ -109,7 +111,9 @@ def pilot_terms() -> dict[str, Any]:
     end = pilot_end()
     return {
         "claim_limit": claim_limit(),
-        "max_claims_per_user": _limit("RECEIPT_REWARDS_MAX_CLAIMS_PER_USER", 0),
+        "max_claims_per_user": 0,
+        "max_claims_per_day": DAILY_CLAIM_LIMIT,
+        "daily_timezone": "Asia/Seoul",
         "ends_at": _iso(end) if end else None,
     }
 
@@ -195,7 +199,7 @@ class RewardStore:
                   review_note TEXT NOT NULL DEFAULT '',
                   photo_reuse_consent INTEGER NOT NULL DEFAULT 0,
                   status TEXT NOT NULL DEFAULT 'pending',
-                  reward_points INTEGER NOT NULL DEFAULT 300,
+                  reward_points INTEGER NOT NULL DEFAULT 100,
                   admin_reason TEXT NOT NULL DEFAULT '',
                   risk_flags TEXT NOT NULL DEFAULT '[]',
                   created_at TEXT NOT NULL,
@@ -209,7 +213,8 @@ class RewardStore:
                   ON receipts(approval_hash);
                 CREATE UNIQUE INDEX IF NOT EXISTS receipt_attribution_active
                   ON receipts(attribution_id) WHERE status IN ('pending','approved');
-                CREATE UNIQUE INDEX IF NOT EXISTS receipt_user_day_active
+                DROP INDEX IF EXISTS receipt_user_day_active;
+                CREATE INDEX IF NOT EXISTS receipt_user_day_lookup
                   ON receipts(uid, reward_day) WHERE status IN ('pending','approved');
                 CREATE TABLE IF NOT EXISTS reward_ledger (
                   id TEXT PRIMARY KEY,
@@ -234,7 +239,7 @@ class RewardStore:
                   uid TEXT NOT NULL,
                   request_id TEXT NOT NULL,
                   receipt_id TEXT NOT NULL REFERENCES receipts(id),
-                  amount_krw INTEGER NOT NULL CHECK(amount_krw=300),
+                  amount_krw INTEGER NOT NULL CHECK(amount_krw IN (100,300)),
                   recipient_encrypted TEXT NOT NULL,
                   account_tail TEXT NOT NULL,
                   status TEXT NOT NULL DEFAULT 'pending',
@@ -248,6 +253,23 @@ class RewardStore:
                   ON payouts(receipt_id) WHERE status IN ('pending','processing','paid');
                 """
             )
+            # Preserve historical 300 KRW obligations while accepting new 100 KRW claims.
+            schema = db.execute("SELECT sql FROM sqlite_master WHERE name='payouts'").fetchone()[0]
+            if 'check(amount_krw=300)' in ''.join(schema.lower().split()):
+                db.execute('BEGIN IMMEDIATE')
+                try:
+                    db.execute('ALTER TABLE payouts RENAME TO payouts_legacy_300')
+                    db.execute(re.sub(r'CHECK\s*\(\s*amount_krw\s*=\s*300\s*\)', 'CHECK(amount_krw IN (100,300))', schema, flags=re.I))
+                    db.execute('INSERT INTO payouts SELECT * FROM payouts_legacy_300')
+                    db.execute('DROP TABLE payouts_legacy_300')
+                    db.execute("CREATE UNIQUE INDEX payout_receipt_active ON payouts(receipt_id) WHERE status IN ('pending','processing','paid')")
+                    db.execute('COMMIT')
+                except Exception:
+                    db.execute('ROLLBACK')
+                    raise
+        from . import beta_campaign
+        with self._db() as db:
+            beta_campaign.initialize(db)
         self._purge_expired_images()
 
     def _purge_expired_images(self) -> None:
@@ -388,22 +410,24 @@ class RewardStore:
                 raise ValueError("ineligible_attribution")
             if _now() > _parse_iso(attribution["expires_at"]):
                 raise ValueError("attribution_expired")
+            from . import beta_campaign
+            beta_points = beta_campaign.receipt_terms(db, uid, attribution, purchase)
             limit = claim_limit()
             reserved = db.execute(
                 "SELECT COUNT(*) FROM receipts WHERE status IN ('pending','approved')"
             ).fetchone()[0]
-            if reserved >= limit:
+            if beta_points is None and reserved >= limit:
                 raise ValueError("pilot_capacity_reached")
-            ends_at = pilot_end()
+            ends_at = None if beta_points is not None else pilot_end()
             if ends_at is not None and _now() >= ends_at:
                 raise ValueError("pilot_ended")
-            per_user = _limit("RECEIPT_REWARDS_MAX_CLAIMS_PER_USER", 0)
-            if per_user:
-                user_reserved = db.execute(
-                    "SELECT COUNT(*) FROM receipts WHERE uid=? AND status IN ('pending','approved')", (uid,)
-                ).fetchone()[0]
-                if user_reserved >= per_user:
-                    raise ValueError("pilot_user_limit_reached")
+            # BEGIN IMMEDIATE serializes reservations across processes.
+            daily_count = db.execute(
+                "SELECT COUNT(*) FROM receipts WHERE uid=? AND reward_day=? AND status IN ('pending','approved')",
+                (uid, reward_day),
+            ).fetchone()[0]
+            if daily_count >= DAILY_CLAIM_LIMIT:
+                raise ValueError("daily_limit_reached")
             selected = _parse_iso(attribution["selected_at"])
             expires = _parse_iso(attribution["expires_at"])
             if purchase < selected - timedelta(hours=1) or purchase > expires:
@@ -432,11 +456,13 @@ class RewardStore:
                         str(review_note or "").strip()[:300],
                         1 if photo_reuse_consent else 0,
                         "pending",
-                        REWARD_POINTS,
+                        beta_points or REWARD_POINTS,
                         json.dumps(flags, ensure_ascii=False),
                         _iso(),
                     ),
                 )
+                if beta_points is not None:
+                    db.execute('INSERT INTO beta_receipts VALUES(?,?,?)', (receipt_id,beta_campaign.CAMPAIGN,uid))
                 db.execute("COMMIT")
             except sqlite3.IntegrityError as exc:
                 db.execute("ROLLBACK")
@@ -587,7 +613,9 @@ class RewardStore:
             "committed_points": int(points) + int(pending_points),
             "claim_limit": claim_limit(),
             "claims_remaining": max(0, claim_limit() - reserved),
-            "max_claims_per_user": _limit("RECEIPT_REWARDS_MAX_CLAIMS_PER_USER", 0),
+            "max_claims_per_user": 0,
+        "max_claims_per_day": DAILY_CLAIM_LIMIT,
+        "daily_timezone": "Asia/Seoul",
             "ends_at": _iso(pilot_end()) if pilot_end() else None,
         }
 
