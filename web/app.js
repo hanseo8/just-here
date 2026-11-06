@@ -2771,6 +2771,12 @@ function renderRewardOffer(data) {
   panel.classList.toggle("hidden", !offer || (isDesignPreview() && !preview));
   if (!offer || (isDesignPreview() && !preview)) return;
   panel.dataset.attributionId = offer.attribution_id || "";
+  panel.dataset.points = String(Number(offer.points) || 100);
+  $("reward-title").textContent = `영수증 인증 승인 시 ${panel.dataset.points}원`;
+  const pointsLabel = panel.querySelector('.reward-points');
+  if (pointsLabel) pointsLabel.textContent = `+${panel.dataset.points}P`;
+  const copy = panel.querySelector('.reward-copy');
+  if (copy) copy.textContent = `앱에서 선택한 가게의 영수증을 인증하면 운영자 확인 후 ${panel.dataset.points}P 적립 · 승인 후 계좌 지급 신청 가능. 자동 송금되지 않아요.`;
   const terms = $("reward-pilot-terms");
   if (terms) {
     const info = offer.pilot || {};
@@ -2837,7 +2843,7 @@ async function submitRewardReceipt(event) {
     await apiForm("/v1/rewards/receipts", data);
     form.classList.add("hidden");
     $("reward-details")?.removeAttribute("open");
-    rewardMessage("검토 중이에요. 승인 후 100P가 적립되며, 내 보상에서 지급을 신청할 수 있어요.");
+    rewardMessage(`검토 중이에요. 승인 후 ${panel.dataset.points || 100}P가 적립되며, 내 보상에서 지급을 신청할 수 있어요.`);
   } catch (err) {
     const raw = String(err || "");
     const message = raw.includes("pilot_capacity_reached")

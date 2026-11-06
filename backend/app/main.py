@@ -1074,7 +1074,7 @@ def _swipe_locked(body: SwipeBody, request: Request):
         asset_id=persona.get("asset_id", persona["theme"]),
     )
     reward_offer = None
-    if uid and s.intent == "visit" and rewards.enabled() and not engine.is_preview_session_id(s.id):
+    if uid and s.intent == "visit" and rewards.enabled() and not engine.is_preview_session_id(s.id) and (rewards.claim_limit() > 0 or beta_campaign.progress(rewards.get_store(),uid)['enrolled']):
         try:
             attribution = rewards.get_store().create_attribution(
                 uid=uid,
@@ -1087,7 +1087,7 @@ def _swipe_locked(body: SwipeBody, request: Request):
             )
             reward_offer = {
                 "attribution_id": attribution["id"],
-                "points": rewards.REWARD_POINTS,
+                "points": beta_campaign.PER_RECEIPT if beta_campaign.progress(rewards.get_store(),uid)['enrolled'] else rewards.REWARD_POINTS,
                 "expires_at": attribution["expires_at"],
                 "status": "eligible",
                 "pilot": rewards.pilot_terms(),
