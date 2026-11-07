@@ -503,7 +503,7 @@ class RewardStore:
         row["photo_reuse_consent"] = bool(row.get("photo_reuse_consent"))
         return row
 
-    def list_for_user(self, uid: str, limit: int = 30) -> dict[str, Any]:
+    def list_for_user(self, uid: str, limit: int = 100) -> dict[str, Any]:
         with self._db() as db:
             rows = db.execute(
                 """SELECT r.*, a.place_id, a.place_name, a.menu_id, a.menu_name,
@@ -563,6 +563,8 @@ class RewardStore:
                 db.execute("ROLLBACK")
                 raise KeyError("receipt_not_found")
             if row["status"] != "pending":
+                if row["status"] != new_status:
+                    raise ValueError("receipt_already_final")
                 db.execute("COMMIT")
                 return self.get_receipt(receipt_id)
             db.execute(

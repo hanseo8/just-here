@@ -1245,6 +1245,19 @@ def reward_identity_complete(body: RewardIdentityBody, request: Request):
         'guest_token':guest_token.issue(target,verified.get('did','')), 'identity':reward_identity.status(store,target)})
 
 
+def _my_reward_titles(uid):
+    profile = users.STORE.public_profile(uid) or {}
+    by_id = {row['id']: row for row in titles.catalog()}
+    by_name = {row['title']: row for row in by_id.values()}
+    result, seen = [], set()
+    for value in [*(profile.get('title_ids') or []), *(profile.get('earned_titles') or [])]:
+        row = by_id.get(str(value)) or by_name.get(str(value))
+        item = {k:row[k] for k in ('id','title','sub_text')} if row else {'id':'','title':str(value),'sub_text':''}
+        if item['title'] and item['title'] not in seen:
+            result.append(item); seen.add(item['title'])
+    return result
+
+
 @app.get("/v1/rewards/me")
 def reward_me(request: Request, uid: str = Query(...)):
     uid = _require_uid(request, uid)
@@ -1252,11 +1265,11 @@ def reward_me(request: Request, uid: str = Query(...)):
         current = rewards.status()
         if not current["enabled"]:
             return _admin_json({"ok": True, "balance": 0, "pending_points": 0,
-                                "receipts": [], "eligible_attributions": [], "payouts": [],
+                                "receipts": [], "eligible_attributions": [], "payouts": [], "my_titles": _my_reward_titles(uid),
                                 "pilot": rewards.pilot_terms(), "reward_config": current,
                                 "payout_config": payouts.status()})
     store = rewards.get_store()
-    return _admin_json({"ok": True, **store.list_for_user(uid), "beta": beta_campaign.progress(store,uid), "beta_application": beta_campaign.application_status(store,uid), "identity": reward_identity.status(store,uid), "pilot": rewards.pilot_terms(), "reward_config": rewards.status(), "payout_config": payouts.status(), "payouts": payouts.listing(store, uid)})
+    return _admin_json({"ok": True, **store.list_for_user(uid), "my_titles": _my_reward_titles(uid), "beta": beta_campaign.progress(store,uid), "beta_application": beta_campaign.application_status(store,uid), "identity": reward_identity.status(store,uid), "pilot": rewards.pilot_terms(), "reward_config": rewards.status(), "payout_config": payouts.status(), "payouts": payouts.listing(store, uid)})
 
 
 class AccountDeletionBody(BaseModel):
@@ -1546,7 +1559,7 @@ def admin_reward_decision(
     except KeyError:
         raise HTTPException(404, "receipt not found") from None
     except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
+        raise HTTPException(409 if str(exc) == 'receipt_already_final' else 400, str(exc)) from exc
     return _admin_json({"ok": True, "receipt": row})
 
 

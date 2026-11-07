@@ -1,7 +1,7 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const elements={};const get=id=>elements[id]??={checked:false,focus(){this.focused=true}};
 const memory=new Map();let calls=[],providerCalls=0;
-const c={window:{JustHereAuth:{getUid:()=> 'guest-a',setIdentity(uid,type,token){c.saved={uid,type,token}}}},
+const c={window:{addEventListener(){},JustHereAuth:{getUid:()=> 'guest-a',setIdentity(uid,type,token){c.saved={uid,type,token}}}},
  document:{getElementById:get},localStorage:{getItem:k=>memory.get(k)||null,setItem:(k,v)=>memory.set(k,v),removeItem:k=>memory.delete(k)},
  location:{origin:'https://justthis.co.kr',pathname:'/my',search:''},history:{replaceState(){}},
  URLSearchParams,Date,Promise,Error,setTimeout,clearTimeout,currentUid:'guest-a',start:async()=>{c.refreshed=true},
@@ -12,7 +12,7 @@ vm.createContext(c);vm.runInContext(fs.readFileSync('web/reward-identity.js','ut
  c.window.renderRewardIdentity({identity:{required:true,configured:false,verified:false}});await get('verify-reward-identity').onclick();assert.equal(calls.length,0);assert(get('identity-message').textContent.includes('준비'));
  c.window.renderRewardIdentity({identity:{required:true,configured:true,verified:false}});await get('verify-reward-identity').onclick();assert.equal(calls.length,0);assert(get('identity-message').textContent.includes('동의'));
  get('identity-consent').checked=true;await get('verify-reward-identity').onclick();assert.equal(providerCalls,1);assert.deepEqual(calls,['/v1/rewards/identity/start','/v1/rewards/identity/complete']);assert.equal(c.saved.uid,'existing-owner');assert.equal(c.saved.type,'phone');assert(c.refreshed);assert.equal(memory.size,0);
- c.window.JustHereNative={};calls=[];c.window.renderRewardIdentity({identity:{required:true,configured:true,verified:false}});await get('verify-reward-identity').onclick();assert.equal(calls.length,0);assert(get('identity-message').textContent.includes('검수'));
+ c.window.JustHereNative={};calls=[];c.window.renderRewardIdentity({identity:{required:true,configured:true,verified:false}});await get('verify-reward-identity').onclick();assert.equal(calls.length,0);assert(get('identity-message').textContent.includes('업데이트'));
  const html=fs.readFileSync('web/rewards.html','utf8');for(const m of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))new vm.Script(m[1]);
  console.log('PASS phone identity UI: not configured, consent, server start/complete, recovery, native fail-closed, inline syntax');
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -12,7 +12,7 @@ window.renderBetaProgress = function (data, wallet={}) {
   applyButton.textContent=applied?'신청 접수 완료 · 상태 확인':enabled?'테스트 참여 신청':'모집 상태 확인';
   applyMessage.textContent=applied?'참여 신청을 접수했어요. 아직 선정 전이며, 선정 결과는 MY에서 확인해 주세요.':enabled?'신청 후 운영자가 선정해요. 신청만으로 참여·지급이 확정되지는 않아요.':'현재 새 신청 접수가 일시 중지되어 있어요. 기존 신청·지급 내역은 확인할 수 있어요.';
   if(connectAction)connectAction.hidden=true;
-  const showMessage=text=>{applyMessage.textContent=text;applyMessage.tabIndex=-1;applyMessage.focus();};
+  const showMessage=text=>{window.JustHereMy?.open('beta-apply');applyMessage.textContent=text;applyMessage.tabIndex=-1;applyMessage.focus();};
   applyButton.onclick=async()=>{
     if(applied){showMessage('신청이 이미 접수됐어요. 선정 결과가 나오면 MY에 참여 기간이 표시돼요.');return;}
     if(!enabled){showMessage('지금은 참여 신청 접수가 중지되어 있어요. 접수가 열리면 이 버튼으로 신청할 수 있어요.');return;}

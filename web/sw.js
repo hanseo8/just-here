@@ -1,5 +1,5 @@
 /* just-here soft-launch SW: shell cache only */
-const CACHE = "just-here-shell-v69";
+const CACHE = "just-here-shell-v70";
 const SHELL = [
   "/",
   "/static/styles.css?v=20261106-location6",

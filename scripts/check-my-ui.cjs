@@ -1,0 +1,12 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const es={};const get=id=>es[id]??={tagName:'SECTION',hidden:false,children:[],textContent:'',parentElement:null,append(e){this.children.push(e)},replaceChildren(){this.children=[]},removeAttribute(k){delete this[k]},scrollIntoView(){this.scrolled=true}};
+const c={window:{addEventListener(){}},document:{getElementById:get,createElement:tag=>({tagName:tag,children:[],append(x){this.children.push(x)}})},location:{hash:''}};vm.createContext(c);vm.runInContext(fs.readFileSync('web/my-ui.js','utf8'),c);
+const fold={tagName:'DETAILS',open:false,parentElement:null};get('reward-identity').parentElement=fold;c.window.JustHereMy.open('reward-identity');assert(fold.open);assert(get('reward-identity').scrolled);
+get('private-form').hidden=true;assert.equal(c.window.JustHereMy.open('private-form'),false);assert.equal(get('private-form').hidden,true);
+c.window.JustHereMy.renderTitles([]);assert(get('my-title-collection').hidden);assert(get('my-title-image').hidden);
+c.window.JustHereMy.renderTitles([{id:'chameleon',title:'내 칭호',sub_text:'내 취향'}]);assert.equal(get('my-title-name').textContent,'내 칭호');assert(get('my-title-image').src.includes('/chameleon.png'));assert(!get('my-title-collection').hidden);
+c.window.JustHereMy.renderTitles([{id:'../../private',title:'<script>test</script>'}]);assert(get('my-title-image').hidden);assert.equal(get('my-title-name').textContent,'<script>test</script>');
+const html=fs.readFileSync('web/rewards.html','utf8');const ids=[...html.matchAll(/\sid="([^"]+)"/g)].map(m=>m[1]);assert.equal(ids.length,new Set(ids).size);
+assert(html.indexOf('id="my-titles"')<html.indexOf('id="receipt-upload-entry"'));assert(html.indexOf('id="activity"')<html.indexOf('id="reward-participation"'));
+for(const m of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))new vm.Script(m[1]);
+console.log('PASS MY: titles at top, empty/owned titles, safe image/text rendering, accordion navigation, eligibility hidden state preserved, unique DOM IDs and inline syntax');

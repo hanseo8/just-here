@@ -42,6 +42,8 @@ with tempfile.TemporaryDirectory() as raw, patch.dict(os.environ,{'RECEIPT_REWAR
                 receipt=submit(10+day*3+offset)
                 store.decide(receipt['id'],approve=True,reason='valid receipt',admin_id='test')
     assert store.list_for_user('kakao_one')['balance']==12600
+    assert len(store.list_for_user('kakao_one')['receipts'])==42
+    assert len(store.list_for_user('kakao_one',limit=5)['receipts'])==5
     with patch('backend.app.rewards._now',return_value=base+timedelta(days=14)):
         assert beta.progress(store,'kakao_one')['bonus_eligible']
         def bonus(n):
