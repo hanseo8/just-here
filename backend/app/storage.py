@@ -7,6 +7,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from contextlib import contextmanager
 
 from .config import data_dir as configured_data_dir
 from .config import _REPO_DATA_DIR
@@ -33,6 +34,38 @@ JSON_CHECK_FILES = (
     "verified-menus.json",
     "deals.json",
 )
+
+
+@contextmanager
+def exclusive_operation(root: Path):
+    """Deletion and storage recovery must not overlap, even across processes."""
+    path=Path(root)/'.storage-operation.lock'
+    if path.is_symlink():
+        raise ValueError('unsafe_storage_lock')
+    fd=os.open(path,os.O_RDWR|os.O_CREAT|getattr(os,'O_NOFOLLOW',0),0o600)
+    locked=False
+    try:
+        if os.fstat(fd).st_size==0:
+            os.write(fd,b'0')
+        os.lseek(fd,0,os.SEEK_SET)
+        try:
+            if os.name=='nt':
+                import msvcrt
+                msvcrt.locking(fd,msvcrt.LK_NBLCK,1)
+            else:
+                import fcntl
+                fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            locked=True
+        except OSError:
+            raise ValueError('storage_operation_in_progress') from None
+        yield
+    finally:
+        if locked:
+            if os.name=='nt':
+                os.lseek(fd,0,os.SEEK_SET);msvcrt.locking(fd,msvcrt.LK_UNLCK,1)
+            else:
+                fcntl.flock(fd,fcntl.LOCK_UN)
+        os.close(fd)
 
 
 def inspect_path(path: Path) -> dict[str, Any]:

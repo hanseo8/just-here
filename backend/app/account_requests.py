@@ -1,5 +1,8 @@
 """Authenticated deletion intake; requesting never silently deletes financial records."""
 import secrets
+import hashlib
+import hmac
+import time
 from datetime import datetime, timezone
 
 
@@ -10,6 +13,9 @@ def initialize(store):
           id TEXT PRIMARY KEY, uid TEXT NOT NULL UNIQUE,
           status TEXT NOT NULL DEFAULT 'requested', created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS account_deletion_receipts (
+          request_id TEXT PRIMARY KEY, secret_hash TEXT NOT NULL, expires_at INTEGER NOT NULL
         );
         ''')
 
@@ -49,6 +55,8 @@ def reviewing(store, ident):
             raise ValueError('deletion_request_not_found')
         if row['status'] == 'withdrawn':
             raise ValueError('deletion_request_withdrawn')
+        if row['status'] not in ('requested','reviewing'):
+            raise ValueError('deletion_already_processing')
         # There is deliberately no fake "completed" transition without actual data deletion.
         db.execute("UPDATE account_deletion_requests SET status='reviewing',updated_at=? WHERE id=?",
                    (datetime.now(timezone.utc).isoformat(),ident))
@@ -84,7 +92,8 @@ def preflight(store, ident):
         counts = {
             'receipts': scalar('SELECT COUNT(*) FROM receipts WHERE uid=?'),
             'pending_receipts': scalar("SELECT COUNT(*) FROM receipts WHERE uid=? AND status='pending'"),
-            'payouts': scalar('SELECT COUNT(*) FROM payouts WHERE uid=?'),
+            'payouts': scalar('SELECT COUNT(*) FROM payouts WHERE uid=?') + scalar('SELECT COUNT(*) FROM beta_payouts WHERE uid=?'),
+            'ledger_entries': scalar('SELECT COUNT(*) FROM reward_ledger WHERE uid=?'),
             'pending_payouts': scalar("SELECT COUNT(*) FROM payouts WHERE uid=? AND status IN ('pending','processing')") + scalar("SELECT COUNT(*) FROM beta_payouts WHERE uid=? AND status IN ('pending','processing')"),
             'phone_identity_records': scalar('SELECT COUNT(*) FROM reward_identities WHERE uid=?'),
             'phone_identity_attempts': scalar('SELECT COUNT(*) FROM reward_identity_attempts WHERE uid=?'),
@@ -102,5 +111,59 @@ def preflight(store, ident):
         if counts['balance_points'] != 0: blockers.append('balance_requires_resolution')
         if counts['active_coupons']: blockers.append('active_coupons_require_resolution')
         db.execute('COMMIT')
-    return {'counts': counts, 'blockers':blockers, 'can_execute':False,
+    retention_review=[]
+    if counts['receipts'] or counts['payouts'] or counts['ledger_entries']:
+        retention_review.append('financial_records_retention_review')
+    if counts['phone_identity_records'] or counts['phone_identity_attempts']:
+        retention_review.append('identity_records_retention_review')
+    if counts['beta_memberships']:
+        retention_review.append('beta_participation_review')
+    return {'counts': counts, 'blockers':blockers, 'retention_review':retention_review, 'can_execute':False,
             'reason':'deletion_executor_and_retention_policy_not_ready'}
+
+
+def user_status(store, uid):
+    """Owner-facing status only; no other account, raw identity or bank data."""
+    row=get(store,uid)
+    if not row:
+        return None
+    report=preflight(store,row['id'])
+    labels={
+        'receipt_review_pending':'아직 검토 중인 영수증이 있어요.',
+        'payout_pending':'지급 대기 또는 송금 확인 중인 신청이 있어요.',
+        'balance_requires_resolution':'남아 있는 포인트 처리 방법을 확인해야 해요.',
+        'active_coupons_require_resolution':'사용 가능한 쿠폰 처리 방법을 확인해야 해요.',
+        'financial_records_retention_review':'영수증·지급 기록의 보존 범위를 확인하고 있어요.',
+        'identity_records_retention_review':'본인인증·중복 참여 확인 기록의 처리 범위를 확인하고 있어요.',
+        'beta_participation_review':'테스트 참여와 참여비 지급 상태를 확인해야 해요.',
+    }
+    reasons=[labels[v] for v in report['blockers']+report['retention_review'] if v in labels]
+    return {**row,'execution_ready':False,'reasons':reasons,
+            'next_action':'고객센터에서 삭제 범위와 처리 결과를 안내합니다. 지금은 삭제 완료 상태가 아니에요.'}
+
+
+def issue_receipt(store, uid):
+    """A scoped, read-only receipt continues to work after the login token is revoked."""
+    row=get(store,uid)
+    if not row:
+        raise ValueError('deletion_request_not_found')
+    secret=secrets.token_urlsafe(32)
+    expires=int(time.time())+90*86400
+    with store._db() as db:
+        db.execute('INSERT OR REPLACE INTO account_deletion_receipts VALUES(?,?,?)',
+                   (row['id'],hashlib.sha256(secret.encode()).hexdigest(),expires))
+    return {'request_id':row['id'],'receipt':secret,'expires_at':expires}
+
+
+def receipt_status(store, ident, secret):
+    with store._db() as db:
+        if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='account_deletion_receipts'").fetchone():
+            raise ValueError('deletion_receipt_invalid')
+        row=db.execute('''SELECT r.id,r.status,r.updated_at,t.secret_hash,t.expires_at
+          FROM account_deletion_requests r JOIN account_deletion_receipts t ON t.request_id=r.id
+          WHERE r.id=?''',(ident,)).fetchone()
+    if not row or row['expires_at']<=time.time() or not hmac.compare_digest(row['secret_hash'],hashlib.sha256(secret.encode()).hexdigest()):
+        raise ValueError('deletion_receipt_invalid')
+    return {k:row[k] for k in ('id','status','updated_at')} | {
+        'backup_status':'pending' if row['status']=='active_data_deleted' else 'not_started',
+        'full_deletion_complete':False}

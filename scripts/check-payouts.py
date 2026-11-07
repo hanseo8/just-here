@@ -130,9 +130,12 @@ with tempfile.TemporaryDirectory() as raw:
     backup_dir = Path(raw) / 'backup-output'
     backup_dir.mkdir()
     archive = store.backup_archive(backup_dir)
+    from backend.app import users
+    registry_file=Path(raw)/'restore-registry.json'
+    registry_file.write_text(json.dumps(users.STORE.deletion_registry()),encoding='utf-8')
     target = Path(raw) / 'payout-restored'
     restore = runpy.run_path(str(Path(__file__).with_name('restore-rewards.py')))['restore']
-    restore(archive, target)
+    restore(archive, target,deletion_registry=registry_file)
     probe = '''
 import json, sys
 from pathlib import Path

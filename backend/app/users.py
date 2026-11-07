@@ -150,15 +150,49 @@ class UserStore:
         self.path = path
         self._users: dict[str, dict[str, Any]] = {}
         self._device_index: dict[str, str] = {}  # device_id -> uid
+        self._deleted_uid_hashes: set[str] = set()
+        self._deleted_device_hashes: set[str] = set()
+        self._deleted_session_hashes: set[str] = set()
+        self._deletion_revision = 0
+        self._deletion_registry_complete = True
         self._load()
 
     def _load(self) -> None:
-        if not self.path.exists():
+        guard_path=self.path.parent/'deletion-registry.json'
+        if not self.path.exists() and not guard_path.exists():
             return
         try:
-            raw = json.loads(self.path.read_text(encoding="utf-8"))
+            raw = json.loads(self.path.read_text(encoding="utf-8")) if self.path.exists() else {'users':{},'device_index':{}}
             self._users = raw.get("users") or {}
             self._device_index = raw.get("device_index") or {}
+            deleted = raw.get('deleted_uid_hashes', [])
+            if not isinstance(deleted, list) or any(not isinstance(v,str) or len(v)!=64 or any(c not in '0123456789abcdef' for c in v) for v in deleted):
+                raise ValueError('invalid_deleted_identity_registry')
+            self._deleted_uid_hashes = set(deleted)
+            for field,attr in [('deleted_device_hashes','_deleted_device_hashes'),('deleted_session_hashes','_deleted_session_hashes')]:
+                values=raw.get(field,[])
+                if not isinstance(values,list) or any(not isinstance(v,str) or len(v)!=64 or any(c not in '0123456789abcdef' for c in v) for v in values):
+                    raise ValueError('invalid_deleted_identity_registry')
+                setattr(self,attr,set(values))
+            self._deletion_revision=raw.get('deletion_revision',0)
+            if type(self._deletion_revision) is not int or self._deletion_revision<0:
+                raise ValueError('invalid_deleted_identity_registry')
+            self._deletion_registry_complete=raw.get('deletion_registry_complete',not deleted or ('deleted_device_hashes' in raw and 'deleted_session_hashes' in raw))
+            if type(self._deletion_registry_complete) is not bool:
+                raise ValueError('invalid_deleted_identity_registry')
+            if guard_path.exists():
+                from .deletion_backup import load_registry
+                guard=load_registry(guard_path)
+                if self._deleted_uid_hashes<=set(guard['uid_hashes']) and self._deletion_revision<=guard['revision']:
+                    self._deletion_registry_complete=True
+                self._deleted_uid_hashes.update(guard['uid_hashes'])
+                self._deleted_device_hashes.update(guard['device_hashes'])
+                self._deleted_session_hashes.update(guard['session_hashes'])
+                self._deletion_revision=max(self._deletion_revision,guard['revision'])
+                # A stale profile copy must not bypass the guard merely by being present.
+                if any(hashlib.sha256(uid.encode()).hexdigest() in self._deleted_uid_hashes for uid in self._users):
+                    raise ValueError('restored_profile_conflicts_with_deletion_registry')
+            self._load_error = None
         except Exception as exc:
             import logging
 
@@ -170,9 +204,16 @@ class UserStore:
             self._load_error = str(exc)
 
     def _save(self) -> None:
+        if getattr(self, '_load_error', None):
+            raise ValueError('users_storage_unavailable')
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(".tmp")
-        payload = {"users": self._users, "device_index": self._device_index}
+        payload = {"users": self._users, "device_index": self._device_index,
+                   "deleted_uid_hashes": sorted(self._deleted_uid_hashes),
+                   "deleted_device_hashes": sorted(self._deleted_device_hashes),
+                   "deleted_session_hashes": sorted(self._deleted_session_hashes),
+                   "deletion_revision":self._deletion_revision,
+                   "deletion_registry_complete":self._deletion_registry_complete}
         tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         tmp.replace(self.path)
 
@@ -181,9 +222,67 @@ class UserStore:
             u = self._users.get(uid)
             return deepcopy(u) if u else None
 
+    def identity_deleted(self, uid: str) -> bool:
+        """Minimal revocation registry. No raw device identifier is retained here."""
+        with _LOCK:
+            return bool(getattr(self, '_load_error', None)) or hashlib.sha256(uid.encode()).hexdigest() in self._deleted_uid_hashes
+
+    def deletion_registry(self) -> dict:
+        with _LOCK:
+            if getattr(self,'_load_error',None) or not self._deletion_registry_complete:
+                raise ValueError('deletion_registry_requires_resolution')
+            return {'version':1,'scope':'deletion_restore_guard','revision':self._deletion_revision,
+                    'uid_hashes':sorted(self._deleted_uid_hashes),'device_hashes':sorted(self._deleted_device_hashes),
+                    'session_hashes':sorted(self._deleted_session_hashes)}
+
+    def delete_profile(self, uid: str, *, session_ids=()) -> dict[str, int]:
+        """Internal primitive, not an account-deletion completion workflow.
+
+        The executor must separately settle retained records, events and backups.
+        Only the gated account_deletion executor calls this after scope checks.
+        """
+        with _LOCK:
+            if not isinstance(session_ids,(list,tuple,set)) or any(not isinstance(v,str) or not v or len(v)>512 for v in session_ids):
+                raise ValueError('invalid_deleted_session_registry')
+            if getattr(self, '_load_error', None):
+                raise ValueError('users_storage_unavailable')
+            if not uid.strip():
+                raise ValueError('uid_required')
+            profile = self._users.get(uid)
+            if profile and profile.get('auth_type') != 'anonymous':
+                raise ValueError('external_identity_resolution_required')
+            profile_devices=(profile or {}).get('device_ids') or []
+            if not isinstance(profile_devices,list) or any(not isinstance(v,str) or not v or len(v)>512 for v in profile_devices):
+                raise ValueError('invalid_profile_device_registry')
+            if profile and (profile.get('linked_to') or profile.get('anonymous_linked_from') or any(
+                other.get('linked_to') == uid or other.get('anonymous_linked_from') == uid
+                for other_id,other in self._users.items() if other_id != uid
+            )):
+                raise ValueError('linked_identity_resolution_required')
+            old_users,old_index,old_deleted = deepcopy(self._users),dict(self._device_index),set(self._deleted_uid_hashes)
+            old_devices,old_sessions,old_revision=set(self._deleted_device_hashes),set(self._deleted_session_hashes),self._deletion_revision
+            linked = [device for device,owner in self._device_index.items() if owner==uid]
+            self._users.pop(uid,None)
+            for device in linked:
+                self._device_index.pop(device,None)
+            self._deleted_uid_hashes.add(hashlib.sha256(uid.encode()).hexdigest())
+            self._deleted_device_hashes.update(hashlib.sha256(v.encode()).hexdigest() for v in set(linked)|set(profile_devices))
+            self._deleted_session_hashes.update(hashlib.sha256(v.encode()).hexdigest() for v in session_ids)
+            if (old_deleted,old_devices,old_sessions)!=(self._deleted_uid_hashes,self._deleted_device_hashes,self._deleted_session_hashes):
+                self._deletion_revision+=1
+            try:
+                self._save()
+            except Exception:
+                self._users,self._device_index,self._deleted_uid_hashes = old_users,old_index,old_deleted
+                self._deleted_device_hashes,self._deleted_session_hashes,self._deletion_revision=old_devices,old_sessions,old_revision
+                raise
+            return {'profiles_removed':int(profile is not None),'device_links_removed':len(linked)}
+
     def ensure_guest(self, device_id: str, firebase_uid: str | None = None) -> dict[str, Any]:
         device_id = (device_id or "").strip() or secrets.token_hex(16)
         with _LOCK:
+            if getattr(self, '_load_error', None):
+                raise ValueError('users_storage_unavailable')
             existing = self._device_index.get(device_id)
             if existing and existing in self._users:
                 u = self._users[existing]
@@ -192,6 +291,10 @@ class UserStore:
                 return deepcopy(u)
 
             uid = firebase_uid or f"anon_{hashlib.sha256(device_id.encode()).hexdigest()[:20]}"
+            if hashlib.sha256(uid.encode()).hexdigest() in self._deleted_uid_hashes:
+                if firebase_uid:
+                    raise ValueError('identity_deleted')
+                uid = 'anon_' + secrets.token_hex(10)
             if uid in self._users:
                 u = self._users[uid]
                 if device_id and device_id not in u.get("device_ids", []):
@@ -213,6 +316,8 @@ class UserStore:
         if not uid:
             raise KeyError("guest_not_found")
         with _LOCK:
+            if getattr(self, '_load_error', None) or hashlib.sha256(uid.encode()).hexdigest() in self._deleted_uid_hashes:
+                raise ValueError('identity_deleted')
             if uid in self._users:
                 return deepcopy(self._users[uid])
             u = _empty_user(uid, auth_type=auth_type)
@@ -222,6 +327,8 @@ class UserStore:
 
     def merge_guest_into(self, guest_uid: str, target_uid: str, *, auth_type: str) -> dict[str, Any]:
         with _LOCK:
+            if getattr(self, '_load_error', None) or any(hashlib.sha256(v.encode()).hexdigest() in self._deleted_uid_hashes for v in (guest_uid,target_uid)):
+                raise ValueError('identity_deleted')
             guest = self._users.get(guest_uid)
             if not guest:
                 # 재배포로 유실된 게스트 스텁

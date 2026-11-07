@@ -21,17 +21,19 @@ def rejected(payload, source):
 with tempfile.TemporaryDirectory() as folder:
     root = Path(folder)
     source = root / "backup.json"
-    payload = {"files": {"users.json": '{"guest_test":{"name":"테스트"}}',
+    payload = {"files": {"users.json": '{"users":{"guest_test":{"uid":"guest_test","name":"테스트"}},"device_index":{}}',
                          "events.jsonl": '{"event":"persist_probe"}\n'},
                "missing": ["verified-menus.json", "deals.json"], "errors": {}}
     source.write_text(json.dumps(payload), encoding="utf-8-sig")
     files = module.read_backup(source)
+    registry=root/'registry.json'
+    registry.write_text(json.dumps({'version':1,'scope':'deletion_restore_guard','revision':0,'uid_hashes':[],'device_hashes':[],'session_hashes':[]}))
     target = root / "restored"
-    module.restore(files, target)
+    files=module.restore(files, target,deletion_registry=registry)
     assert all(module.compare(files, target).values())
     for existing in (target, root):
         try:
-            module.restore(files, existing)
+            module.restore(files, existing,deletion_registry=registry)
         except FileExistsError:
             pass
         else:

@@ -59,6 +59,11 @@ with tempfile.TemporaryDirectory() as directory:
     report=client.get(endpoint,headers=admin).json()
     assert set(report['blockers'])=={'receipt_review_pending','payout_pending','balance_requires_resolution'}
     assert report['counts']['balance_points']==300 and report['can_execute'] is False
+    assert 'financial_records_retention_review' in report['retention_review']
+    owner_status=client.get('/v1/me/deletion',params={'uid':identity['uid']},headers=headers).json()['request']
+    assert owner_status['execution_ready'] is False and len(owner_status['reasons'])>=3
+    assert any('지급' in reason for reason in owner_status['reasons'])
+    assert 'delete-test-approval' not in str(owner_status) and 'test-not-real' not in str(owner_status)
     response=client.post('/v1/me/deletion/withdraw',json=body,headers=headers)
     assert response.status_code==200 and response.json()['request']['status']=='withdrawn'
     assert 'request_withdrawn' in client.get(endpoint,headers=admin).json()['blockers']

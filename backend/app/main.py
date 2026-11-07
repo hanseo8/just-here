@@ -30,6 +30,7 @@ from . import rewards
 from . import payouts
 from . import coupons
 from . import account_requests
+from . import account_deletion
 from . import native_auth
 from . import reward_identity
 from .request_guard import RequestGuard
@@ -109,7 +110,7 @@ def _bootstrap_verified_menus() -> None:
 async def storage_recovery_gate(request: Request, call_next):
     # Single-worker deployment: let admitted requests drain before file recovery.
     global _ACTIVE_STORAGE_REQUESTS
-    if request.url.path in {"/health", "/v1/admin/storage", "/v1/admin/storage/backup"}:
+    if request.url.path in {"/health", "/v1/admin/storage", "/v1/admin/storage/backup"} or request.url.path.startswith('/v1/admin/account-deletions'):
         return await call_next(request)
     if (users.data_dir() / ".storage-maintenance").exists():
         return JSONResponse({"detail": "데이터 점검 중이에요. 잠시 후 다시 시도해 주세요."},
@@ -1282,7 +1283,7 @@ def my_deletion(request: Request, uid: str = Query(...)):
     uid = _require_uid(request, uid)
     if not (rewards.data_dir() / "rewards.sqlite3").exists():
         return _admin_json({"ok": True, "request": None})
-    return _admin_json({"ok": True, "request": account_requests.get(rewards.get_store(), uid)})
+    return _admin_json({"ok": True, "request": account_requests.user_status(rewards.get_store(), uid)})
 
 
 @app.post("/v1/me/deletion")
@@ -1292,7 +1293,37 @@ def request_account_deletion(body: AccountDeletionBody, request: Request):
         raise HTTPException(400, "explicit_confirmation_required")
     if not (rewards.status()["persistent"] or os.environ.get("RECEIPT_REWARDS_ALLOW_VOLATILE", "").lower() == "on"):
         raise HTTPException(503, "persistent_storage_required")
-    return _admin_json({"ok": True, "request": account_requests.submit(rewards.get_store(), uid)})
+    store=rewards.get_store()
+    return _admin_json({"ok": True, "request": account_requests.submit(store, uid),
+                        "tracking":account_requests.issue_receipt(store,uid)})
+
+
+@app.post('/v1/me/deletion/receipt')
+def deletion_tracking_receipt(body: AccountDeletionBody, request: Request):
+    uid=_require_uid(request,body.uid)
+    if not body.confirm:
+        raise HTTPException(400,'explicit_confirmation_required')
+    try:
+        tracking=account_requests.issue_receipt(rewards.get_store(),uid)
+    except ValueError:
+        raise HTTPException(404,'deletion_request_not_found') from None
+    return _admin_json({'ok':True,'tracking':tracking})
+
+
+class DeletionTrackingBody(BaseModel):
+    request_id: str = Field(min_length=1,max_length=100)
+    receipt: str = Field(min_length=40,max_length=100)
+
+
+@app.post('/v1/me/deletion/status')
+def deletion_tracking_status(body: DeletionTrackingBody):
+    if not (rewards.data_dir()/'rewards.sqlite3').exists():
+        raise HTTPException(404,'deletion_receipt_invalid')
+    try:
+        result=account_requests.receipt_status(rewards.get_store(),body.request_id,body.receipt)
+    except ValueError:
+        raise HTTPException(404,'deletion_receipt_invalid') from None
+    return _admin_json({'ok':True,'request':result})
 
 
 @app.post("/v1/me/deletion/withdraw")
@@ -1312,6 +1343,7 @@ def deletion_preflight(request_id: str, request: Request):
     _require_admin(request)
     try:
         result = account_requests.preflight(rewards.get_store(), request_id)
+        result['active_data_execution'] = account_deletion.preview(rewards.get_store(), request_id)
     except ValueError as exc:
         raise HTTPException(404, str(exc)) from exc
     return _admin_json({"ok": True, **result})
@@ -1323,6 +1355,16 @@ def deletion_queue(request: Request):
     return _admin_json({"ok": True, "requests": account_requests.queue(rewards.get_store())})
 
 
+@app.get('/v1/admin/account-deletions/registry')
+def account_deletion_registry(request: Request):
+    _require_admin(request)
+    try:
+        result=users.STORE.deletion_registry()
+    except ValueError as exc:
+        raise HTTPException(409,str(exc)) from None
+    return _admin_json({'ok':True,'deletion_registry':result})
+
+
 @app.post("/v1/admin/account-deletions/{request_id}/review")
 def review_deletion(request_id: str, request: Request):
     _require_admin(request)
@@ -1331,6 +1373,28 @@ def review_deletion(request_id: str, request: Request):
     except ValueError as exc:
         raise HTTPException(404, str(exc)) from exc
     return _admin_json({"ok": True})
+
+
+class AccountDeletionExecuteBody(BaseModel):
+    confirm_request_id: str = Field(min_length=1,max_length=100)
+    confirm_permanent: bool = False
+
+
+@app.post('/v1/admin/account-deletions/{request_id}/execute')
+def execute_account_deletion(request_id: str, body: AccountDeletionExecuteBody, request: Request):
+    _require_admin(request)
+    if not admin_security.required():
+        raise HTTPException(503,'deletion_admin_2fa_required')
+    if not (rewards.status()['persistent'] or os.getenv('RECEIPT_REWARDS_ALLOW_VOLATILE','').lower()=='on'):
+        raise HTTPException(503,'persistent_storage_required')
+    actor=hashlib.sha256((request.headers.get('x-admin-token') or '').encode()).hexdigest()[:12]
+    try:
+        result=account_deletion.execute(rewards.get_store(),request_id,actor=actor,
+            confirm_request_id=body.confirm_request_id,confirm_permanent=body.confirm_permanent,
+            drained=_ACTIVE_STORAGE_REQUESTS==0)
+    except ValueError as exc:
+        raise HTTPException(409,str(exc)) from None
+    return _admin_json({'ok':True,**result})
 
 
 class CouponIssueBody(BaseModel):

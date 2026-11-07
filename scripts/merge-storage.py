@@ -15,7 +15,7 @@ spec.loader.exec_module(recovery)
 
 def users_document(data):
     document = recovery.strict_json(data.decode("utf-8"))
-    if not isinstance(document, dict) or set(document) != {"users", "device_index"}:
+    if not isinstance(document, dict) or not {"users", "device_index"} <= set(document) or not set(document) <= {"users","device_index","deleted_uid_hashes","deleted_device_hashes","deleted_session_hashes","deletion_revision","deletion_registry_complete"}:
         raise ValueError("unsupported users schema")
     users, devices = document["users"], document["device_index"]
     if not isinstance(users, dict) or not isinstance(devices, dict):
@@ -28,7 +28,10 @@ def users_document(data):
     return document
 
 
-def merge(old_files, current_files):
+def merge(old_files, current_files, *, deletion_registry):
+    registry=recovery.load_registry(deletion_registry)
+    old_files,_=recovery.sanitize_text_files(old_files,registry)
+    current_files,_=recovery.sanitize_text_files(current_files,registry)
     if not {"users.json", "events.jsonl"} <= old_files.keys():
         raise ValueError("old backup needs users and events")
     if not {"users.json", "events.jsonl"} <= current_files.keys():
@@ -55,7 +58,7 @@ def merge(old_files, current_files):
         else:
             added.append(event)
     output = dict(current_files)
-    output["users.json"] = json.dumps({"users": users, "device_index": devices}, ensure_ascii=False, indent=2).encode("utf-8")
+    output["users.json"] = json.dumps({**current, "users": users, "device_index": devices}, ensure_ascii=False, indent=2).encode("utf-8")
     output["events.jsonl"] = ("".join(canonical(event) + "\n" for event in old_events + added)).encode("utf-8")
     # Menu/deal catalogs retain the current snapshot, including current absence.
     report = {"old_users": len(old["users"]), "current_users": len(current["users"]),
@@ -70,13 +73,14 @@ def main():
     parser.add_argument("old_backup", type=Path)
     parser.add_argument("current_backup", type=Path)
     parser.add_argument("--stage", type=Path)
+    parser.add_argument("--deletion-registry",type=Path,required=True)
     args = parser.parse_args()
     try:
         old = recovery.read_backup(args.old_backup)
         current = recovery.read_backup(args.current_backup)
-        files, report = merge(old, current)
+        files, report = merge(old, current,deletion_registry=args.deletion_registry)
         if args.stage:
-            recovery.restore(files, args.stage)
+            recovery.restore(files, args.stage,deletion_registry=args.deletion_registry)
         print(json.dumps({**report, "files": recovery.manifest(files),
                           "staged": bool(args.stage), "live_applied": False}, indent=2))
         return 0

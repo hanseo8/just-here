@@ -68,4 +68,7 @@ def verify(token: str | None) -> dict[str, Any] | None:
     uid = uid.strip()
     if not uid:
         return None
+    from . import users
+    if users.STORE.identity_deleted(uid):
+        return None
     return payload

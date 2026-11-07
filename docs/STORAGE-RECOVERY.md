@@ -2,14 +2,20 @@
 
 `/health`의 `persistent=true`는 저장 경로가 실제 마운트라는 뜻이다. 기존 사용자·이벤트가 복원되었거나 재시작 뒤 같은 기록이 남았다는 뜻은 아니다.
 
+## 2026-11-07 삭제 기록 복구 보호
+
+모든 복구·병합 명령에는 관리자 삭제 요청 화면 또는 `/v1/admin/account-deletions/registry`에서 별도로 내보낸 최신 삭제 목록을 전달해야 한다. 오래된 백업 안의 사용자 파일을 최신 목록으로 대체하지 않는다. 운영 적용 도구는 점검 상태에서 현재 사용자 저장소와 목록 지문을 재대조하고 삭제 실행기와 같은 프로세스 간 잠금을 획득한다.
+
+출력은 삭제 대상을 제외한 새 정리본이다. 삭제가 있는 경우 원본과 정리본의 바이트는 의도적으로 다르며 `--compare`도 정리된 예상값과 비교한다. 원본 백업은 자동으로 삭제하지 않는다. 상세 범위·제약은 `DELETION-BACKUP-GUARD.md`를 따른다.
+
 ## 로컬 검증과 복원 준비
 
 관리자 `/v1/admin/storage/backup` 응답을 비공개 파일로 보관한다. 복구 도구는 백업의 오류 상태, 파일 목록, JSON·JSONL 형식을 먼저 검사한다. 식별자와 문서 내용은 출력하지 않는다.
 
 ```powershell
-python -B scripts/restore-storage.py data/_backup-/20261003-before-disk/backup.json
-python -B scripts/restore-storage.py data/_backup-/20261003-before-disk/backup.json --stage data/_backup-/20261003-before-disk/NEW_RESTORE_DIRECTORY
-python -B scripts/restore-storage.py data/_backup-/20261003-before-disk/backup.json --compare data/_backup-/20261003-before-disk/NEW_RESTORE_DIRECTORY
+python -B scripts/restore-storage.py data/_backup-/20261003-before-disk/backup.json --deletion-registry CURRENT_DELETION_REGISTRY.json
+python -B scripts/restore-storage.py data/_backup-/20261003-before-disk/backup.json --deletion-registry CURRENT_DELETION_REGISTRY.json --stage data/_backup-/20261003-before-disk/NEW_RESTORE_DIRECTORY
+python -B scripts/restore-storage.py data/_backup-/20261003-before-disk/backup.json --deletion-registry CURRENT_DELETION_REGISTRY.json --compare data/_backup-/20261003-before-disk/NEW_RESTORE_DIRECTORY
 ```
 
 `--stage`의 상위 폴더는 존재해야 하며 대상 폴더는 없어야 한다. 기존 폴더·심볼릭 링크에는 복원하지 않는다. 쓰기 실패 시 부분 복원 폴더를 남기고 실패하며, 같은 폴더로 재시도하지 않는다. 출력 SHA-256은 백업과 복원 파일을 비교하기 위한 값이며 백업 출처의 진위를 보장하지 않는다.
@@ -23,7 +29,7 @@ Linux에서는 새 폴더·파일 권한을 700·600으로 제한한다. Windows
 이전 백업과 현재 백업은 다음 명령으로 먼저 오프라인 병합한다. 현재 백업은 오류 없이 확보된 실제 관리자 백업이어야 한다.
 
 ```powershell
-python -B scripts/merge-storage.py OLD_BACKUP.json CURRENT_BACKUP.json --stage NEW_MERGE_DIRECTORY
+python -B scripts/merge-storage.py OLD_BACKUP.json CURRENT_BACKUP.json --stage NEW_MERGE_DIRECTORY --deletion-registry CURRENT_DELETION_REGISTRY.json
 python -B -m scripts.check-storage-merge
 ```
 
@@ -43,7 +49,7 @@ python -B -m scripts.check-storage-merge
 
 ## 유지보수 중 운영 적용
 
-`scripts/apply-storage-recovery.py OLD_BACKUP.json`은 운영 backend 폴더에서 실행한다. `/data` 실제 마운트, 관리자 토큰, 보상 OFF를 요구한다. 현재 배포의 단일 Uvicorn worker를 전제로 `.storage-maintenance`를 만들고 관리자 진단의 진행 중 요청이 0이 될 때까지 기다린다. 다중 worker로 확장한 서버에서는 사용하지 않는다.
+`scripts/apply-storage-recovery.py OLD_BACKUP.json CURRENT_DELETION_REGISTRY.json`은 운영 backend 폴더에서 실행한다. `/data` 실제 마운트, 관리자 토큰·활성 2FA 세션(ADMIN_SESSION), 보상 OFF를 요구한다. 현재 배포의 단일 Uvicorn worker를 전제로 `.storage-maintenance`를 만들고 관리자 진단의 진행 중 요청이 0이 될 때까지 기다린다. 다중 worker로 확장한 서버에서는 사용하지 않는다.
 
 복원 직전 백업을 새 비공개 폴더에 만들고 사용자·이벤트를 병합한다. 충돌 또는 파일 변경이 있으면 중단한다. 현재 카탈로그는 유지하며 두 운영 파일을 교체한 후 해시를 대조한다. 중간 실패 시 유지보수는 계속 켜져 있고 `before.json`으로 복구해야 한다. 두 파일 교체는 하나의 트랜잭션이 아니므로 실패를 무시하지 않는다.
 

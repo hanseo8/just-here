@@ -9,6 +9,12 @@
 !data/verified-menus.songdo.priority.json
 !data/verified-menus.songdo.official.json
 !data/verified-menus.songdo.example.json
+!scripts/
+!scripts/restore-rewards.py
+!scripts/restore-storage.py
+!scripts/merge-storage.py
+!scripts/apply-storage-recovery.py
+!scripts/sanitize-deletion-backup.py
 **/.env
 **/.env.*
 **/__pycache__/

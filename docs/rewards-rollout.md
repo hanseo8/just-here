@@ -25,7 +25,7 @@
 - 이 ZIP은 **보상 데이터 전용**이다. `users.json`, 사용자 이벤트, 로그인 서명 비밀값과 운영 환경설정은 별도로 보관해야 계정까지 복구할 수 있다. 내려받은 ZIP은 암호화된 파일이 아니므로 접근 제한이 필요하며, 영수증 보관기한은 내려받은 백업에도 적용한다.
 - 복원은 운영 경로가 아닌 **존재하지 않는 새 폴더**에만 수행한다:
 
-  `python scripts/restore-rewards.py rewards-backup.zip NEW_DIRECTORY`
+  `python scripts/restore-rewards.py rewards-backup.zip NEW_DIRECTORY --deletion-registry CURRENT_DELETION_REGISTRY.json`
 
 - 검증값·DB 무결성·영수증 참조 검사를 통과한 뒤 잔액과 이미지 표본을 대조한다. 실행 중 DATA_DIR을 덮지 않는다. 복원 결과를 운영 경로로 전환하는 작업은 별도 배포 절차다.
 - 현재 SQLite와 파일 묶음 생성 동안 쓰기를 잠깐 잠근다. 파일럿 규모 기준이며 큰 이미지 저장소로 확장할 때는 객체 저장소와 별도 백업 작업으로 분리한다.

@@ -6,7 +6,11 @@ import argparse
 import hashlib
 import json
 import os
+import sys
 from pathlib import Path
+
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from backend.app.deletion_backup import load_registry, sanitize_text_files
 
 ALLOWED = {"users.json", "events.jsonl", "verified-menus.json", "deals.json"}
 
@@ -63,7 +67,8 @@ def manifest(files):
             for name, data in sorted(files.items())}
 
 
-def restore(files, target):
+def restore(files, target, *, deletion_registry):
+    files,_ = sanitize_text_files(files,load_registry(deletion_registry))
     # mkdir(exist_ok=False) also rejects existing empty dirs and symlinks.
     target.mkdir(parents=False, exist_ok=False)
     if os.name != "nt":
@@ -76,6 +81,7 @@ def restore(files, target):
     # On I/O failure, preserve the partial directory and fail. Never retry over it.
     if not all(compare(files, target).values()):
         raise ValueError("restored bytes differ")
+    return files
 
 
 def compare(files, target):
@@ -92,11 +98,13 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--stage", type=Path, help="create a NEW offline directory; parent must exist")
     mode.add_argument("--compare", type=Path, help="read-only exact comparison with a directory")
+    parser.add_argument("--deletion-registry",type=Path,required=True)
     args = parser.parse_args()
     try:
         files = read_backup(args.backup)
         if args.stage:
-            restore(files, args.stage)
+            files=restore(files, args.stage,deletion_registry=args.deletion_registry)
+        files,_ = sanitize_text_files(files,load_registry(args.deletion_registry))
         matches = compare(files, args.compare) if args.compare else None
         print(json.dumps({"files": manifest(files), "matches": matches,
                           "staged": bool(args.stage), "persistence_verified": False}, indent=2))

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from scripts.receipt_image_fixture import receipt_image
 import os
+import json
 os.environ['REWARD_IDENTITY_REQUIRED'] = 'off'
 import tempfile
 import runpy
@@ -126,14 +127,17 @@ with tempfile.TemporaryDirectory() as raw:
     archive = Path(raw) / "backup.zip"
     archive.write_bytes(result.content)
     restore = runpy.run_path(str(Path(__file__).with_name("restore-rewards.py")))["restore"]
+    from backend.app import users
+    registry_file=Path(raw)/'restore-registry.json'
+    registry_file.write_text(json.dumps(users.STORE.deletion_registry()),encoding='utf-8')
     target = Path(raw) / "restored"
-    restore(archive, target)
+    restore(archive, target,deletion_registry=registry_file)
     restored = rewards.RewardStore(target / "rewards.sqlite3")
     check(restored.list_for_user(uid)["balance"] == 100, "restored ledger matches balance")
     restored_image, _ = restored.image_path(receipt_id)
     check(restored_image.read_bytes() == image.content, "restored receipt image matches original")
     try:
-        restore(archive, target)
+        restore(archive, target,deletion_registry=registry_file)
         raise AssertionError("existing target was accepted")
     except ValueError:
         check(restored.list_for_user(uid)["balance"] == 100, "restore refuses overwriting existing data")
@@ -145,7 +149,7 @@ with tempfile.TemporaryDirectory() as raw:
                 content += b"changed"
             out.writestr(name, content)
     try:
-        restore(corrupt, Path(raw) / "invalid")
+        restore(corrupt, Path(raw) / "invalid",deletion_registry=registry_file)
         raise AssertionError("tampered backup accepted")
     except ValueError:
         check(not (Path(raw) / "invalid").exists(), "checksum rejects damaged backup before restore")
