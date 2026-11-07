@@ -1,13 +1,13 @@
 # 스토어 등록 초안
 
-2026-10-19. 사용자 확인: 게시자 주식회사 강서물산, 고객문의 help@kangseocorp.com.
+2026-10-19. 사용자 확인: 게시자 주식회사 강서물산, 고객문의 info@kangseoltd.com.
 이 문서는 제출 전 초안이며 실제 스토어 등록·심사·법적 정보 검증 완료를 뜻하지 않는다.
 
 ## 공통 정보
 - 앱명: 그냥여기
 - 후보 앱 ID: kr.co.justthis.app (계정 등록 후 소유 여부·변경 필요 여부 확인)
 - 카테고리 후보: 음식 및 음료
-- 고객지원: help@kangseocorp.com
+- 고객지원: info@kangseoltd.com
 - 개인정보 페이지 후보: https://justthis.co.kr/static/privacy.html (최신 정책 운영 배포 확인 전)
 - 계정 삭제 요청 후보: https://justthis.co.kr/account/delete (실제 삭제 실행 구현·운영 반영 전)
 

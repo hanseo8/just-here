@@ -61,5 +61,5 @@ MY에서 `/account/delete`로 이동해 인증된 본인 계정의 삭제 검토
 - Android :app:assembleDebug 및 :app:bundleRelease, 릴리스 필수 lint 성공. APK는 디버그 서명 검수용, AAB는 미서명 상태로 스토어에 업로드하지 않는다.
 - iOS Windows 경로 정규화와 권한 목적 문구 적용. Xcode 컴파일·서명·실기기 검사는 미실행.
 - .github/workflows/mobile-build-verify.yml은 수동 Android/iOS 컴파일용이며 실행·업로드하지 않았다.
-- 게시자/문의: 사용자 제공 주식회사 강서물산 / help@kangseocorp.com을 개인정보 화면·MY·삭제 요청과 등록 초안에 반영.
+- 게시자/문의: 사용자 제공 주식회사 강서물산 / info@kangseoltd.com을 개인정보 화면·MY·삭제 요청과 등록 초안에 반영.
 - 최신 운영 API 배포와 앱 인증 복귀·실제 삭제·아이콘/스크린샷·데이터 공개·스토어 계정·서명·실기기 검증이 남아 제출 게이트는 차단 상태.
