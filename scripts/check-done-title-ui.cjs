@@ -1,0 +1,12 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const html=fs.readFileSync('web/index.html','utf8'),js=fs.readFileSync('web/app.js','utf8');
+const done=html.slice(html.indexOf('id="screen-done"'));
+assert(done.indexOf('id="receipt"')<done.indexOf('class="done-pick"'));
+assert(done.indexOf('id="receipt"')<done.indexOf('class="reward-journey"'));
+assert(done.includes('id="btn-receipt-toggle" class="receipt-summary" aria-expanded="true"'));
+const render=js.slice(js.indexOf('function showDone('),js.indexOf('function rewardMessage('));assert(render.includes('setReceiptExpanded(true)'));assert(!render.includes('setReceiptExpanded(false)'));
+const elements={};const get=id=>elements[id]??={classList:{toggle(name,on){this[name]=on}},setAttribute(k,v){this[k]=v}};
+const c={$:get};vm.createContext(c);vm.runInContext(js.slice(js.indexOf('function setReceiptExpanded('),js.indexOf('async function shareReceipt(')),c);
+c.setReceiptExpanded(false);assert.equal(get('receipt-body').hidden,true);
+c.setReceiptExpanded(true);assert.equal(get('receipt-body').hidden,false);assert.equal(get('btn-receipt-toggle')['aria-expanded'],'true');assert.equal(get('receipt-toggle-label').textContent,'접기');
+console.log('PASS chosen-place title: first content, expanded markup and every render, collapse/reopen accessibility state');

@@ -2698,7 +2698,7 @@ function showDone(data) {
     "bg_basic";
   const card = $("receipt");
   card.className = `receipt-card theme-${theme}${state.goldUnlocked ? " is-gold" : ""}`;
-  setReceiptExpanded(false);
+  setReceiptExpanded(true);
   const tog = $("btn-receipt-toggle");
   if (tog) tog.onclick = () => setReceiptExpanded(card.classList.contains("is-collapsed"));
   const link = $("handoff-link");

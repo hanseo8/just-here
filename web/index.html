@@ -224,6 +224,23 @@
     <!-- HANDOFF + 영수증 공유 -->
     <section id="screen-done" class="screen hidden">
       <div class="done-box">
+        <article id="receipt" class="receipt-card theme-bg_basic" role="status">
+          <button type="button" id="btn-receipt-toggle" class="receipt-summary" aria-expanded="true">
+            <span class="receipt-label">오늘의 칭호</span>
+            <strong id="receipt-title" class="receipt-title"></strong>
+            <span id="receipt-toggle-label" class="receipt-toggle">접기</span>
+          </button>
+          <div id="receipt-body" class="receipt-body">
+            <p class="receipt-label">오늘의 식사 카드</p>
+            <img class="receipt-badge" id="receipt-badge" alt="" />
+            <p id="receipt-sub" class="receipt-sub"></p>
+            <div class="receipt-divider"></div>
+            <p class="receipt-row"><span>식당</span><strong id="receipt-place"></strong></p>
+            <p class="receipt-row"><span>메뉴</span><strong id="receipt-menu"></strong></p>
+            <p class="receipt-row reason"><span>한 줄</span><strong id="receipt-reason"></strong></p>
+            <p class="receipt-wm">JUST HERE · 그냥여기</p>
+          </div>
+        </article>
         <div class="done-pick">
           <img id="done-thumb" class="done-thumb hidden" alt="" />
           <div class="done-pick-text">
@@ -294,23 +311,7 @@
           <a class="reward-history" href="/my">접수 · 검토 · 지급 상태 확인하기 →</a>
         </section>
         <p class="reward-steps">영수증 접수 → 검토 → 승인 후 지급 신청 → 지급 완료</p><p class="reward-disclaimer">중복 영수증은 참여할 수 없어요. 참여 기간·한도는 보상 화면에서 확인해 주세요.</p></section>
-        <article id="receipt" class="receipt-card theme-bg_basic" role="status">
-          <button type="button" id="btn-receipt-toggle" class="receipt-summary" aria-expanded="false">
-            <span class="receipt-label">오늘의 칭호</span>
-            <strong id="receipt-title" class="receipt-title"></strong>
-            <span id="receipt-toggle-label" class="receipt-toggle">접기</span>
-          </button>
-          <div id="receipt-body" class="receipt-body">
-            <p class="receipt-label">오늘의 식사 카드</p>
-            <img class="receipt-badge" id="receipt-badge" alt="" />
-            <p id="receipt-sub" class="receipt-sub"></p>
-            <div class="receipt-divider"></div>
-            <p class="receipt-row"><span>식당</span><strong id="receipt-place"></strong></p>
-            <p class="receipt-row"><span>메뉴</span><strong id="receipt-menu"></strong></p>
-            <p class="receipt-row reason"><span>한 줄</span><strong id="receipt-reason"></strong></p>
-            <p class="receipt-wm">JUST HERE · 그냥여기</p>
-          </div>
-        </article>
+
         <details class="share-menu"><summary>친구에게 공유</summary>
         <button type="button" id="btn-kakao-link" class="btn kakao-link">
           <span class="kakao-ico" aria-hidden="true"></span>
@@ -358,6 +359,6 @@
   <script src="/static/badges.js?v=20260930-badges1"></script>
   <script src="/static/story.js?v=20260930-receipt2"></script>
   <script src="/static/instagram.js?v=20260926-ig1"></script>
-  <script src="/static/app.js?v=20261111-next1"></script>
+  <script src="/static/app.js?v=20261111-title1"></script>
 </body>
 </html>
