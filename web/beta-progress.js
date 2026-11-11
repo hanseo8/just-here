@@ -11,11 +11,14 @@ window.renderBetaProgress = function (data, wallet={}) {
   applyButton.disabled=false;
   applyButton.textContent=applied?'신청 접수 완료 · 상태 확인':enabled?'테스트 참여 신청':'모집 상태 확인';
   applyMessage.textContent=applied?'참여 신청을 접수했어요. 아직 선정 전이며, 선정 결과는 MY에서 확인해 주세요.':enabled?'신청 후 운영자가 선정해요. 신청만으로 참여·지급이 확정되지는 않아요.':'현재 새 신청 접수가 일시 중지되어 있어요. 기존 신청·지급 내역은 확인할 수 있어요.';
+  const identityWaiting=wallet.identity?.required!==false&&!wallet.identity?.verified&&wallet.identity?.configured!==true;
+  if(!applied&&enabled&&identityWaiting){applyButton.textContent='인증 오픈 안내 보기';applyMessage.textContent='본인인증 연결 준비 중이에요. 인증이 열리면 참여 신청을 진행할 수 있어요.';}
   if(connectAction)connectAction.hidden=true;
   const showMessage=text=>{window.JustHereMy?.open('beta-apply');applyMessage.textContent=text;applyMessage.tabIndex=-1;applyMessage.focus();};
   applyButton.onclick=async()=>{
     if(applied){showMessage('신청이 이미 접수됐어요. 선정 결과가 나오면 MY에 참여 기간이 표시돼요.');return;}
     if(!enabled){showMessage('지금은 참여 신청 접수가 중지되어 있어요. 접수가 열리면 이 버튼으로 신청할 수 있어요.');return;}
+    if(identityWaiting){window.JustHereMy?.open('reward-identity');return;}
     const uid=window.JustHereAuth.getUid();
     if(wallet.identity?.required!==false&&!wallet.identity?.verified){
       if(connectAction)connectAction.hidden=false;
@@ -27,6 +30,7 @@ window.renderBetaProgress = function (data, wallet={}) {
       await jsonApi('/v1/rewards/beta/apply',{method:'POST',signal:controller.signal,body:JSON.stringify({uid})});
       applyButton.textContent='신청 접수 완료';showMessage('참여 신청을 접수했어요. 아직 선정 전이며, 선정 결과는 MY에서 확인해 주세요.');
       applyButton.onclick=()=>showMessage('신청이 접수됐어요. 선정 결과는 MY에서 확인해 주세요.');
+      await start();
     }catch(e){
       const errors={phone_identity_required:'휴대폰 본인인증 후 다시 신청해 주세요.',beta_capacity_reached:'현재 베타 선정 인원이 모두 찼어요.',beta_application_capacity_reached:'현재 신청 정원이 모두 찼어요.'};
       applyButton.textContent='참여 신청 다시 시도';

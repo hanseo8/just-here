@@ -3,12 +3,13 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>MY · 내 지갑 · 그냥여기</title>
   <link rel="stylesheet" href="/static/styles.css?v=20261106-location6">
-  <link rel="stylesheet" href="/static/rewards.css?v=20261107-flow1">
+  <link rel="stylesheet" href="/static/rewards.css?v=20261111-next1">
 </head><body>
   <main class="reward-page my-organized">
     <header><a class="brand" href="/" aria-label="그냥여기 홈">그냥여기.</a><a href="/">가게 찾기 ↗</a></header>
     <section class="my-heading"><div class="my-heading-row"><h1>MY</h1><button id="refresh-rewards" type="button" aria-label="내 정보 새로고침">새로고침 ↻</button></div><p id="account-state" role="status">내 기록을 확인하고 있어요.</p></section>
     <section id="my-titles" class="my-title-card" aria-labelledby="my-title-heading"><div class="my-title-copy"><span class="eyebrow">나의 음식 취향</span><h2 id="my-title-heading">내 칭호</h2><strong id="my-title-name">칭호를 불러오는 중…</strong><p id="my-title-description">내가 고른 한 끼가 취향이 돼요.</p><span id="my-title-count"></span></div><img id="my-title-image" alt="" hidden><details id="my-title-collection" hidden><summary>모은 칭호 보기</summary><div id="my-title-list"></div></details></section>
+    <section class="my-next" aria-labelledby="my-next-heading"><span class="eyebrow" id="my-next-heading">내 다음 할 일</span><h2 id="my-next-title">참여 상태 확인 중</h2><p id="my-next-copy" role="status" aria-live="polite">지금 할 수 있는 일을 확인하고 있어요.</p><ol id="my-next-steps" aria-label="보상 참여 단계"></ol><button id="my-next-action" type="button" disabled>확인 중…</button></section>
     <nav class="my-nav" aria-label="MY 메뉴"><a href="#receipt-upload-entry">영수증 올리기</a><a href="#wallet">내 지갑</a><a href="#reward-identity">보상 참여</a></nav>
     <section id="receipt-upload-entry" class="receipt-upload-entry" aria-labelledby="upload-entry-title">
       <span class="eyebrow">식사 기록 · 영수증 인증</span><h2 id="upload-entry-title">영수증 올리고 후기 남기기</h2>
@@ -66,10 +67,10 @@
   </main>
   <script src="/static/auth.js?v=20261004-auth1"></script>
   <script src="/static/wallet.js?v=20261019-my1"></script>
-  <script src="/static/my-ui.js?v=20261107-my2"></script>
+  <script src="/static/my-ui.js?v=20261111-next1"></script>
   <script src="/static/reward-identity.js?v=20261107-native1"></script>
-  <script src="/static/beta-progress.js?v=20261107-my2"></script>
-  <script src="/static/receipt-flow.js?v=20261107-flow1"></script>
+  <script src="/static/beta-progress.js?v=20261111-next1"></script>
+  <script src="/static/receipt-flow.js?v=20261111-next1"></script>
   <script>
     const label={pending:'검토 중',approved:'적립 완료',rejected:'반려'};
     let guestRefresh = null;
@@ -80,27 +81,25 @@
       button.disabled=false;
       const message=document.getElementById('upload-entry-state');
       const actions=document.getElementById('upload-entry-actions');
-      const needsIdentity=data?.identity?.required!==false&&!data?.identity?.verified;
-      message.textContent=needsIdentity&&data?'보상 영수증을 올리기 전에 아래에서 휴대폰 본인인증을 완료해 주세요.':available?'인증할 식사 기록이 있어요. 사진을 선택하고 후기를 남겨 주세요.':!data?'연결 상태를 확인하지 못했어요. 새로고침 후 다시 시도해 주세요.':data.reward_config?.enabled!==true?'현재 새 영수증 접수가 일시 중지되어 있어요. 기존 내역은 아래에서 확인할 수 있어요.':!data.beta?.enrolled&&data.pilot?.claim_limit===0?'현재는 베타 선정자만 보상 영수증을 접수할 수 있어요. 먼저 베타 참여를 신청해 주세요.':'인증할 식사 기록이 없어요. 가게를 추천받고 선택한 뒤 식사 후 올려 주세요.';
-      button.textContent=available?'영수증 사진 업로드':'영수증 업로드 · 참여 조건 확인';
+      const next=window.JustHereMy.renderNext(data,available);
+      const nextButton=document.getElementById('my-next-action');nextButton.disabled=false;
+      message.textContent=next.message;button.textContent=next.label;
       actions.hidden=available;
-      actions.querySelector('a[href="#beta-apply"]').hidden=!!data?.beta?.enrolled;
+      actions.querySelector('a[href="#beta-apply"]').hidden=!!data?.beta?.enrolled||data?.identity?.configured!==true||data?.reward_config?.enabled!==true;
       button.onclick=()=>{
-        if(available){document.getElementById('claim').scrollIntoView({behavior:'smooth',block:'start'});document.getElementById('receipt-image').click();return;}
-        if(!data){button.textContent='다시 확인 중…';start();return;}
-        if(needsIdentity){window.JustHereMy.open('reward-identity');document.getElementById('verify-reward-identity').focus();return;}
-        if(data.reward_config?.enabled!==true){message.textContent='현재 영수증 접수가 중지되어 사진을 선택할 수 없어요. 기존 접수 내역은 아래에서 확인해 주세요.';document.getElementById('activity').scrollIntoView({behavior:'smooth',block:'start'});return;}
-        if(!data.beta?.enrolled&&data.pilot?.claim_limit===0){window.JustHereMy.open('beta-apply');document.getElementById('beta-apply-button').focus();return;}
-        location.href='/';
+        if(next.target==='claim'){document.getElementById('claim').scrollIntoView({behavior:'smooth',block:'start'});document.getElementById('receipt-image').click();return;}
+        if(next.target==='retry'){button.disabled=true;nextButton.disabled=true;button.textContent='다시 확인 중…';start();return;}
+        if(next.target==='home'){location.href='/';return;}
+        window.JustHereMy.open(next.target);
       };
-      if(!available)button.textContent=needsIdentity&&data?'휴대폰 본인인증 후 영수증 업로드':!data?'다시 불러오기':data.reward_config?.enabled!==true?'기존 영수증 내역 보기':!data.beta?.enrolled&&data.pilot?.claim_limit===0?'베타 참여 신청하기':'가게 먼저 고르기';
     }
+
     let eligibleMeals=[];
     function selectMeal(){const meal=eligibleMeals.find(x=>x.id===document.getElementById('claim-selection').value);if(!meal)return;document.getElementById('attribution').value=meal.id;document.getElementById('claim-place').textContent=meal.place_name+' · '+(meal.menu_name||'선택한 메뉴');}
     document.getElementById('claim-selection').onchange=selectMeal;
     function renderWallet(data){const summary=window.JustHereWallet.summarize(data);document.getElementById('reserved').textContent=summary.reserved.toLocaleString()+'P';document.getElementById('paid-total').textContent=summary.paid.toLocaleString()+'원';document.getElementById('account-state').textContent=data.identity?.verified?'휴대폰 본인인증 완료 · 내 보상 기록이 연결되어 있어요.':'로그인 없이 이용 중이에요. 보상 참여 시 휴대폰 본인인증이 필요해요.';document.getElementById('wallet-action').textContent=summary.reserved?'지급 신청을 확인 중이에요. 완료 여부는 아래 지급 내역에서 확인해 주세요.':summary.available>0?'승인된 포인트가 있어요. 지급 가능 여부를 아래에서 확인해 주세요.':'식사 후 영수증이 승인되면 이곳에 포인트가 쌓여요.';}
 
-    async function start(){const list=document.getElementById('reward-list');try{let uid=window.JustHereAuth.getUid();if(!uid){const guest=await window.JustHereAuth.ensureGuest(jsonApi);uid=guest.uid}currentUid=uid;const data=await jsonApi('/v1/rewards/me?uid='+encodeURIComponent(uid));window.JustHereMy.renderTitles(data.my_titles||[]);renderRewardIdentity(data);renderBetaProgress(data.beta,data);document.getElementById('receipt-rate-title').textContent='영수증 인증하고 '+(data.beta?.enrolled?300:(data.reward_config?.reward_points||100))+'P';renderPilotTerms(data.beta?.enrolled?{beta:true}:data.pilot);renderWallet(data);window.renderRewardPayouts?.(data);loadCoupons();document.getElementById('page-state').textContent=(data.eligible_attributions||[]).length?'인증할 수 있는 식사 기록이 있어요. 아래에서 영수증을 올려 주세요.':'인증할 식사 기록이 없어요. 먼저 가게를 추천받고 방문해 주세요.';document.getElementById('balance').textContent=`${data.balance||0}P`;document.getElementById('pending').textContent=`${data.pending_points||0}P`;eligibleMeals=data.eligible_attributions||[];document.getElementById('claim-selection').replaceChildren(...eligibleMeals.map(x=>new Option(x.place_name+' · '+(x.menu_name||'선택한 메뉴'),x.id)));const eligible=eligibleMeals[0];const claim=document.getElementById('claim');claim.hidden=!eligible||data.reward_config?.enabled!==true||(data.identity?.required!==false&&!data.identity?.verified);renderUploadEntry(data,!!eligible&&!claim.hidden);if(data.reward_config?.enabled===false)document.getElementById('page-state').textContent='새 영수증 접수가 일시 중지되어 있어요. 기존 접수·지급 내역은 아래에서 확인할 수 있어요.';if(eligible){document.getElementById('attribution').value=eligible.id;document.getElementById('claim-place').textContent=`${eligible.place_name} · ${eligible.menu_name||'선택한 메뉴'}`;const now=new Date(Date.now()-new Date().getTimezoneOffset()*60000);document.getElementById('purchased-at').value=now.toISOString().slice(0,16)}const rows=data.receipts||[];renderReceiptHistory(rows,data.payouts||[]);return data;}catch(err){window.JustHereMy.renderTitles([]);document.getElementById('my-title-name').textContent='칭호를 불러오지 못했어요';document.getElementById('my-title-description').textContent='새로고침해 다시 확인해 주세요.';document.getElementById('coupon-list').textContent='지갑 정보를 불러온 뒤 쿠폰을 확인할 수 있어요.';document.getElementById('account-state').textContent='계정·지갑 정보를 불러오지 못했어요. 새로고침해 주세요.';document.getElementById('claim').hidden=true;renderUploadEntry(null,false);const betaButton=document.getElementById('beta-apply-button');betaButton.disabled=false;betaButton.textContent='모집 상태 다시 불러오기';betaButton.onclick=()=>{betaButton.disabled=true;betaButton.textContent='다시 확인 중…';start();};document.getElementById('beta-apply-message').textContent='모집 정보를 불러오지 못했어요. 위 버튼을 눌러 다시 확인해 주세요.';document.getElementById('page-state').textContent=String(err.message||'').includes('disabled')?'지금은 모집 준비 중이에요. 접수가 열리면 이곳에서 참여할 수 있어요.':'연결 상태를 확인한 뒤 새로고침해 주세요.';list.innerHTML=String(err.message||'').includes('disabled')?'<p class="empty">아직 보상 모집 전이에요. 모집이 시작되면 추천받은 가게에서 식사한 영수증으로 참여할 수 있어요.</p>':'<p class="empty error">포인트 현황을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</p>'}}
+    async function start(){const list=document.getElementById('reward-list');try{let uid=window.JustHereAuth.getUid();if(!uid){const guest=await window.JustHereAuth.ensureGuest(jsonApi);uid=guest.uid}currentUid=uid;const data=await jsonApi('/v1/rewards/me?uid='+encodeURIComponent(uid));window.JustHereMy.renderTitles(data.my_titles||[]);renderRewardIdentity(data);renderBetaProgress(data.beta,data);document.getElementById('receipt-rate-title').textContent='영수증 인증하고 '+(data.beta?.enrolled?300:(data.reward_config?.reward_points||100))+'P';renderPilotTerms(data.beta?.enrolled?{beta:true}:data.pilot);renderWallet(data);window.renderRewardPayouts?.(data);loadCoupons();document.getElementById('page-state').textContent=(data.eligible_attributions||[]).length?'인증할 수 있는 식사 기록이 있어요. 아래에서 영수증을 올려 주세요.':'인증할 식사 기록이 없어요. 먼저 가게를 추천받고 방문해 주세요.';document.getElementById('balance').textContent=`${data.balance||0}P`;document.getElementById('pending').textContent=`${data.pending_points||0}P`;eligibleMeals=data.eligible_attributions||[];document.getElementById('claim-selection').replaceChildren(...eligibleMeals.map(x=>new Option(x.place_name+' · '+(x.menu_name||'선택한 메뉴'),x.id)));const eligible=eligibleMeals[0];const claim=document.getElementById('claim');claim.hidden=!eligible||data.reward_config?.enabled!==true||(data.identity?.required!==false&&!data.identity?.verified)||(!data.beta?.enrolled&&data.pilot?.claim_limit===0);renderUploadEntry(data,!!eligible&&!claim.hidden);if(data.reward_config?.enabled===false)document.getElementById('page-state').textContent='새 영수증 접수가 일시 중지되어 있어요. 기존 접수·지급 내역은 아래에서 확인할 수 있어요.';if(eligible){document.getElementById('attribution').value=eligible.id;document.getElementById('claim-place').textContent=`${eligible.place_name} · ${eligible.menu_name||'선택한 메뉴'}`;const now=new Date(Date.now()-new Date().getTimezoneOffset()*60000);document.getElementById('purchased-at').value=now.toISOString().slice(0,16)}const rows=data.receipts||[];renderReceiptHistory(rows,data.payouts||[]);return data;}catch(err){window.JustHereMy.renderTitles([]);document.getElementById('my-title-name').textContent='칭호를 불러오지 못했어요';document.getElementById('my-title-description').textContent='새로고침해 다시 확인해 주세요.';document.getElementById('coupon-list').textContent='지갑 정보를 불러온 뒤 쿠폰을 확인할 수 있어요.';document.getElementById('account-state').textContent='계정·지갑 정보를 불러오지 못했어요. 새로고침해 주세요.';document.getElementById('claim').hidden=true;renderUploadEntry(null,false);const betaButton=document.getElementById('beta-apply-button');betaButton.disabled=false;betaButton.textContent='모집 상태 다시 불러오기';betaButton.onclick=()=>{betaButton.disabled=true;betaButton.textContent='다시 확인 중…';start();};document.getElementById('beta-apply-message').textContent='모집 정보를 불러오지 못했어요. 위 버튼을 눌러 다시 확인해 주세요.';document.getElementById('page-state').textContent=String(err.message||'').includes('disabled')?'지금은 모집 준비 중이에요. 접수가 열리면 이곳에서 참여할 수 있어요.':'연결 상태를 확인한 뒤 새로고침해 주세요.';list.innerHTML=String(err.message||'').includes('disabled')?'<p class="empty">아직 보상 모집 전이에요. 모집이 시작되면 추천받은 가게에서 식사한 영수증으로 참여할 수 있어요.</p>':'<p class="empty error">포인트 현황을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</p>'}}
     let receiptImageUrls=[];
     let receiptHistoryVersion=0;
     function renderReceiptHistory(rows,payouts=[]){
@@ -152,5 +151,5 @@
     document.getElementById('refresh-rewards').onclick=()=>location.reload();
     function safe(v){const d=document.createElement('div');d.textContent=String(v||'');return d.innerHTML}document.getElementById('claim-form').onsubmit=submitClaim;
   </script>
-  <script src="/static/payouts.js?v=20261107-flow1"></script>
+  <script src="/static/payouts.js?v=20261111-next1"></script>
 </body></html>

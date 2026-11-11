@@ -559,6 +559,7 @@ def meta():
         "logic_version": engine.LOGIC_VERSION,
         "verified_menus": _verified_menu_status(),
         "rewards": rewards.status(),
+        "reward_identity": {"required": reward_identity.required(), "configured": bool(reward_identity.configured())},
     }
 
 

@@ -10,3 +10,20 @@ const html=fs.readFileSync('web/rewards.html','utf8');const ids=[...html.matchAl
 assert(html.indexOf('id="my-titles"')<html.indexOf('id="receipt-upload-entry"'));assert(html.indexOf('id="activity"')<html.indexOf('id="reward-participation"'));
 for(const m of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))new vm.Script(m[1]);
 console.log('PASS MY: titles at top, empty/owned titles, safe image/text rendering, accordion navigation, eligibility hidden state preserved, unique DOM IDs and inline syntax');
+
+const next=c.window.JustHereMy.nextAction;
+const base={reward_config:{enabled:true},identity:{required:true,configured:true,verified:true},pilot:{claim_limit:0}};
+assert.equal(next(null).target,'retry');
+assert.equal(next({...base,reward_config:{enabled:false}},true).target,'activity');
+assert.equal(next({...base,identity:{required:true,configured:false}}).label,'인증 오픈 안내 보기');
+assert.equal(next({...base,identity:{required:true,configured:true}}).label,'휴대폰 본인인증하기');
+assert.equal(next(base,true).target,'beta-apply');
+assert.equal(next({...base,beta_application:{applied:true}},true).label,'선정 결과 확인');
+const enrolled={...base,beta:{enrolled:true}};
+assert.equal(next(enrolled,true).target,'claim');
+assert.equal(next(enrolled).target,'home');
+assert.equal(next({...enrolled,receipts:[{status:'pending'}]}).target,'activity');
+assert.equal(next({...enrolled,payouts:[{status:'processing'}]}).target,'my-settlement');
+assert.equal(next({...enrolled,balance:300}).target,'my-settlement');
+assert.equal(next({...enrolled,receipts:[{status:'rejected'}]}).target,'home');
+console.log('PASS next action: unknown, paused, unconfigured, unverified, application, selection, upload, receipt review, payout and retry paths');

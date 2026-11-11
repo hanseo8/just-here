@@ -1162,6 +1162,7 @@ async function linkKakaoAccount() {
 async function init() {
   if (openDesignPreview()) return;
   state.meta = await api("/v1/meta");
+  renderRecruitmentState();
   let nativeLinked = null;
   if (window.JustHereNative?.resumeKakao) {
     try { nativeLinked = await window.JustHereNative.resumeKakao(); }
@@ -2756,6 +2757,25 @@ function rewardMessage(message, error = false) {
   el.classList.toggle("is-error", !!error);
 }
 
+function renderRecruitmentState() {
+  const enabled = state.meta?.rewards?.enabled === true;
+  const identity = state.meta?.reward_identity;
+  const ready = enabled && (identity?.required === false || identity?.configured === true);
+  const title = ready ? "베타테스터 참여 안내" : enabled ? "베타 참여 · 인증 오픈 예정" : "보상 참여 상태 안내";
+  const copy = ready ? "15명 선정 · 승인 건당 300원 · 참여 조건 확인" : enabled ? "본인인증 연결 준비 중 · 음식 추천은 바로 이용해요" : "새 접수는 쉬고 있어요 · 기존 내역은 MY에서 확인";
+  const promo = document.querySelector('.location-promo');
+  if (promo) {
+    promo.querySelector('.promo-ticket').hidden = !ready;
+    promo.querySelector('strong').textContent = title;
+    promo.querySelector('.location-promo-note').textContent = copy;
+    promo.querySelector('.promo-link').textContent = ready ? "참여 조건 보기 ↗" : "현재 상태 보기 ↗";
+    promo.href = ready ? '/my#beta-apply' : enabled ? '/my#reward-identity' : '/my#activity';
+  }
+  if ($('reward-entry-title')) $('reward-entry-title').textContent = title;
+  if ($('reward-entry-copy')) $('reward-entry-copy').textContent = copy;
+  if ($('reward-entry')) $('reward-entry').href = ready ? '/my#beta-apply' : enabled ? '/my#reward-identity' : '/my#activity';
+}
+
 function renderRewardOffer(data) {
   const panel = $("reward-panel");
   const form = $("reward-form");
@@ -2763,10 +2783,7 @@ function renderRewardOffer(data) {
   if (!panel || !form) return;
   const entry = $("reward-entry");
   const previewMode = isDesignPreview();
-  const rewardState = state.meta?.rewards;
-  if ($("reward-entry-title")) $("reward-entry-title").textContent = rewardState?.enabled === true ? "영수증 보상 · 베타테스터 참여하기" : "영수증 보상 · 참여 상태 확인";
-  if ($("reward-entry-copy")) $("reward-entry-copy").textContent = rewardState?.enabled === true ? "15명 모집 · 선정 후 승인 건당 300원 · MY에서 신청" : "지금은 새 접수를 받지 않아요. MY에서 신청·지급 내역을 확인하세요.";
-  if (entry) entry.href = rewardState?.enabled === true ? "/my#beta-apply" : "/my#activity";
+  renderRecruitmentState();
 
   if (entry) entry.classList.toggle("hidden", !!offer || previewMode);
   $("screen-done")?.querySelector(".share-menu")?.removeAttribute("open");
