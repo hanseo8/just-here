@@ -152,7 +152,9 @@ function isDesignPreview() {
 function track(event, props = {}) {
   if (isDesignPreview()) return;
   try {
-    const merged = { ...(props || {}) };
+    const context = window.JustHereAnalytics?.context?.() || {};
+    if (context.traffic_type === "test") return;
+    const merged = { ...(props || {}), ...context };
     if (state.sessionId && merged.session_id == null) {
       merged.session_id = state.sessionId;
     }
@@ -166,10 +168,9 @@ function track(event, props = {}) {
       props: merged,
     };
     const payload = JSON.stringify(body);
-    if (navigator.sendBeacon) {
+    if (navigator.sendBeacon && !window.JustHereNative) {
       const blob = new Blob([payload], { type: "application/json" });
-      navigator.sendBeacon("/v1/analytics/event", blob);
-      return;
+      if (navigator.sendBeacon("/v1/analytics/event", blob)) return;
     }
     fetch("/v1/analytics/event", {
       method: "POST",
@@ -1161,6 +1162,12 @@ async function linkKakaoAccount() {
 
 async function init() {
   if (openDesignPreview()) return;
+  track("app_open", {
+    standalone:
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true,
+    in_app: isInAppBrowser(),
+  });
   state.meta = await api("/v1/meta");
   renderRecruitmentState();
   let nativeLinked = null;
@@ -1202,12 +1209,6 @@ async function init() {
   } catch (err) {
     console.warn("guest auth skipped", err);
   }
-  track("app_open", {
-    standalone:
-      window.matchMedia("(display-mode: standalone)").matches ||
-      window.navigator.standalone === true,
-    in_app: isInAppBrowser(),
-  });
   // 카카오 authorize 콜백 (?code=)
   if (nativeLinked) {
     restoreFromResume(consumeKakaoResume());
@@ -1575,6 +1576,7 @@ async function startSession() {
     }),
   });
   track("session_start", {
+    session_id: data.session_id || data.id || "",
     intent: state.intent,
     weather: state.weather,
     taste: state.tasteChoices || [],

@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import hmac
 import os
+import re
 import threading
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
@@ -16,6 +17,21 @@ from .config import data_dir
 
 EVENTS_PATH = data_dir() / "events.jsonl"
 _LOCK = threading.Lock()
+KST = timezone(timedelta(hours=9))
+UTM_FIELDS = ("utm_source", "utm_medium", "utm_campaign", "utm_content")
+
+
+def _excluded(row: dict[str, Any]) -> bool:
+    props = row.get("props") or {}
+    return (not isinstance(props, dict)
+            or str(props.get("session_id") or "").lower().startswith("design")
+            or bool(props.get("design_preview"))
+            or props.get("traffic_type") == "test"
+            or str(row.get("uid") or "").lower().startswith("design"))
+
+
+def _slug(value: Any) -> str:
+    return value if isinstance(value, str) and re.fullmatch(r"[a-zA-Z0-9_-]{1,80}", value) else ""
 
 ALLOWED_EVENTS = {
     "app_open",
@@ -50,7 +66,8 @@ def _now_iso() -> str:
 
 
 def _day_key(iso: str) -> str:
-    return (iso or "")[:10]
+    parsed = _parse_event_ts(iso)
+    return parsed.astimezone(KST).strftime("%Y-%m-%d") if parsed else ""
 
 
 def append_event(
@@ -65,11 +82,7 @@ def append_event(
         raise ValueError(f"unknown_event:{name}")
     props = props or {}
     sid = str(props.get("session_id") or "")
-    if (
-        sid.lower().startswith("design")
-        or props.get("design_preview")
-        or str(uid or "").lower().startswith("design")
-    ):
+    if _excluded({"uid": uid, "props": props}):
         return {
             "ts": _now_iso(),
             "event": name,
@@ -78,6 +91,14 @@ def append_event(
             "device_id": "",
             "props": {},
         }
+    props = dict(props)
+    for field in UTM_FIELDS:
+        if field in props:
+            value = _slug(props.pop(field))
+            if value:
+                props[field] = value
+    if "visit_id" in props and not re.fullmatch(r"[a-zA-Z0-9_-]{16,80}", str(props["visit_id"])):
+        props.pop("visit_id")
     row = {
         "ts": _now_iso(),
         "event": name,
@@ -94,8 +115,7 @@ def append_event(
 def _iter_events(since_days: int = 14) -> list[dict[str, Any]]:
     if not EVENTS_PATH.exists():
         return []
-    cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, since_days))
-    cutoff_s = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+    cutoff = datetime.now(KST).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=max(1, since_days)-1)
     out: list[dict[str, Any]] = []
     with _LOCK:
         try:
@@ -110,19 +130,23 @@ def _iter_events(since_days: int = 14) -> list[dict[str, Any]]:
             row = json.loads(line)
         except Exception:
             continue
-        if (row.get("ts") or "") >= cutoff_s:
+        if not isinstance(row, dict) or _excluded(row):
+            continue
+        ts = _parse_event_ts(row.get("ts"))
+        if ts and ts >= cutoff:
             out.append(row)
     return out
 
 
 def _parse_event_ts(raw: str) -> datetime | None:
-    s = (raw or "").strip()
+    s = raw.strip() if isinstance(raw, str) else ""
     if not s:
         return None
     if s.endswith("Z"):
         s = s[:-1] + "+00:00"
     try:
-        return datetime.fromisoformat(s)
+        parsed = datetime.fromisoformat(s)
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
     except ValueError:
         return None
 
@@ -147,6 +171,7 @@ def product_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
     외부 앱으로 나간 클릭은 주문 완료가 아니다.
     """
+    rows = [r for r in rows if isinstance(r, dict) and not _excluded(r)]
     sessions: dict[str, dict[str, Any]] = defaultdict(
         lambda: {
             "first_shown_ts": None,
@@ -262,9 +287,58 @@ def product_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def acquisition_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Observed visit funnel, not people, ad impressions, visits to restaurants or orders."""
+    visits: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    legacy = 0
+    for row in rows:
+        if not isinstance(row, dict) or _excluded(row) or not _parse_event_ts(row.get("ts")):
+            continue
+        visit = (row.get("props") or {}).get("visit_id", "")
+        if not isinstance(visit, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{16,80}", visit):
+            legacy += 1
+            continue
+        visits[visit].append(row)
+
+    groups: dict[tuple[str, ...], list[tuple[bool, bool, bool]]] = defaultdict(list)
+    incomplete = 0
+    for events in visits.values():
+        ordered = sorted(events, key=lambda r: _parse_event_ts(r["ts"]))
+        entry = next((r for r in ordered if r.get("event") == "app_open"), None)
+        if not entry:
+            incomplete += 1
+            continue
+        after = _parse_event_ts(entry["ts"])
+        reached = []
+        for name in ("recommend_shown", "match_done", "handoff_open"):
+            event = next((r for r in ordered if r.get("event") == name and _parse_event_ts(r["ts"]) >= after), None) if after else None
+            reached.append(bool(event))
+            after = _parse_event_ts(event["ts"]) if event else None
+        labels = tuple(_slug((entry.get("props") or {}).get(field)) for field in UTM_FIELDS)
+        groups[labels].append(tuple(reached))
+
+    def totals(items):
+        n = len(items)
+        shown = sum(item[0] for item in items)
+        chosen = sum(item[1] for item in items)
+        handoff = sum(item[2] for item in items)
+        return {"visits": n, "recommended": shown, "chosen": chosen, "handoff": handoff,
+                "recommend_rate": _rate(shown, n) if n else None,
+                "choice_rate": _rate(chosen, shown) if shown else None,
+                "handoff_rate": _rate(handoff, chosen) if chosen else None}
+
+    items = [item for values in groups.values() for item in values]
+    by_campaign = [{**dict(zip(UTM_FIELDS, labels)), **totals(values)} for labels, values in groups.items()]
+    by_campaign.sort(key=lambda row: (-row["visits"], *(row[field] for field in UTM_FIELDS)))
+    return {**totals(items), "by_campaign": by_campaign[:50], "campaign_groups_total": len(by_campaign),
+            "legacy_events_without_visit": legacy, "visits_missing_open": incomplete,
+            "unit": "observed_visit", "timezone": "Asia/Seoul",
+            "note": "새 추적 코드 적용 후 관측한 방문 단위. 재로딩·반복 클릭은 같은 방문에서 1회로 집계. 유입 라벨 없음은 출처 미확인/직접 방문이며 실제 광고 클릭 수가 아닙니다. 지도·주문 열기는 방문·주문 완료가 아닙니다. 기존 이벤트는 소급 귀속하지 않습니다. 캠페인 목록은 방문 수 상위 50개입니다."}
+
+
 def summarize(since_days: int = 7) -> dict[str, Any]:
     rows = _iter_events(since_days)
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(KST).strftime("%Y-%m-%d")
     by_event: Counter[str] = Counter()
     by_day_event: dict[str, Counter[str]] = defaultdict(Counter)
     devices_today: set[str] = set()
@@ -316,7 +390,7 @@ def summarize(since_days: int = 7) -> dict[str, Any]:
 
     days = []
     for i in range(since_days - 1, -1, -1):
-        d = (datetime.now(timezone.utc) - timedelta(days=i)).strftime("%Y-%m-%d")
+        d = (datetime.now(KST) - timedelta(days=i)).strftime("%Y-%m-%d")
         c = by_day_event.get(d) or Counter()
         days.append(
             {
@@ -355,6 +429,7 @@ def summarize(since_days: int = 7) -> dict[str, Any]:
             "pack_exhausted_rate": product["first_pack_exhaust_rate"],
             "match_after_adjust": product["choose_after_adjust_rate"],
             "first_pack_no_choice_rate": product["first_pack_no_choice_rate"],
+            "first_pack_choose_rate": product["first_pack_choose_rate"],
             "match_to_handoff": product["match_to_handoff_rate"],
             "revisit_rate": product["revisit_rate"],
             "meal_confirm_rate": rate(
@@ -366,13 +441,14 @@ def summarize(since_days: int = 7) -> dict[str, Any]:
             ),
         },
         "product": product,
+        "acquisition": acquisition_metrics(rows),
         "unique_devices_today": len(devices_today),
         "unique_devices_period": len(devices_all),
         "top_taste": taste_cats.most_common(10),
         "top_match_category": match_cats.most_common(10),
         "intents": dict(intents),
         "daily": days,
-        "note": "지도·주문 클릭은 외부 앱 이동이지 주문 완료가 아닙니다. Render Free 디스크는 재배포 시 초기화될 수 있습니다.",
+        "note": "한국시간 날짜 기준. 원시 이벤트 횟수와 방문 단위 전환율은 서로 다릅니다. 재방문은 기간 내 서로 다른 날짜에 재접속한 기기 비율이며 D1/D7 유지율이 아닙니다. 지도·주문 클릭은 방문이나 주문 완료가 아닙니다.",
     }
 
 

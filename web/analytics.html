@@ -7,14 +7,14 @@
   <title>Analytics · 그냥여기</title>
   <style>
     :root {
-      --bg: #14120f;
-      --panel: #1b1815;
-      --fg: #f0eae4;
-      --muted: #a69c93;
-      --dim: #776e66;
-      --line: #302a25;
+      --bg: #f7f7f8;
+      --panel: #ffffff;
+      --fg: #222226;
+      --muted: #60656c;
+      --dim: #6b7078;
+      --line: #e5e6e9;
       --accent: #ff5a1f;
-      --ok: #4aa971;
+      --ok: #be3d0e;
       --warn: #e0533d;
     }
     * { box-sizing: border-box; }
@@ -85,7 +85,7 @@
     }
     .kpis {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
       gap: 1px;
       margin-bottom: 24px;
       background: var(--line);
@@ -167,13 +167,18 @@
     <p id="note" class="note hidden"></p>
 
     <div id="board" class="hidden">
+      <h2>홍보 유입 → 추천 → 선택 → 지도·주문 열기</h2>
+      <p class="note" id="acquisition-note"></p>
+      <div class="kpis" id="acquisition-kpis"></div>
+      <div style="overflow-x:auto"><table><thead><tr><th>출처 / 매체</th><th>캠페인 / 게시물</th><th>관측 방문</th><th>추천 도달</th><th>가게 선택</th><th>지도·주문 열기</th></tr></thead><tbody id="acquisition-campaigns"></tbody></table></div>
+      <h2>기존 이벤트 횟수 집계</h2>
       <div class="kpis" id="kpis"></div>
 
       <h2>성공 지표</h2>
       <p class="note" id="product-note">지도·주문 클릭은 외부 앱 이동이지 주문 완료가 아닙니다.</p>
       <div class="kpis" id="product"></div>
 
-      <h2>전환율</h2>
+      <h2>기존 지표 · 반복 이벤트는 여러 번 집계될 수 있음</h2>
       <div id="conv"></div>
 
       <h2>일별</h2>
@@ -267,8 +272,23 @@
       return `${Math.round(n)}초`;
     }
 
+    function renderAcquisition(data) {
+      const a=data||{};
+      const count=v=>Number.isFinite(Number(v))?Math.max(0,Math.trunc(Number(v))):0;
+      const rate=v=>v==null?'—':Number.isFinite(Number(v))?Number(v).toFixed(1)+'%':'—';
+      $('acquisition-note').textContent=(a.note||'새 방문 추적 데이터가 아직 없어요.')+' 기존 추적 미적용 이벤트 '+count(a.legacy_events_without_visit)+'건 · 진입 이벤트 누락 방문 '+count(a.visits_missing_open)+'건. 표본 수를 함께 보고 판단해 주세요.';
+      $('acquisition-kpis').innerHTML=[
+        ['관측 방문',count(a.visits),'기기 수·Threads 클릭 수와 다름'],
+        ['첫 추천 도달',count(a.recommended),rate(a.recommend_rate)+' / 방문'],
+        ['가게 선택',count(a.chosen),rate(a.choice_rate)+' / 추천 도달'],
+        ['지도·주문 열기',count(a.handoff),rate(a.handoff_rate)+' / 가게 선택']
+      ].map(([label,value,note])=>`<div class="kpi"><div class="l">${escapeText(label)}</div><div class="v">${escapeText(value)}</div><div class="s">${escapeText(note)}</div></div>`).join('');
+      $('acquisition-campaigns').innerHTML=(a.by_campaign||[]).map(r=>`<tr><td>${escapeText(r.utm_source||'출처 미확인/직접')} / ${escapeText(r.utm_medium||'—')}</td><td>${escapeText(r.utm_campaign||'—')} / ${escapeText(r.utm_content||'—')}</td><td>${count(r.visits)}</td><td>${count(r.recommended)} (${escapeText(rate(r.recommend_rate))})</td><td>${count(r.chosen)} (${escapeText(rate(r.choice_rate))})</td><td>${count(r.handoff)} (${escapeText(rate(r.handoff_rate))})</td></tr>`).join('')||'<tr><td colspan="6">새 추적 코드 적용 후 관측한 방문이 아직 없어요. 과거 유입은 추정하지 않습니다.</td></tr>';
+    }
+
     function render(data) {
       $("board").classList.remove("hidden");
+      renderAcquisition(data.acquisition);
       $("note").textContent = data.note || "";
       $("note").classList.toggle("hidden", !data.note);
       const f = data.funnel || {};
@@ -293,7 +313,7 @@
       $("product").innerHTML = [
         ["진입 → 첫 추천", fmtSec(p.median_open_to_first_recommend_s), "기기별 중앙값"],
         ["첫 추천 → 선택", fmtSec(p.median_first_recommend_to_choice_s), "세션 중앙값"],
-        ["첫 3장 안 선택", `${p.first_pack_no_choice_rate ?? 0}%`, `${p.sessions_with_shown || 0}세션`],
+        ["첫 3장 안 선택", `${p.first_pack_choose_rate ?? 0}%`, `${p.sessions_with_shown || 0}세션`],
         ["3장 모두 거절", `${p.first_pack_exhaust_rate ?? 0}%`, "첫 묶음 기준"],
         ["조정 후 선택", `${p.choose_after_adjust_rate ?? 0}%`, `${p.sessions_adjusted || 0}회 조정`],
         ["선택 → 지도·주문", `${p.match_to_handoff_rate ?? 0}%`, "클릭이지 결제 완료 아님"],
@@ -310,7 +330,7 @@
           <tbody>
             <tr><td>오픈 → 세션</td><td class="num">${c.open_to_session || 0}%</td></tr>
             <tr><td>세션 → 매칭</td><td class="num">${c.session_to_match || 0}%</td></tr>
-            <tr><td>첫 3장 안 선택</td><td class="num">${c.first_pack_no_choice_rate || 0}%</td></tr>
+            <tr><td>첫 3장 안 선택</td><td class="num">${c.first_pack_choose_rate || 0}%</td></tr>
             <tr><td>3장 모두 거절</td><td class="num">${c.pack_exhausted_rate || 0}%</td></tr>
             <tr><td>조정 후 선택</td><td class="num">${c.match_after_adjust || 0}%</td></tr>
             <tr><td>선택 → 지도·주문 클릭</td><td class="num">${c.match_to_handoff || 0}%</td></tr>

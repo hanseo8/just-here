@@ -19,4 +19,7 @@ assert(!result.includes('<img'));
 assert(result.includes('&lt;img'));
 assert(!html.includes('?token='));
 assert(!html.includes('localStorage.setItem'));
+vm.runInContext(`renderAcquisition({by_campaign:[{utm_source:'<img src=x onerror=alert(1)>',utm_campaign:'<script>x</script>',visits:1,recommended:0,chosen:0,handoff:0}],legacy_events_without_visit:2})`,context);
+assert(!elements['acquisition-campaigns'].innerHTML.includes('<img'));
+assert(elements['acquisition-campaigns'].innerHTML.includes('&lt;img'));
 console.log('PASS: analytics injected markup stays text; administrator token is not stored or sent in URL');
