@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import secrets
 import threading
 import time
@@ -44,6 +45,36 @@ def _parse_ts(raw: str) -> datetime | None:
         return dt
     except ValueError:
         return None
+
+
+def recent_choices(logs: list[dict] | None, *, now: datetime | None = None) -> list[dict]:
+    """Private, derived view of existing choices; not evidence of a restaurant visit."""
+    now = now or datetime.now(timezone.utc)
+    candidates = []
+    for row in reversed(logs) if isinstance(logs, list) else []:
+        if not isinstance(row, dict) or row.get('action') != 'lets_go' or not isinstance(row.get('at'), str):
+            continue
+        ts = _parse_ts(row['at'])
+        if not ts or not timedelta(0) <= now-ts <= timedelta(days=30):
+            continue
+        name = str(row.get('place_name') or '').strip()[:100]
+        if name:
+            candidates.append((ts,row,name))
+    candidates.sort(key=lambda item:item[0], reverse=True)
+    out, seen = [], set()
+    for ts,row,name in candidates:
+        place_id = str(row.get('place_id') or '')[:160]
+        intent = 'delivery' if row.get('intent') == 'delivery' else 'visit'
+        key = place_id or (name,intent)
+        if key in seen:
+            continue
+        seen.add(key)
+        kakao_id = re.fullmatch(r'kakao_([0-9]{1,30})',place_id)
+        out.append({'place_name':name,'selected_at':ts.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                    'intent':intent,'map_url':'https://map.kakao.com/link/map/'+kakao_id[1] if kakao_id and intent=='visit' else ''})
+        if len(out) == 5:
+            break
+    return out
 
 
 def compute_taste_signals(
@@ -509,6 +540,7 @@ class UserStore:
             "unlocks": u.get("unlocks") or [],
             "preferences": u.get("preferences") or {},
             "swipe_count": len(u.get("swipe_logs") or []),
+            "recent_choices": recent_choices(u.get("swipe_logs")),
             "device_bound": bool(u.get("device_ids")),
             "created_at": u.get("created_at"),
             "updated_at": u.get("updated_at"),

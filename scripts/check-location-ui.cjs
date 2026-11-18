@@ -47,6 +47,8 @@ for(const name of ['useFallbackLocation','openManualLocation','locationSearchSta
  vm.runInContext(fn('applySmartIntent'),c);c.state.locationReady=true;c.state.lat=37.498;c.state.lng=127.028;
  const weather=c.applySmartIntent();c.state.locationEpoch++;get('weather-status').textContent='새 지역';
  weatherReply({weather:'rain'});await weather;assert.equal(get('weather-status').textContent,'새 지역');
+ const laterWeather=c.applySmartIntent();c.state.intentChoice=(c.state.intentChoice||0)+1;c.state.intent='delivery';
+ weatherReply({weather:'clear',suggested_intent:'visit'});await laterWeather;assert.equal(c.state.intent,'delivery');
  assert(!source.includes('FALLBACK_LAT')&&!source.includes('송도 기준'));
  const html=fs.readFileSync('web/index.html','utf8');assert(html.includes('id="location-manual-entry" class="location-manual"'));assert(html.includes('id="location-search-panel" class="hidden"'));
  const init=source.slice(source.indexOf('async function init()'),source.indexOf('// 카카오 authorize 콜백'));

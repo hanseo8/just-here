@@ -414,7 +414,7 @@ function syncStartState() {
   } else if (!ready) {
     hint.textContent = "현재 위치와 날씨를 자동으로 맞춰드려요.";
   } else if (state.savedTaste?.length && !state.forceRetaste) {
-    hint.textContent = "저장된 취향으로 바로 매칭해요.";
+    hint.textContent = "새 메뉴를 고르거나, 지난 취향으로 빠르게 찾아보세요.";
   } else {
     hint.textContent = "확인한 위치를 기준으로 먹고 싶은 메뉴만 골라 주세요.";
   }
@@ -619,6 +619,7 @@ async function applySmartIntent() {
   if (!state.locationReady || state.lat == null || state.lng == null) return;
   const epoch = state.locationEpoch;
   const latitude = state.lat, longitude = state.lng;
+  const intentChoice = state.intentChoice || 0;
   if ($("weather-status")) $("weather-status").textContent = "선택한 지역의 날씨를 확인하고 있어요…";
   try {
     const q = new URLSearchParams();
@@ -629,8 +630,10 @@ async function applySmartIntent() {
     const ctx = await api(`/v1/context?${q}`);
     if (epoch !== state.locationEpoch || latitude !== state.lat || longitude !== state.lng) return;
     state.weather = ctx.weather || state.weather || "clear";
-    state.intent = ctx.suggested_intent || state.intent;
-    state.intentReason = ctx.reason || "";
+    if (intentChoice === (state.intentChoice || 0)) {
+      state.intent = ctx.suggested_intent || state.intent;
+      state.intentReason = ctx.reason || "";
+    }
     state.mealHint = ctx.meal_reason || "";
     setToggleUI(state.intent);
     setMealUI(state.mealContext);
@@ -814,6 +817,7 @@ async function finishTasteWithTone(tone) {
 }
 
 function openFulfillment() {
+  state.intentChoice = (state.intentChoice || 0) + 1;
   $("taste-step-cat").classList.add("hidden");
   $("taste-step-tone").classList.add("hidden");
   $("fulfillment-step").classList.remove("hidden");
@@ -866,7 +870,7 @@ function setTasteBusy(busy) {
   else syncTasteCatNext();
 }
 
-async function onStartClick() {
+async function onStartClick(options = {}) {
   if (state.starting) return;
   state.starting = true;
   const btn = $("btn-start");
@@ -893,6 +897,14 @@ async function onStartClick() {
     btn.disabled = false;
     btn.textContent = "시작하기";
     openTasteFlow();
+    if (options.reuseTaste === true) {
+      const saved = reusableTaste();
+      if (saved.length) {
+        state.tasteChoices = saved;
+        track("taste_done", {taste:saved, source:"saved_taste"});
+        openFulfillment();
+      }
+    }
   } catch (err) {
     console.error(err);
     btn.disabled = false;
@@ -1307,6 +1319,7 @@ async function init() {
     in_app: isInAppBrowser(),
   });
   $("btn-start").onclick = onStartClick;
+  $("btn-reuse-taste").onclick = () => onStartClick({reuseTaste:true});
   $("btn-locate").onclick = () => locateAndSyncWeather(true);
   // Start without an extra location-choice screen; browser permission remains the user's choice.
   if (!new URLSearchParams(window.location.search).has("code")) void locateAndSyncWeather(false);
@@ -1386,7 +1399,7 @@ async function init() {
       openTasteFlow();
     };
   }
-  document.querySelectorAll('[data-fulfillment]').forEach(b=>{b.onclick=()=>{state.intent=b.dataset.fulfillment;syncFulfillment();};});
+  document.querySelectorAll('[data-fulfillment]').forEach(b=>{b.onclick=()=>{state.intentChoice=(state.intentChoice||0)+1;state.intent=b.dataset.fulfillment;syncFulfillment();};});
   $("visit-range").oninput=e=>{state.visitRadius=Number(e.target.value);syncFulfillment();};
   $("btn-fulfillment-start").onclick=submitFulfillment;
   $("btn-fulfillment-back").onclick=()=>{$("fulfillment-step").classList.add("hidden");backToTasteCategories();};
@@ -1509,6 +1522,7 @@ async function init() {
       const next = btn.dataset.intent;
       if (!next || next === state.intent) return;
       const prev = state.intent;
+      state.intentChoice = (state.intentChoice || 0) + 1;
       const prevReason = state.intentReason;
       state.modeSwitching = true;
       state.intent = next;
@@ -1581,6 +1595,10 @@ function tasteLabels(keys) {
 }
 
 /** 취향 행 요약 — 저장값이 있으면 그대로 보여주고 「변경」으로 바꾼다 */
+function reusableTaste() {
+  return [...new Set((state.savedTaste || []).filter(k => TASTE_CATEGORIES.some(c => c.key === k)))].slice(0, TASTE_CAT_MAX);
+}
+
 function updateTasteReuseHint() {
   const summary = $("taste-summary");
   const retaste = $("btn-retaste");
@@ -1592,6 +1610,9 @@ function updateTasteReuseHint() {
       : "아직 고르지 않았어요";
   }
   if (retaste) retaste.textContent = saved.length ? "변경" : "고르기";
+  const reuse = reusableTaste();
+  $("taste-reuse")?.classList.toggle("hidden", !reuse.length);
+  if ($("taste-reuse-summary")) $("taste-reuse-summary").textContent = tasteLabels(reuse).join(" · ");
   renderExcludeRow();
   syncStartState();
 }

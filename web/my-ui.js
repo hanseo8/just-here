@@ -17,6 +17,24 @@
     if(latest?.id&&/^[a-z_]+$/.test(latest.id)){image.src='/static/badges/'+latest.id+'.png?v=20260930-badges1';image.hidden=false;image.onerror=()=>{image.hidden=true;};}
     for(const row of rows){const card=document.createElement('div');card.className='my-title-chip';const name=document.createElement('strong');name.textContent=row.title;card.append(name);list.append(card);}
   }
+  function renderRecentChoices(rows) {
+    const list=document.getElementById('recent-choice-list');list.replaceChildren();
+    const values=Array.isArray(rows)?rows.filter(row=>row&&typeof row==='object').slice(0,5):[];
+    document.getElementById('recent-choice-count').textContent=values.length?'· '+values.length+'곳':'';
+    if(!values.length){const p=document.createElement('p');p.className='privacy-note';p.textContent='아직 최근에 고른 가게가 없어요. 가게를 선택하면 여기에서 다시 볼 수 있어요.';list.append(p);return;}
+    for(const row of values){
+      const item=document.createElement('div');item.className='my-recent-item';
+      const copy=document.createElement('div'),name=document.createElement('strong'),date=document.createElement('small');
+      name.textContent=String(row.place_name||'고른 가게');
+      const when=new Date(row.selected_at);
+      date.textContent=(row.intent==='delivery'?'배달 선택':'방문 선택')+(Number.isFinite(when.getTime())?' · '+when.toLocaleDateString('ko-KR',{timeZone:'Asia/Seoul'}):'');
+      copy.append(name,date);item.append(copy);
+      if(/^https:\/\/map\.kakao\.com\/link\/map\/[0-9]{1,30}$/.test(row.map_url||'')){
+        const map=document.createElement('a');map.href=row.map_url;map.target='_blank';map.rel='noopener noreferrer';map.textContent='지도 보기';item.append(map);
+      }
+      list.append(item);
+    }
+  }
   function nextAction(data, available=false) {
     const action=(label,message,target,step)=>({label,message,target,step});
     if(!data)return action('다시 불러오기','연결 상태를 확인하지 못했어요. 다시 불러와 주세요.','retry',-1);
@@ -49,7 +67,7 @@
     document.getElementById('my-next-action').onclick=()=>document.getElementById('open-receipt-upload').click();
     return next;
   }
-  window.JustHereMy={open,renderTitles,nextAction,renderNext};
+  window.JustHereMy={open,renderTitles,renderRecentChoices,nextAction,renderNext};
   window.addEventListener('hashchange',()=>open(location.hash.slice(1)));
   window.addEventListener('DOMContentLoaded',()=>{if(location.hash)open(location.hash.slice(1));});
 })();
