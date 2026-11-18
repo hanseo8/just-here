@@ -266,14 +266,24 @@ DISH_QUERIES["jjajang_jjamppong"] = ["짜장면", "짬뽕"]
 DISH_QUERIES.update({'sushi':['초밥','스시'], 'donkatsu':['돈가스','돈까스']})
 
 
+def _taste_search_queries(taste: list[str], limit: int = 6) -> list[str]:
+    """Bounded round-robin: later selected groups must not lose all search slots."""
+    groups = [DISH_QUERIES.get(t, TASTE_QUERIES.get(t, [])) for t in dict.fromkeys(taste)]
+    out: list[str] = []
+    for index in range(max((len(g) for g in groups), default=0)):
+        for group in groups:
+            if index < len(group) and group[index] not in out:
+                out.append(group[index])
+                if len(out) >= limit:
+                    return out
+    return out
+
+
 def fetch_by_taste(
     lat: float, lng: float, radius_m: int, taste: list[str], per_query: int = 8
 ) -> list[dict]:
     """취향 키워드 + 다양성 키워드로 주변 검색."""
-    queries: list[str] = []
-    for t in taste:
-        queries.extend(DISH_QUERIES.get(t, TASTE_QUERIES.get(t, [])))
-    uniq_taste = list(dict.fromkeys(queries))[:6]
+    uniq_taste = _taste_search_queries(taste)
     # 다양성 쿼리는 취향과 겹치지 않는 것만
     taste_set = set(uniq_taste)
     diversity = [q for q in DIVERSITY_QUERIES if q not in taste_set][:6]

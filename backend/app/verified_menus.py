@@ -320,6 +320,10 @@ def apply_verified(place: dict[str, Any], row: dict[str, Any]) -> dict[str, Any]
         out["photo_is_menu"] = True
         out["photo_is_store_menu"] = True
         out["photo_is_example"] = False
+        # The menu photo replaces the Google image, so its old author/source no longer applies.
+        out["photo_source"] = "verified_menu"
+        out.pop("photo_meta_url", None)
+        out.pop("photo_attribution", None)
     if row.get("hours") and row.get("hours_verified"):
         out["hours"] = row["hours"]
     if row.get("order_url") and row.get("order_verified"):

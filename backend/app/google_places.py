@@ -1,6 +1,6 @@
 """Google Places 사진 파일럿.
 
-카카오에서 확인한 지점을 Google Places의 현재 사진과 느슨하게 연결한다.
+카카오에서 확인한 지점을 Google Places의 현재 사진과 보수적으로 연결한다.
 사진 이름·바이트는 저장하지 않고 요청 시 다시 조회한다. API 키는 서버에서만
 사용하며, 이름/주소/좌표가 맞지 않으면 사진을 붙이지 않는다.
 """
@@ -128,19 +128,38 @@ def _display_name(item: dict) -> str:
 def _match_distance(place: dict, item: dict) -> float | None:
     name = _norm(place.get("name") or "")
     candidate = _norm(_display_name(item))
-    if not name or not candidate or (name not in candidate and candidate not in name):
+    if not name or not candidate:
+        return None
+    exact = name == candidate
+    if not exact and name.endswith("점") and candidate.endswith("점"):
+        return None
+    source_address = _address_key(place.get("address") or "")
+    target_address = _address_key(item.get("formattedAddress") or "")
+    same_address = bool(source_address and source_address == target_address)
+    if len(name) < 3 and not same_address:
+        return None
+    if source_address and target_address and source_address[0] == target_address[0] and not same_address:
+        return None
+    # A short/generic name or a chain substring alone cannot identify a branch.
+    if not exact and not (min(len(name), len(candidate)) >= 4 and same_address and (name in candidate or candidate in name)):
         return None
     loc = item.get("location") or {}
     try:
-        distance = _distance_m(
-            float(place["lat"]),
-            float(place["lng"]),
-            float(loc["latitude"]),
-            float(loc["longitude"]),
-        )
+        coords = [float(place["lat"]), float(place["lng"]), float(loc["latitude"]), float(loc["longitude"])]
+        if not all(math.isfinite(c) for c in coords) or not all(-90 <= c <= 90 for c in coords[::2]) or not all(-180 <= c <= 180 for c in coords[1::2]):
+            return None
+        distance = _distance_m(*coords)
     except (KeyError, TypeError, ValueError):
         return None
-    return distance if distance <= 300 else None
+    return distance if distance <= (120 if exact else 60) else None
+
+
+def _address_key(value: str) -> tuple[str, str, str] | None:
+    match = re.search(r"([0-9가-힣]+(?:대로|로|길|동|리))\s+(\d+(?:-\d+)?)", str(value or ""))
+    if not match:
+        return None
+    street, number = match.groups()
+    return ("road" if street.endswith(("로", "길")) else "lot", street, number)
 
 
 def _matches(place: dict, item: dict) -> bool:
@@ -192,10 +211,15 @@ def _search(place: dict) -> dict | None:
         return None
     if not candidates:
         return None
-    return min(
-        candidates.values(),
-        key=lambda item: (not bool(item.get("photos")), float(item["_match_distance_m"])),
-    )
+    ordered = sorted(candidates.values(), key=lambda item: (
+        _norm(_display_name(item)) != _norm(place.get("name")), float(item["_match_distance_m"])))
+    # Resolve identity before photo availability; never substitute a farther shop for a photo.
+    if len(ordered) > 1:
+        first, second = ordered[:2]
+        equal_name_quality = (_norm(_display_name(first)) == _norm(place.get("name"))) == (_norm(_display_name(second)) == _norm(place.get("name")))
+        if equal_name_quality and abs(first["_match_distance_m"] - second["_match_distance_m"]) < 25:
+            return None
+    return ordered[0]
 
 
 def fetch_photo(token: str) -> tuple[bytes, str] | None:
