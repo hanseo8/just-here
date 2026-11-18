@@ -27,7 +27,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/styles.css?v=20261106-location6" />
-<link rel="stylesheet" href="/static/refine.css?v=20261117-polish1" />
+  <link rel="stylesheet" href="/static/refine.css?v=20261118-auto2" />
 </head>
 <body>
   <!-- 진입 인트로: 첫 페인트를 브랜드로 채우고, 그 사이 init()이 끝난다 -->
@@ -52,10 +52,20 @@
           <p class="screen-desc">지금 있는 곳과 날씨에 맞춰 찾아드릴게요.</p>
 
           <dl class="setup">
-            <div class="setup-row location-card">
-              <dt><span class="setup-symbol" aria-hidden="true">⌖</span> 내 주변 찾기 <small>LOCATION</small></dt>
-              <dd id="loc-status" aria-live="polite">권한을 허용하면 현재 위치로 맞춰요</dd>
-              <button type="button" id="btn-locate" class="row-btn">확인</button>
+            <div class="setup-row location-card" id="location-card">
+              <dt><svg class="location-auto-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2.5"/></svg> 현재 위치 <small class="location-auto-label">자동</small></dt>
+              <dd id="loc-status" aria-live="polite">지금 계신 곳을 자동으로 확인해요.</dd>
+              <button type="button" id="btn-locate" class="row-btn">다시 확인</button>
+              <dd id="location-manual-entry" class="location-manual">
+                <button type="button" id="btn-location-manual" class="location-manual-toggle" aria-expanded="false" aria-controls="location-search-panel">위치가 안 잡히나요? 동네·역·주소로 검색</button>
+                <form id="location-search-panel" class="hidden" role="search" aria-label="기준 위치 검색">
+                  <label for="location-query">어느 동네에서 찾을까요?</label>
+                  <div class="location-search-input"><input id="location-query" type="search" minlength="2" maxlength="80" placeholder="동네·역·주소 검색" autocomplete="off" enterkeyhint="search" /><button id="btn-location-search" type="submit">검색</button></div>
+                  <p class="location-search-help">예: 강남역, 연남동 · 검색어는 카카오 위치 검색에 사용돼요.</p>
+                  <p id="location-search-status" role="status" aria-live="polite"></p>
+                  <ul id="location-results" aria-label="위치 검색 결과"></ul>
+                </form>
+              </dd>
             </div>
             <div class="setup-row weather-card">
               <dt><span class="setup-symbol weather-sun" aria-hidden="true">☀</span> 오늘의 날씨 <small>자동</small></dt>
@@ -106,7 +116,7 @@
                 <ellipse cx="180" cy="135" rx="18" ry="8" fill="#ff6a2b" opacity=".2"/>
                 <path d="M180 132C173 123 158 108 158 95A22 22 0 0 1 202 95C202 108 187 123 180 132Z" fill="url(#map-pin)" stroke="#fff" stroke-width="3"/>
                 <circle cx="180" cy="94" r="7" fill="#fff"/>
-              </svg><span class="range-map-heading">내 주변, 어디까지?</span><span class="range-map-location"><i></i>검색 기준 위치</span><span class="range-map-badge" id="range-map-distance">반경 700m</span>
+              </svg><span class="range-map-heading">내 주변, 어디까지?</span><span class="range-map-location"><i></i><span id="range-location-label">검색 기준 위치</span></span><span class="range-map-badge" id="range-map-distance">반경 700m</span>
             </div><p class="range-map-caption">검색 범위 시각화 · 실제 지도가 아니에요</p>
             <label for="visit-range">어디까지 찾아볼까요? <output id="visit-range-value" for="visit-range">700m</output></label>
             <input id="visit-range" type="range" min="100" max="3000" step="100" value="700">
@@ -133,8 +143,8 @@
       </div>
 
       <div id="onboard-cta" class="onboard-cta">
-        <button type="button" id="btn-start" class="btn primary">위치 확인하고 시작</button>
-        <p id="start-hint" class="cta-hint">위치 권한을 물어본 뒤 근처 가게를 찾아요.</p>
+        <button type="button" id="btn-start" class="btn primary">근처 메뉴 고르기</button>
+        <p id="start-hint" class="cta-hint">현재 위치와 날씨를 자동으로 맞춰드려요.</p>
       </div>
     </section>
 
@@ -361,6 +371,6 @@
   <script src="/static/story.js?v=20260930-receipt2"></script>
   <script src="/static/instagram.js?v=20260926-ig1"></script>
   <script src="/static/analytics-client.js?v=20261118-attribution1"></script>
-  <script src="/static/app.js?v=20261118-attribution1"></script>
+  <script src="/static/app.js?v=20261118-auto2"></script>
 </body>
 </html>

@@ -26,6 +26,27 @@ body{font-family:"IBM Plex Sans KR","Pretendard","Apple SD Gothic Neo",sans-seri
 .setup-row dd{font-size:14px;line-height:1.65;color:var(--text-2);margin:0;max-width:calc(100% - 66px)}
 .weather-card dd{max-width:100%}
 .setup-row .row-btn{border:1px solid #d6d8da;background:#fff;border-radius:8px;font:inherit;font-size:13px;color:var(--text);min-width:56px;min-height:44px;padding:8px 12px;box-shadow:none}
+.setup .location-card .location-manual{flex-basis:100%;max-width:100%;width:100%;margin:4px 0 0}
+.location-manual-toggle{font:inherit;font-size:12px;font-weight:400;color:var(--text-2);background:transparent;border:0;padding:10px 0;min-height:44px;cursor:pointer;text-align:left;line-height:1.6;text-underline-offset:4px;text-decoration:underline}
+.location-auto-icon{width:28px;height:28px;padding:5px;box-sizing:content-box;flex-shrink:0;color:#c63f10;background:#fff3ed;border-radius:10px}
+#app #screen-onboard #onboard-main .location-card dt .location-auto-label{display:inline-block;margin-left:auto;background:#fff3ed;color:#b83d12;font-size:11px;letter-spacing:0;padding:4px 7px}
+#app #screen-onboard #onboard-main .location-card.is-locating #loc-status{color:var(--text-2)}
+#app #screen-onboard #onboard-main .location-card.is-locating .location-auto-label:before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:currentColor;margin-right:4px;vertical-align:middle}
+#location-search-panel{border-top:1px solid var(--border);padding-top:16px;margin-top:4px}
+#location-search-panel label{display:block;font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px}
+.location-search-input{display:flex;gap:8px}
+.location-search-input input{width:100%;min-width:0;flex:1;font:inherit;font-size:14px;border:1px solid #cbd0d5;border-radius:8px;background:#fff;color:var(--text);padding:12px;min-height:46px}
+.location-search-input button{font:inherit;font-size:13px;font-weight:600;white-space:nowrap;padding:10px 16px;background:#c63f10;border:1px solid #c63f10;border-radius:8px;color:#fff;cursor:pointer}
+.location-search-input button:disabled{opacity:.6;cursor:wait}
+.location-search-help,#location-search-status{font-size:12px;line-height:1.6;color:var(--text-2);margin:10px 0}
+#location-search-status.is-error{color:#b83d12}
+#location-results{list-style:none;margin:0;padding:0}
+#location-results button{display:block;width:100%;border:0;border-top:1px solid var(--border);background:#fff;padding:14px 0;text-align:left;font:inherit;cursor:pointer;color:var(--text);min-height:56px}
+#location-results button strong,#location-results button span{display:block;overflow-wrap:anywhere}
+#location-results button strong{font-size:14px;font-weight:600}
+#location-results button span{font-size:12px;color:var(--text-2);margin-top:4px}
+#location-results button:hover,#location-results button:focus-visible{background:#fff7f2}
+#range-location-label{display:inline-block;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
 .btn,.act{border-radius:10px;box-shadow:none;font-family:inherit;font-weight:600}
 .btn.primary,.act.go{background:#ff5a1f;color:#fff;border-color:#ff5a1f}
 .btn.ghost,.act.pass{background:#fff;border-color:#d6d8da;color:var(--text)}
@@ -112,6 +133,7 @@ body{font-family:"IBM Plex Sans KR","Pretendard","Apple SD Gothic Neo",sans-seri
 #app #screen-onboard #onboard-main .setup-row+.setup-row{border-top:1px solid var(--border)}
 #app #screen-onboard #onboard-main .setup-row dt{font-weight:600;gap:6px}
 #app #screen-onboard #onboard-main .setup-row dd{color:var(--text-2);font-size:13px}
+#app #screen-onboard #onboard-main .setup-row dd.location-manual{flex:0 0 100%;max-width:100%;width:100%;margin:4px 0 0}
 #app #onboard-main #btn-locate{background:#fff;color:var(--text);border:1px solid #d6d8da;border-radius:8px;min-height:44px}
 #app #visit-range-panel{background:#f7f7f5;border:1px solid var(--border);border-radius:14px;box-shadow:none}
 #app .receipt-card .receipt-summary .receipt-title{font-family:inherit;font-size:26px;font-weight:600;line-height:1.35;letter-spacing:-.8px}

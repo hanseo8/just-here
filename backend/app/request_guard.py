@@ -68,6 +68,8 @@ class RequestGuard:
             group, per_client, total = 'auth', 30, 300
         elif path == '/v1/analytics/event' and method == 'POST':
             group, per_client, total = 'events', 120, 1200
+        elif path == '/v1/location/search':
+            group, per_client, total = 'location_search', 15, 120
         elif path.startswith('/v1/admin/') or path == '/v1/analytics/summary':
             group, per_client, total = 'admin', 180, 600
         elif upload or (path == '/v1/rewards/payouts' and method == 'POST'):

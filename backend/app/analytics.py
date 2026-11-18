@@ -37,6 +37,7 @@ ALLOWED_EVENTS = {
     "app_open",
     "locate_ok",
     "locate_fallback",
+    "locate_manual",
     "taste_done",
     "session_start",
     "swipe_nope",

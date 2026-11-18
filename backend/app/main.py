@@ -25,6 +25,7 @@ from . import engine
 from . import guest_token
 from . import google_places
 from . import kakao
+from . import location_search
 from . import beta_campaign
 from . import rewards
 from . import payouts
@@ -66,7 +67,7 @@ app.add_middleware(
 @app.middleware("http")
 async def private_rewards_responses(request: Request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith(("/v1/rewards", "/v1/merchant/", "/v1/admin/", "/v1/analytics/summary", "/v1/me", "/v1/auth/")):
+    if request.url.path.startswith(("/v1/rewards", "/v1/merchant/", "/v1/admin/", "/v1/analytics/summary", "/v1/me", "/v1/auth/", "/v1/location/")):
         response.headers["Cache-Control"] = "no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
     if "Referrer-Policy" not in response.headers:
@@ -447,6 +448,22 @@ def analytics_event(body: AnalyticsEventBody):
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     return {"ok": True, "ts": row["ts"]}
+
+
+class LocationSearchBody(BaseModel):
+    query: str = Field(min_length=2, max_length=80)
+
+
+@app.post('/v1/location/search')
+def search_location(body: LocationSearchBody):
+    query = body.query.strip()
+    if len(query) < 2 or any(ord(c) < 32 or ord(c) == 127 for c in query):
+        raise HTTPException(400, '동네·역 이름이나 주소를 두 글자 이상 입력해 주세요.', headers={'Cache-Control': 'no-store'})
+    try:
+        results = location_search.search(query)
+    except RuntimeError:
+        raise HTTPException(503, '위치 검색을 잠시 사용할 수 없어요. 잠시 후 다시 검색하거나 현재 위치를 확인해 주세요.', headers={'Cache-Control': 'no-store'}) from None
+    return JSONResponse({'results': results, 'source': 'kakao'}, headers={'Cache-Control': 'no-store'})
 
 
 @app.get("/v1/analytics/summary")

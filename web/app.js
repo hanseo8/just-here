@@ -14,6 +14,13 @@ const state = {
   lng: null,
   locationReady: false,
   usingFallbackLoc: false,
+  locationSource: "",
+  locationLabel: "",
+  locationEpoch: 0,
+  locationSearchSeq: 0,
+  locationTask: null,
+  locationPending: false,
+  locationFailed: false,
   watchId: null,
   cards: [],
   perfect: 5,
@@ -58,11 +65,6 @@ const GEO_OPTS_FORCE = {
   timeout: 10000,
   maximumAge: 0,
 };
-
-// 위치 거부/실패 시 첫 세션이 죽지 않도록 송도 허브 폴백
-const FALLBACK_LAT = 37.3925;
-const FALLBACK_LNG = 126.645;
-const FALLBACK_LABEL = "송도 센트럴파크 근처(임시)";
 
 // 진입 인트로 — init()이 끝날 때까지 덮고, 최소 시간은 채운 뒤 비킨다
 const INTRO_START = Date.now();
@@ -182,20 +184,126 @@ function track(event, props = {}) {
 }
 
 function useFallbackLocation(reason) {
-  state.lat = FALLBACK_LAT;
-  state.lng = FALLBACK_LNG;
-  state.locationReady = true;
-  state.usingFallbackLoc = true;
+  // Never turn denied GPS into an unrelated restaurant search.
+  if (state.locationReady && state.lat != null && state.lng != null) return;
+  state.lat = null;
+  state.lng = null;
+  state.locationReady = false;
+  state.locationFailed = true;
+  state.usingFallbackLoc = false;
   if (!state.trackedLocateFallback) {
     state.trackedLocateFallback = true;
     track("locate_fallback", { reason: String(reason || "").slice(0, 80) });
   }
   setLocStatus(
-    `${reason} → ${FALLBACK_LABEL}로 시작해요. 위치 줄의 「확인」을 누르면 다시 잡아요.`,
+    `${reason}. 동네·역·주소로 지역을 직접 선택해 주세요.`,
     false
   );
-  const startBtn = $("btn-start");
-  if (startBtn) startBtn.disabled = false;
+  openManualLocation(false);
+  const weather = $("weather-status");
+  if (weather) weather.textContent = "위치를 선택하면 해당 지역 날씨를 알려드려요.";
+}
+
+function openManualLocation(focus = true) {
+  closeTasteFlow();
+  show("screen-onboard");
+  $("location-manual-entry")?.classList.remove("hidden");
+  $("location-search-panel")?.classList.remove("hidden");
+  $("btn-location-manual")?.setAttribute("aria-expanded", "true");
+  if (focus) $("location-query")?.focus();
+}
+
+function locationSearchStatus(text, error = false) {
+  const status = $("location-search-status");
+  if (!status) return;
+  status.textContent = text;
+  status.classList.toggle("is-error", error);
+}
+
+async function selectManualLocation(result) {
+  if (!Number.isFinite(result.lat) || !Number.isFinite(result.lng) || Math.abs(result.lat) > 90 || Math.abs(result.lng) > 180) return;
+  state.locationEpoch += 1; // Invalidate pending GPS callbacks and weather requests.
+  state.locationSearchSeq += 1;
+  if (state.watchId != null) navigator.geolocation?.clearWatch(state.watchId);
+  state.watchId = null;
+  state.lat = result.lat;
+  state.lng = result.lng;
+  state.locationLabel = result.name;
+  state.locationSource = "manual";
+  state.locationReady = true;
+  state.locationFailed = false;
+  state.usingFallbackLoc = false;
+  beginReq();
+  state.sessionId = null;
+  state.cards = [];
+  setLocStatus(`${result.name} 주변 · 직접 선택`, true);
+  $("location-results")?.replaceChildren();
+  locationSearchStatus("선택한 위치를 기준으로 가게를 찾아요.");
+  $("location-search-panel")?.classList.add("hidden");
+  $("btn-location-manual")?.setAttribute("aria-expanded", "false");
+  $("btn-location-manual").textContent = "다른 지역 선택";
+  $("btn-start")?.focus();
+  track("locate_manual"); // Do not send the search, selected address or coordinates to analytics.
+  await applySmartIntent();
+}
+
+async function searchManualLocation(event) {
+  event?.preventDefault();
+  const query = $("location-query").value.trim();
+  const results = $("location-results");
+  results.replaceChildren();
+  if (query.length < 2) {
+    locationSearchStatus("동네·역 이름이나 주소를 두 글자 이상 입력해 주세요.", true);
+    return;
+  }
+  const seq = ++state.locationSearchSeq;
+  const button = $("btn-location-search");
+  button.disabled = true;
+  button.textContent = "검색 중";
+  locationSearchStatus("위치를 찾고 있어요…");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const data = await api("/v1/location/search", {method:"POST", body:JSON.stringify({query}), retries:0, signal:controller.signal});
+    if (seq !== state.locationSearchSeq) return;
+    const choices = Array.isArray(data.results) ? data.results : [];
+    choices.forEach(result => {
+      const item = document.createElement("li");
+      const pick = document.createElement("button");
+      pick.type = "button";
+      const name = document.createElement("strong");
+      name.textContent = result.name;
+      const address = document.createElement("span");
+      address.textContent = result.address || "이 위치 주변에서 찾기";
+      pick.append(name, address);
+      pick.onclick = () => selectManualLocation(result);
+      item.append(pick);
+      results.append(item);
+    });
+    locationSearchStatus(choices.length ? "기준으로 삼을 위치를 골라 주세요." : "검색 결과가 없어요. 가까운 역이나 도로명으로 다시 검색해 주세요.");
+  } catch (err) {
+    if (seq === state.locationSearchSeq) locationSearchStatus("위치를 찾지 못했어요. 잠시 후 다시 검색하거나 현재 위치를 확인해 주세요.", true);
+  } finally {
+    clearTimeout(timeout);
+    button.disabled = false;
+    button.textContent = "검색";
+  }
+}
+
+function setupManualLocation() {
+  $("location-search-panel")?.addEventListener("submit", searchManualLocation);
+  $("location-query")?.addEventListener("input", () => {
+    state.locationSearchSeq += 1;
+    $("location-results")?.replaceChildren();
+    locationSearchStatus("");
+  });
+  const button = $("btn-location-manual");
+  if (button) button.onclick = () => {
+    const open = button.getAttribute("aria-expanded") === "true";
+    $("location-search-panel").classList.toggle("hidden", open);
+    button.setAttribute("aria-expanded", String(!open));
+    if (!open) $("location-query")?.focus();
+  };
 }
 
 const SWIPE_HINT_KEY = "jh_swipe_hint_seen";
@@ -297,14 +405,18 @@ function syncStartState() {
   const ready = !!state.locationReady;
   // 위치가 없어도 버튼은 살려 둔다 — 누르면 권한을 물어보고 이어서 진행한다
   btn.disabled = false;
-  btn.textContent = ready ? "뭐가 땡기는지 고르기" : "위치 확인하고 다음";
+  btn.textContent = state.locationFailed && !ready && !state.locationPending ? "지역 선택하고 계속" : "근처 메뉴 고르기";
   if (!hint) return;
-  if (!ready) {
-    hint.textContent = "위치 권한을 물어본 뒤 근처 가게를 찾아요.";
+  if (state.locationPending && !ready) {
+    hint.textContent = "위치를 확인하고 있어요. 허용하면 주변 메뉴로 이어집니다.";
+  } else if (state.locationFailed && !ready) {
+    hint.textContent = "자동 확인이 어려워요. 동네나 역 이름으로 한 번만 골라 주세요.";
+  } else if (!ready) {
+    hint.textContent = "현재 위치와 날씨를 자동으로 맞춰드려요.";
   } else if (state.savedTaste?.length && !state.forceRetaste) {
     hint.textContent = "저장된 취향으로 바로 매칭해요.";
   } else {
-    hint.textContent = "취향을 아직 안 골랐으면 시작할 때 물어볼게요.";
+    hint.textContent = "확인한 위치를 기준으로 먹고 싶은 메뉴만 골라 주세요.";
   }
 }
 
@@ -405,13 +517,16 @@ function applyPosition(coords) {
   state.lng = coords.longitude;
   state.locationReady = true;
   state.usingFallbackLoc = false;
+  state.locationSource = "gps";
+  state.locationLabel = "현재 위치";
+  state.locationFailed = false;
   const acc = Math.round(coords.accuracy || 0);
   if (!state.trackedLocateOk) {
     state.trackedLocateOk = true;
     track("locate_ok", { accuracy_m: acc });
   }
   setLocStatus(
-    `현재 위치 확인 · 정확도 ±${acc}m (${state.lat.toFixed(5)}, ${state.lng.toFixed(5)})`,
+    `현재 위치 주변${acc ? ` · 정확도 약 ${acc}m` : ""}`,
     true
   );
   $("btn-start").disabled = false;
@@ -426,10 +541,13 @@ function applyPosition(coords) {
 }
 
 function requestLocation(force = false) {
+  const epoch = ++state.locationEpoch;
+  if (state.watchId != null) navigator.geolocation?.clearWatch(state.watchId);
+  state.watchId = null;
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
       useFallbackLocation("이 브라우저는 위치를 지원하지 않아요");
-      resolve({ latitude: FALLBACK_LAT, longitude: FALLBACK_LNG });
+      resolve(null);
       return;
     }
     setLocStatus("현재 위치 확인 중…");
@@ -444,6 +562,7 @@ function requestLocation(force = false) {
     const hardMs = (opts.timeout || 8000) + 1500;
     const hardTimer = setTimeout(() => {
       if (settled) return;
+      if (epoch !== state.locationEpoch) { finish(null); return; }
       if (state.locationReady && state.lat != null) {
         finish({ latitude: state.lat, longitude: state.lng });
         return;
@@ -452,17 +571,19 @@ function requestLocation(force = false) {
         ? "인앱 브라우저에서 위치가 막혀 있어요"
         : "위치 확인이 너무 오래 걸려요";
       useFallbackLocation(reason);
-      finish({ latitude: FALLBACK_LAT, longitude: FALLBACK_LNG });
+      finish(null);
     }, hardMs);
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         clearTimeout(hardTimer);
+        if (settled || epoch !== state.locationEpoch) { finish(null); return; }
         applyPosition(pos.coords);
         finish(pos.coords);
       },
       (err) => {
         clearTimeout(hardTimer);
+        if (settled || epoch !== state.locationEpoch) { finish(null); return; }
         if (state.locationReady && state.lat != null && state.lng != null) {
           console.warn("geo refresh failed, using cached", err);
           finish({ latitude: state.lat, longitude: state.lng });
@@ -477,7 +598,7 @@ function requestLocation(force = false) {
           reason = "위치 확인 시간이 초과됐어요";
         }
         useFallbackLocation(reason);
-        finish({ latitude: FALLBACK_LAT, longitude: FALLBACK_LNG });
+        finish(null);
       },
       opts
     );
@@ -485,15 +606,20 @@ function requestLocation(force = false) {
 }
 
 function startWatchingLocation() {
-  if (!navigator.geolocation || state.watchId != null) return;
+  if (!navigator.geolocation || state.watchId != null || state.locationSource === "manual") return;
+  const epoch = state.locationEpoch;
   state.watchId = navigator.geolocation.watchPosition(
-    (pos) => applyPosition(pos.coords),
+    (pos) => { if (epoch === state.locationEpoch && state.locationSource !== "manual") applyPosition(pos.coords); },
     () => {},
     { enableHighAccuracy: false, maximumAge: 15000, timeout: 20000 }
   );
 }
 
 async function applySmartIntent() {
+  if (!state.locationReady || state.lat == null || state.lng == null) return;
+  const epoch = state.locationEpoch;
+  const latitude = state.lat, longitude = state.lng;
+  if ($("weather-status")) $("weather-status").textContent = "선택한 지역의 날씨를 확인하고 있어요…";
   try {
     const q = new URLSearchParams();
     if (state.lat != null && state.lng != null) {
@@ -501,6 +627,7 @@ async function applySmartIntent() {
       q.set("lng", String(state.lng));
     }
     const ctx = await api(`/v1/context?${q}`);
+    if (epoch !== state.locationEpoch || latitude !== state.lat || longitude !== state.lng) return;
     state.weather = ctx.weather || state.weather || "clear";
     state.intent = ctx.suggested_intent || state.intent;
     state.intentReason = ctx.reason || "";
@@ -523,15 +650,18 @@ async function applySmartIntent() {
       ws.textContent = `지금 날씨 ${label}${temp} · ${
         state.intent === "delivery" ? "배달" : "방문"
       } 추천`;
+      if (ctx.weather_meta?.ok === false) ws.textContent = "날씨를 확인하지 못했어요. 기본 날씨 조건으로 진행해요.";
     }
   } catch (err) {
+    if (epoch !== state.locationEpoch || latitude !== state.lat || longitude !== state.lng) return;
     console.warn("smart intent skipped", err);
+    state.weather = "clear";
     state.intentReason = "";
     state.mealHint = "";
     setToggleUI(state.intent);
     setMealUI(state.mealContext);
     const ws = $("weather-status");
-    if (ws) ws.textContent = "날씨 확인 실패 — 맑음 기준으로 진행";
+    if (ws) ws.textContent = "날씨를 확인하지 못했어요. 기본 날씨 조건으로 진행해요.";
   }
 }
 
@@ -701,6 +831,7 @@ function syncFulfillment() {
   $("visit-range").value=state.visitRadius;
   $("visit-range-value").textContent=state.visitRadius<1000 ? `${state.visitRadius}m` : `${Number((state.visitRadius/1000).toFixed(1))}km`;
   if ($("range-map-distance")) $("range-map-distance").textContent = `반경 ${$("visit-range-value").textContent}`;
+  if ($("range-location-label")) $("range-location-label").textContent = state.locationSource === "manual" ? state.locationLabel : "현재 위치";
   $("visit-range-panel").style.setProperty("--range-scale", String(.38 + .62 * (state.visitRadius - 100) / 2900));
   $("btn-fulfillment-start").textContent=visit ? "주변 가게 찾기" : "배달 브랜드 찾기";
 }
@@ -746,18 +877,16 @@ async function onStartClick() {
     if (!state.locationReady || state.lat == null || state.lng == null) {
       btn.textContent = "위치 확인 중…";
       try {
-        await Promise.race([
-          requestLocation(false),
-          new Promise((_, rej) =>
-            setTimeout(() => rej(new Error("location timeout")), 8000)
-          ),
-        ]);
+        if (state.locationTask) await state.locationTask;
+        else if (state.locationFailed) { openManualLocation(); return; }
+        else await locateAndSyncWeather(false);
       } catch (_) {
         useFallbackLocation("위치 확인이 지연됐어요");
       }
     }
     if (!state.locationReady || state.lat == null || state.lng == null) {
-      useFallbackLocation("위치 확인이 지연됐어요");
+      if (!state.locationFailed) useFallbackLocation("위치 확인이 지연됐어요");
+      return;
     }
 
     // 저장된 취향이 있으면 스킵 (다시 고르기만 예외)
@@ -778,37 +907,40 @@ async function onStartClick() {
   finally { state.starting = false; syncStartState(); }
 }
 
-async function locateAndSyncWeather(force = true) {
+function locateAndSyncWeather(force = true) {
+  // Entry and CTA share one request, so tapping while auto locating never prompts twice.
+  if (state.locationTask) return state.locationTask;
+  state.locationPending = true;
+  $("location-card")?.classList.add("is-locating");
+  syncStartState();
+  const task = performLocationAndWeather(force);
+  state.locationTask = task;
+  task.finally(() => {
+    if (state.locationTask !== task) return;
+    state.locationTask = null;
+    state.locationPending = false;
+    $("location-card")?.classList.remove("is-locating");
+    syncStartState();
+  }).catch(() => {});
+  return task;
+}
+
+async function performLocationAndWeather(force = true) {
   const btn = $("btn-locate");
   if (btn) {
     btn.disabled = true;
     btn.setAttribute("aria-busy", "true");
     btn.textContent = "확인 중";
   }
-  if (isInAppBrowser()) {
-    setLocStatus(
-      "카톡 안에서는 위치가 막힐 수 있어요. 오른쪽 위 메뉴 → 다른 브라우저로 열기."
-    );
-  } else {
-    setLocStatus("현재 위치를 확인하는 중…");
-  }
+  setLocStatus("현재 위치를 자동으로 확인하고 있어요…");
   try {
     await requestLocation(force);
-    if (state.usingFallbackLoc) {
-      setLocStatus(
-        isInAppBrowser()
-          ? "인앱에서는 위치를 못 받아 송도 기준이에요. 다른 브라우저로 열면 현재 위치가 잡혀요."
-          : "위치 권한이 없어 송도 기준으로 맞춰 뒀어요. 주소창 왼쪽에서 위치를 허용해 주세요.",
-        false
-      );
-    } else {
-      setLocStatus(
-        `현재 위치 · ${state.lat.toFixed(4)}, ${state.lng.toFixed(4)}`,
-        true
-      );
-    }
+    if (!state.locationReady) return;
+    setLocStatus(state.locationSource === "manual"
+      ? `${state.locationLabel} 주변 · 직접 선택한 위치 유지`
+      : "현재 위치 주변으로 맞췄어요.", true);
     await applySmartIntent();
-    if (!state.usingFallbackLoc) startWatchingLocation();
+    if (state.locationSource === "gps") startWatchingLocation();
   } catch (err) {
     console.error(err);
     useFallbackLocation("위치를 가져오지 못했어요");
@@ -817,7 +949,7 @@ async function locateAndSyncWeather(force = true) {
     if (btn) {
       btn.disabled = false;
       btn.removeAttribute("aria-busy");
-      btn.textContent = state.locationReady ? "다시" : "확인";
+      btn.textContent = "다시 확인";
     }
     syncStartState();
   }
@@ -890,6 +1022,8 @@ function saveKakaoResume() {
     mealContext: state.mealContext,
     weather: state.weather,
     locationReady: state.locationReady,
+    locationSource: state.locationSource,
+    locationLabel: state.locationLabel,
     redirectUri: kakaoRedirectUri(),
   });
   try {
@@ -929,6 +1063,7 @@ function clearKakaoRedirect() {
 
 function restoreFromResume(resume) {
   if (!resume) return false;
+  state.locationEpoch += 1;
   if (resume.tasteChoices) state.tasteChoices = resume.tasteChoices;
   if (resume.sessionId) state.sessionId = resume.sessionId;
   if (resume.lat != null) state.lat = resume.lat;
@@ -937,6 +1072,8 @@ function restoreFromResume(resume) {
   if (resume.mealContext) state.mealContext = resume.mealContext;
   if (resume.weather) state.weather = resume.weather;
   if (resume.locationReady) state.locationReady = true;
+  state.locationSource = resume.locationSource || "";
+  state.locationLabel = resume.locationLabel || "";
   if (resume.lastReceipt) state.lastReceipt = resume.lastReceipt;
   if (resume.done) {
     state.lastDone = resume.done;
@@ -1161,6 +1298,7 @@ async function linkKakaoAccount() {
 }
 
 async function init() {
+  setupManualLocation();
   if (openDesignPreview()) return;
   track("app_open", {
     standalone:
@@ -1168,6 +1306,10 @@ async function init() {
       window.navigator.standalone === true,
     in_app: isInAppBrowser(),
   });
+  $("btn-start").onclick = onStartClick;
+  $("btn-locate").onclick = () => locateAndSyncWeather(true);
+  // Start without an extra location-choice screen; browser permission remains the user's choice.
+  if (!new URLSearchParams(window.location.search).has("code")) void locateAndSyncWeather(false);
   state.meta = await api("/v1/meta");
   renderRecruitmentState();
   let nativeLinked = null;
@@ -1420,6 +1562,7 @@ async function ensureFreshLocation() {
   }
   if (!state.locationReady || state.lat == null || state.lng == null) {
     useFallbackLocation("위치를 가져오지 못했어요");
+    throw new Error("검색할 위치를 먼저 선택해 주세요.");
   }
   return { latitude: state.lat, longitude: state.lng };
 }
