@@ -1,0 +1,7 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('web/app.js','utf8'),events={},globalEvents={},actions=[];
+const card={style:{},addEventListener:(n,f)=>events[n]=f},detail={classList:{contains:()=>true}};
+const context={$:id=>id==='card'?card:detail,state:{},window:{addEventListener:(n,f)=>globalEvents[n]=f},prefersReducedMotion:()=>false,setSwipeDir(){},markSwipeHintSeen(){},swipe:async a=>{actions.push(a);return true}};
+vm.createContext(context);vm.runInContext(source.slice(source.indexOf('function setupSwipeGestures()'),source.indexOf('function setupCardKeys()')),context);context.setupSwipeGestures();
+const target={closest:()=>null};async function drag(x,y=0,t=target){events.mousedown({clientX:200,clientY:200,target:t});globalEvents.mousemove({clientX:200+x,clientY:200+y});await globalEvents.mouseup()}
+(async()=>{await drag(-150);await drag(150);assert.deepEqual(actions,['nope','lets_go']);await drag(20);await drag(10,150);await drag(150,0,{closest:()=>({})});context.state.swiping=true;await drag(-150);assert.equal(actions.length,2);const html=fs.readFileSync('web/index.html','utf8');assert(html.includes('왼쪽으로 밀면 다른 가게, 오른쪽으로 밀면 선택'));console.log('PASS swipe: left skips/right selects, short/vertical/control/busy drags do not trigger; direction guidance matches actions')})().catch(e=>{console.error(e);process.exitCode=1});

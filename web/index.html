@@ -27,7 +27,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/styles.css?v=20261106-location6" />
-  <link rel="stylesheet" href="/static/refine.css?v=20261118-repeat1" />
+  <link rel="stylesheet" href="/static/refine.css?v=20261121-swipe1" />
 </head>
 <body>
   <!-- 진입 인트로: 첫 페인트를 브랜드로 채우고, 그 사이 init()이 끝난다 -->
@@ -190,6 +190,7 @@
             <div id="adjust-undo-slot"></div>
           </div>
           <article id="card" class="card hidden">
+            <div class="swipe-cues" aria-label="카드를 왼쪽으로 밀면 다른 가게, 오른쪽으로 밀면 선택"><span><span aria-hidden="true">←</span> 다른 가게</span><small>밀어서 고르기</small><span>여기로 할게 <span aria-hidden="true">→</span></span></div>
             <div class="card-photo hidden" id="card-media">
               <img id="card-photo-img" alt="" />
               <span id="card-photo-cap" class="photo-cap hidden">음식 종류 예시</span>
@@ -372,6 +373,6 @@
   <script src="/static/story.js?v=20260930-receipt2"></script>
   <script src="/static/instagram.js?v=20260926-ig1"></script>
   <script src="/static/analytics-client.js?v=20261118-attribution1"></script>
-  <script src="/static/app.js?v=20261118-repeat1"></script>
+  <script src="/static/app.js?v=20261121-swipe1"></script>
 </body>
 </html>

@@ -307,7 +307,7 @@ function setupManualLocation() {
 }
 
 const SWIPE_HINT_KEY = "jh_swipe_hint_seen";
-const SWIPE_HINT_COPY = "카드를 좌우로 밀어도 같아요.";
+const SWIPE_HINT_COPY = "왼쪽으로 밀면 다른 가게, 오른쪽으로 밀면 선택해요.";
 
 function swipeHintSeen() {
   try {
@@ -2130,6 +2130,11 @@ function setCardPhoto(card) {
   }
 }
 
+function visiblePhotoAttribution(card) {
+  return currentCard()?.card_id === card?.card_id && $("card")?.classList.contains("has-photo")
+    ? (card.photo_attribution || "") : "";
+}
+
 function distanceLabel(m) {
   if (m == null) return "—";
   return m >= 1000 ? `${(m / 1000).toFixed(1)}km` : `${m}m`;
@@ -3292,7 +3297,7 @@ function renderDetailModal(card) {
     ["반경", state.radius ? `${state.radius}m` : "—"],
     ["가격", priceFact(card)],
     ["출처", sourceLabel],
-    card.photo_attribution ? ["사진 출처", card.photo_attribution] : null,
+    visiblePhotoAttribution(card) ? ["사진 출처", visiblePhotoAttribution(card)] : null,
   ].filter(Boolean);
   const rows = card.is_brand
     ? [
