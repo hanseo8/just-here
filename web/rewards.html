@@ -4,7 +4,7 @@
   <title>MY · 내 지갑 · 그냥여기</title>
   <link rel="stylesheet" href="/static/styles.css?v=20261106-location6">
   <link rel="stylesheet" href="/static/rewards.css?v=20261111-next1">
-<link rel="stylesheet" href="/static/refine.css?v=20261118-repeat1" />
+<link rel="stylesheet" href="/static/refine.css?v=20261121-upload1" />
 </head><body>
   <main class="reward-page my-organized">
     <header><a class="brand" href="/" aria-label="그냥여기 홈">그냥여기.</a><a href="/">가게 찾기 ↗</a></header>
@@ -23,7 +23,7 @@
     </section>
     <section id="claim" class="claim" hidden><h2 id="receipt-rate-title">영수증 인증하기</h2><p id="claim-place"></p><label>인증할 식사 선택<select id="claim-selection"></select></label><form id="claim-form">
       <input id="attribution" name="attribution_id" type="hidden">
-      <label class="upload-zone">영수증 사진 선택<span>가게명·결제 시각·금액·승인번호가 보이게 찍어 주세요.</span><input id="receipt-image" name="image" type="file" accept="image/jpeg,image/png,image/webp" required><span>JPG · PNG · WEBP / 최대 8MB</span></label><img id="receipt-preview" alt="선택한 영수증 미리보기" hidden><p id="image-status" role="status"></p><p class="privacy-note">카드번호 등 불필요한 개인정보는 가려 주세요. 사진은 인증 목적으로만 제출되며 홍보에 재사용하지 않아요.</p>
+      <label class="upload-zone">영수증 사진 선택<span>가게명·결제 시각·금액·승인번호가 보이게 찍어 주세요.</span><input id="receipt-image" name="image" type="file" accept="image/jpeg,image/png,image/webp" required><span>JPG · PNG · WEBP / 최대 8MB</span></label><div class="receipt-photo-actions"><button type="button" id="receipt-camera">사진 촬영</button><button type="button" id="receipt-album">앨범에서 선택</button></div><p class="privacy-note">사진 선택 → 결제 정보 입력 → 검토 요청 순서예요. 촬영만으로 접수되지는 않아요.</p><img id="receipt-preview" alt="선택한 영수증 미리보기" hidden><p id="image-status" role="status" aria-live="polite"></p><p class="privacy-note">카드번호 등 불필요한 개인정보는 가려 주세요. 사진은 인증 목적으로만 제출되며 홍보에 재사용하지 않아요.</p>
       <label>결제 시각<input id="purchased-at" name="purchased_at" type="datetime-local" required></label>
       <label>결제 금액<input name="amount_krw" type="number" min="1000" max="10000000" inputmode="numeric" required></label>
       <label>영수증 승인번호<input name="approval_number" type="text" minlength="6" maxlength="32" inputmode="numeric" required></label>
@@ -73,6 +73,7 @@
   <script src="/static/reward-identity.js?v=20261107-native1"></script>
   <script src="/static/beta-progress.js?v=20261111-next1"></script>
   <script src="/static/receipt-flow.js?v=20261111-next1"></script>
+  <script src="/static/receipt-picker.js?v=20261121-upload1"></script>
   <script>
     const label={pending:'검토 중',approved:'적립 완료',rejected:'반려'};
     let guestRefresh = null;
