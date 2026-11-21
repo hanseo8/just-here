@@ -2522,9 +2522,9 @@ function showMatchThenHandoff(data) {
 }
 
 /** @returns {Promise<boolean>} 카드가 실제로 넘어갔는지 */
-async function swipe(action) {
+async function swipe(action, { fromGesture = false } = {}) {
   const card = currentCard();
-  if (isDesignPreview() || !card || state.swiping) return false;
+  if (isDesignPreview() || !card || state.swiping || (state.gestureSettling && !fromGesture)) return false;
   const req = beginReq();
   const actionId = actionIdFor(`swipe:${action}:${card.menu_id}:${card.pack_id || state.packId}`);
   state.swiping = true;
@@ -3168,17 +3168,21 @@ function setupSwipeGestures() {
   let dy = 0;
   let active = false;
   let axis = "";
+  let exitAnimation = null;
 
   const resetCard = () => {
+    exitAnimation?.cancel();
+    exitAnimation = null;
     el.style.transform = "";
     el.style.opacity = "1";
+    el.classList.remove("is-dragging");
     setSwipeDir(0);
   };
   const blocked = (target) =>
     !!(target?.closest && target.closest("#btn-card-detail, #detail, button, a"));
   const onStart = (x, y, target) => {
     if ($("detail") && !$("detail").classList.contains("hidden")) return;
-    if (state.swiping || state.modeSwitching) return;
+    if (active || state.swiping || state.modeSwitching || state.gestureSettling) return;
     if (blocked(target)) return;
     active = true;
     axis = "";
@@ -3199,13 +3203,16 @@ function setupSwipeGestures() {
       setSwipeDir(0);
       return;
     }
+    el.classList.add("is-dragging");
     if (prefersReducedMotion()) {
       setSwipeDir(dx);
       return;
     }
     el.style.transition = "none";
-    el.style.transform = `translateX(${dx}px)`;
-    el.style.opacity = String(Math.max(0.55, 1 - Math.abs(dx) / 360));
+    const tilt = Math.max(-12, Math.min(12, dx / 22));
+    const lift = Math.max(-18, Math.min(18, dy * .12));
+    el.style.transform = `translate3d(${dx}px, ${lift}px, 0) rotate(${tilt}deg)`;
+    el.style.opacity = String(Math.max(.72, 1 - Math.abs(dx) / 900));
     setSwipeDir(dx);
   };
   const onEnd = async () => {
@@ -3214,27 +3221,50 @@ function setupSwipeGestures() {
     const horizontal = axis === "x";
     axis = "";
     el.style.transition = "";
-    if (!horizontal || Math.abs(dx) <= 100) {
+    const threshold = Math.min(100, (el.getBoundingClientRect?.().width || 400) * .25);
+    if (!horizontal || Math.abs(dx) <= threshold) {
       resetCard();
       return;
     }
-    markSwipeHintSeen();
-    const moved = await swipe(dx > 0 ? "lets_go" : "nope");
-    if (!moved) resetCard();
-    else resetCard();
+    const action = dx > 0 ? "lets_go" : "nope", direction = dx > 0 ? 1 : -1;
+    const cardId = currentCard()?.card_id, sessionId = state.sessionId, intent = state.intent;
+    state.gestureSettling = true;
+    setSwipeBusy(true, action);
+    try {
+      if (!prefersReducedMotion() && el.animate) {
+        const distance = Math.max(window.innerWidth || 0, el.getBoundingClientRect?.().width || 400) + 100;
+        exitAnimation = el.animate([
+          {transform:el.style.transform || 'none',opacity:el.style.opacity || '1'},
+          {transform:`translate3d(${direction * distance}px, 0, 0) rotate(${direction * 18}deg)`,opacity:0}
+        ],{duration:180,easing:'cubic-bezier(.3,.05,.7,.4)',fill:'forwards'});
+        await exitAnimation.finished.catch(()=>{});
+      }
+      if (currentCard()?.card_id !== cardId || state.sessionId !== sessionId || state.intent !== intent || state.modeSwitching) return;
+      markSwipeHintSeen();
+      const moved = await swipe(action, {fromGesture:true});
+      resetCard();
+      if (moved && action === 'nope' && currentCard() && !state.adjustNeeded && !prefersReducedMotion() && el.animate) {
+        el.animate([{transform:'translateY(14px) scale(.97)',opacity:.4},{transform:'none',opacity:1}],{duration:220,easing:'cubic-bezier(.2,.8,.2,1)'});
+      }
+    } finally {
+      resetCard();
+      state.gestureSettling = false;
+      setSwipeBusy(false);
+    }
   };
 
   el.addEventListener(
     "touchstart",
-    (e) => onStart(e.touches[0].clientX, e.touches[0].clientY, e.target),
+    (e) => {if(e.touches.length!==1){active=false;resetCard();return;}onStart(e.touches[0].clientX, e.touches[0].clientY, e.target);},
     { passive: true }
   );
   el.addEventListener(
     "touchmove",
-    (e) => onMove(e.touches[0].clientX, e.touches[0].clientY),
+    (e) => {if(e.touches.length!==1){active=false;resetCard();return;}onMove(e.touches[0].clientX, e.touches[0].clientY);},
     { passive: true }
   );
   el.addEventListener("touchend", onEnd);
+  el.addEventListener("touchcancel", () => {active=false;axis="";el.style.transition="";resetCard();});
   el.addEventListener("mousedown", (e) => onStart(e.clientX, e.clientY, e.target));
   window.addEventListener("mousemove", (e) => onMove(e.clientX, e.clientY));
   window.addEventListener("mouseup", onEnd);
