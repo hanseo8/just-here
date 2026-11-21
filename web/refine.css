@@ -149,3 +149,29 @@ body{font-family:"IBM Plex Sans KR","Pretendard","Apple SD Gothic Neo",sans-seri
 #app .receipt-card .receipt-summary .receipt-title{font-family:inherit;font-size:26px;font-weight:600;line-height:1.35;letter-spacing:-.8px}
 @media(max-width:360px){.done-box,.reward-page{padding-left:18px;padding-right:18px}.receipt-title{font-size:23px}.my-next{padding:16px}.my-next li{font-size:9px;padding:7px 2px}.setup .setup-row{padding:20px 16px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* Restaurant deck: food and facts lead; one orange decision. */
+#screen-feed .card-stage{padding:12px 24px 36px;isolation:isolate}
+#screen-feed .card-stage:has(>.card:not(.hidden)):before,#screen-feed .card-stage:has(>.card:not(.hidden)):after{content:"";position:absolute;inset:20px 32px 28px;border:1px solid #dedee1;border-radius:20px;background:#f4f4f5;z-index:-1;pointer-events:none}
+#screen-feed .card-stage:has(>.card:not(.hidden)):before{transform:translateY(12px) rotate(-2deg)}
+#screen-feed .card-stage:has(>.card:not(.hidden)):after{transform:translateY(6px) rotate(2deg);background:#fafafa}
+#screen-feed .card{border-radius:20px;border-color:#e6e6e9;box-shadow:0 8px 24px #18181b0a;user-select:none;-webkit-user-select:none}
+#screen-feed .card-kicker{padding:16px 20px 12px;font-size:12px;color:#71717a;line-height:16px}
+#screen-feed .card.has-photo .card-kicker{display:none}
+#screen-feed .card-photo{aspect-ratio:1.15;max-height:300px}
+#screen-feed .card-face{padding:20px;gap:8px}
+#screen-feed .card-title{font-size:24px;font-weight:600;line-height:1.35;letter-spacing:-.6px}
+#screen-feed .card-facts{border-top:1px solid #efeff1;padding-top:16px;margin-top:8px}
+#screen-feed .swipe-cues{padding:8px 24px;flex:none;background:transparent;border:0;font-size:12px;line-height:16px}
+#screen-feed .swipe-cues small{font-size:11px;color:#71717a}
+#screen-feed:not(:has(#card:not(.hidden)))>.swipe-cues{display:none}
+#screen-feed .bottom.actions{display:flex;justify-content:center;gap:48px;padding:12px 24px 8px;flex:none}
+#screen-feed .bottom.actions .act{display:flex;flex-direction:column;align-items:center;gap:8px;width:112px;min-height:96px;padding:0;background:none;border:0;box-shadow:none;color:#52525b;font-size:13px;line-height:20px}
+#screen-feed #btn-nope:before,#screen-feed #btn-go:after{display:grid;place-items:center;width:64px;height:64px;margin:0;border-radius:50%;font-size:28px;font-weight:400;line-height:1;background:#fff;border:1px solid #dedee1;color:#52525b;flex:none}
+#screen-feed #btn-go:after{order:-1;background:#ed4d13;color:#fff;border-color:#ed4d13}
+#screen-feed .act:disabled{opacity:.5}
+#screen-feed .act:focus-visible{outline:2px solid #ed4d13;outline-offset:4px;border-radius:12px}
+#screen-feed .act:active:before,#screen-feed .act:active:after{transform:scale(.96)}
+#screen-feed .swipe-dir{top:36px;border-radius:8px;z-index:4}
+#app #screen-onboard #onboard-main .setup-row dd.location-help{flex:0 0 100%;max-width:100%;font-size:12px;line-height:1.65;color:#62626b;margin:4px 0}
+@media(max-height:740px){#screen-feed .card-photo{max-height:200px}#screen-feed .card-face{padding:16px}#screen-feed .bottom.actions .act{min-height:80px}#screen-feed #btn-nope:before,#screen-feed #btn-go:after{width:52px;height:52px}#screen-feed .swipe-cues{padding-top:8px}}

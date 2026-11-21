@@ -6,7 +6,7 @@ const els={};const get=id=>els[id]??=element();let gps, timers=[], tracked=[], o
 const c={state:{locationEpoch:0,locationSearchSeq:0,locationReady:false,lat:null,lng:null,watchId:null,starting:false},$:get,
  AbortController,URLSearchParams,
  document:{createElement:element},navigator:{geolocation:{getCurrentPosition(ok,bad){gps={ok,bad}},clearWatch(){},watchPosition(){return 7}}},
- GEO_OPTS:{timeout:8000},GEO_OPTS_FORCE:{timeout:10000},setTimeout(fn){timers.push(fn);return timers.length},clearTimeout(){},
+ GEO_OPTS:{timeout:8000,enableHighAccuracy:false},GEO_OPTS_FORCE:{timeout:15000,enableHighAccuracy:true,maximumAge:0},setTimeout(fn){timers.push(fn);return timers.length},clearTimeout(){},
  console:{warn(){},error(){}},isInAppBrowser:()=>false,track:(...args)=>tracked.push(args),closeTasteFlow(){},show(){},syncStartState(){},
  setLocStatus(t){get('loc-status').textContent=t},applySmartIntent:async()=>{},beginReq(){},openTasteFlow(){opened++},
  api:async(path,opts)=>{request={path,opts};return {results:[{name:'<img src=x>',address:'서울',lat:37.498,lng:127.028}]}}};
@@ -34,7 +34,7 @@ for(const name of ['useFallbackLocation','openManualLocation','locationSearchSta
  let staleReply;c.api=()=>new Promise(resolve=>staleReply=resolve);const searching=c.searchManualLocation();c.state.locationSearchSeq++;
  staleReply({results:[{name:'지난 결과',lat:37.5,lng:127}]});await searching;assert.equal(get('location-results').children.length,0);
  c.state.locationReady=false;c.state.lat=null;c.state.lng=null;c.state.locationSource='';
- const timed=c.requestLocation();const tooLate=gps.ok;timers.at(-1)();await timed;
+ const timed=c.requestLocation();const tooLate=gps.ok;timers.at(-1)();timers.at(-1)();await timed;
  tooLate({coords:{latitude:37.5,longitude:127}});assert.equal(c.state.lat,null);
  const fresh=c.ensureFreshLocation();gps.bad({code:1});await assert.rejects(fresh,/위치/);
  c.state.locationFailed=false;let gpsCalls=0;
@@ -57,5 +57,23 @@ for(const name of ['useFallbackLocation','openManualLocation','locationSearchSta
  c.state.locationReady=false;c.state.locationPending=true;c.state.locationFailed=false;c.syncStartState();assert.equal(get('btn-start').textContent,'근처 메뉴 고르기');assert(get('start-hint').textContent.includes('확인하고 있어요'));
  c.state.locationPending=false;c.state.locationFailed=true;c.syncStartState();assert.equal(get('btn-start').textContent,'지역 선택하고 계속');
  c.state.locationReady=true;c.syncStartState();assert.equal(get('btn-start').textContent,'근처 메뉴 고르기');
+ // Low precision escalates once; stale first-attempt callbacks cannot overwrite the precise fix.
+ c.state.locationReady=false;c.state.lat=null;c.state.lng=null;c.state.sessionId=null;
+ const attempts=[];c.navigator.geolocation.getCurrentPosition=(ok,bad,options)=>{attempts.push({ok,bad,options})};
+ const precise=c.requestLocation();attempts[0].ok({coords:{latitude:37,longitude:127,accuracy:2400}});
+ assert.equal(attempts.length,2);assert(attempts[1].options.enableHighAccuracy);assert.equal(attempts[1].options.maximumAge,0);
+ attempts[0].bad({code:1});attempts[1].ok({coords:{latitude:37.5,longitude:127,accuracy:18}});await precise;
+ assert.equal(c.state.lat,37.5);assert.equal(c.state.locationAccuracy,18);assert(get('loc-status').textContent.includes('18m'));
+ const retained=c.requestLocation(true);attempts.at(-1).bad({code:1});await retained;
+ assert.equal(c.state.lat,37.5);assert(get('loc-status').textContent.includes('유지'));assert(get('location-help').textContent.includes('사이트 설정'));
+ // Weather can remain pending without locking the locate button.
+ c.applySmartIntent=()=>new Promise(()=>{});
+ const weatherPending=c.locateAndSyncWeather(true);attempts.at(-1).ok({coords:{latitude:37.5,longitude:127,accuracy:20}});await weatherPending;
+ await Promise.resolve();assert(!c.state.locationPending);assert(!get('btn-locate').disabled);
+ let watch;c.state.watchId=null;c.navigator.geolocation.watchPosition=ok=>{watch=ok;return 8};c.startWatchingLocation();
+ watch({coords:{latitude:36,longitude:128,accuracy:4000}});assert.equal(c.state.lat,37.5);
+ c.applySmartIntent=async()=>{};
+ const cancelled=c.requestLocation(true);await c.selectManualLocation({name:'강남역',lat:37.498,lng:127.028});
+ await cancelled;assert.equal(c.state.cancelLocation,null);
  console.log('PASS location UI: automatic entry and shared CTA request, fallback only after failure, denied/timeout guards, stale GPS/weather ignored, manual coordinates retained, safe results, no sensitive analytics and clear CTA states');
 })().catch(e=>{console.error(e);process.exitCode=1});

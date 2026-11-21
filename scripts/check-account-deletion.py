@@ -53,7 +53,7 @@ with tempfile.TemporaryDirectory() as directory:
     attribution=restored.create_attribution(uid=identity['uid'],session_id='delete-check-session',place_id='delete-check-place',place_name='Test place',menu_id='test-menu',menu_name='Test menu',intent='visit')
     with restored._db() as db:
         db.execute("""INSERT INTO receipts (id,uid,attribution_id,reward_day,purchased_at,amount_krw,approval_hash,image_path,image_sha256,content_type,review_return,created_at)
-          VALUES ('delete-test-receipt',?,?, '2026-10-19','2026-10-19T00:00:00+00:00',3000,'delete-test-approval','test-only.jpg','delete-test-image','image/jpeg','yes','2026-10-19T00:00:00+00:00')""",(identity['uid'],attribution['id']))
+          VALUES ('delete-test-receipt',?,?, '2026-10-19','2026-10-19T00:00:00+00:00',3000,'delete-test-approval','test-only.jpg','delete-test-image','image/jpeg','yes',?)""",(identity['uid'],attribution['id'],rewards._iso()))
         db.execute("INSERT INTO reward_ledger (id,uid,amount,kind,created_at) VALUES ('delete-test-ledger',?,300,'test','2026-10-19T00:00:00+00:00')",(identity['uid'],))
         db.execute("""INSERT INTO payouts (id,uid,request_id,receipt_id,amount_krw,recipient_encrypted,account_tail,created_at,updated_at) VALUES ('delete-test-payout',?,'test-request','delete-test-receipt',300,'test-not-real','0000','2026-10-19T00:00:00+00:00','2026-10-19T00:00:00+00:00')""",(identity['uid'],))
     report=client.get(endpoint,headers=admin).json()

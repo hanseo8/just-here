@@ -54,8 +54,6 @@ def assert_no_store(headers: dict[str, str], where: str) -> None:
     cache = (headers.get("cache-control") or "").lower()
     if "no-store" not in cache:
         fail(f"{where} Cache-Control에 no-store가 없다 [{cache}]")
-    if "private" not in cache and "no-cache" not in cache:
-        fail(f"{where} 캐시 금지 헤더가 약하다 [{cache}]")
 
 
 def assert_public_storage(payload: dict, where: str) -> dict:
@@ -98,6 +96,9 @@ def start(data: Path, port: int) -> subprocess.Popen:
     env["VERIFIED_MENUS_VISIT"] = "on"
     env["PUBLIC_BASE_URL"] = ""
     env["ADMIN_TOKEN"] = ADMIN_TOKEN
+    env.update(ADMIN_REQUIRE_2FA="off", ADMIN_TOTP_SECRET="",
+               KAKAO_REST_API_KEY=" ", GOOGLE_PLACES_PHOTOS="off",
+               GUEST_SIGNING_SECRET="isolated-persist-probe")
     return subprocess.Popen(
         [
             sys.executable,

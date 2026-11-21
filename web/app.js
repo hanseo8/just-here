@@ -60,9 +60,9 @@ const GEO_OPTS = {
 };
 
 const GEO_OPTS_FORCE = {
-  // 강제 새로고침도 highAccuracy는 피함 — 카톡/일부 안드로이드에서 콜백이 안 옴
-  enableHighAccuracy: false,
-  timeout: 10000,
+  // Explicit retry asks for a fresh, precise fix, bounded by our own timer too.
+  enableHighAccuracy: true,
+  timeout: 15000,
   maximumAge: 0,
 };
 
@@ -223,6 +223,7 @@ function locationSearchStatus(text, error = false) {
 async function selectManualLocation(result) {
   if (!Number.isFinite(result.lat) || !Number.isFinite(result.lng) || Math.abs(result.lat) > 90 || Math.abs(result.lng) > 180) return;
   state.locationEpoch += 1; // Invalidate pending GPS callbacks and weather requests.
+  state.cancelLocation?.();
   state.locationSearchSeq += 1;
   if (state.watchId != null) navigator.geolocation?.clearWatch(state.watchId);
   state.watchId = null;
@@ -230,6 +231,7 @@ async function selectManualLocation(result) {
   state.lng = result.lng;
   state.locationLabel = result.name;
   state.locationSource = "manual";
+  state.locationAccuracy = null;
   state.locationReady = true;
   state.locationFailed = false;
   state.usingFallbackLoc = false;
@@ -237,6 +239,7 @@ async function selectManualLocation(result) {
   state.sessionId = null;
   state.cards = [];
   setLocStatus(`${result.name} 주변 · 직접 선택`, true);
+  if ($("location-help")) $("location-help").textContent = "직접 선택한 위치를 기준으로 거리와 주변 가게를 찾아요.";
   $("location-results")?.replaceChildren();
   locationSearchStatus("선택한 위치를 기준으로 가게를 찾아요.");
   $("location-search-panel")?.classList.add("hidden");
@@ -359,7 +362,7 @@ function setSwipeBusy(busy, action) {
   });
   if (busy) {
     const target = action === "lets_go" ? go : pass;
-    if (target) target.dataset.label = target.textContent;
+    if (target && !target.dataset.label) target.dataset.label = target.textContent;
     if (target) target.textContent = "잠시만요…";
     setFeedHint(
       action === "lets_go" ? "가게를 확정하는 중이에요." : "다음 카드를 가져오는 중이에요.",
@@ -511,6 +514,7 @@ function haversineM(lat1, lng1, lat2, lng2) {
 }
 
 function applyPosition(coords) {
+  if (!Number.isFinite(coords.latitude) || !Number.isFinite(coords.longitude) || Math.abs(coords.latitude) > 90 || Math.abs(coords.longitude) > 180) return;
   const prevLat = state.lat;
   const prevLng = state.lng;
   state.lat = coords.latitude;
@@ -521,6 +525,7 @@ function applyPosition(coords) {
   state.locationLabel = "현재 위치";
   state.locationFailed = false;
   const acc = Math.round(coords.accuracy || 0);
+  state.locationAccuracy = acc;
   if (!state.trackedLocateOk) {
     state.trackedLocateOk = true;
     track("locate_ok", { accuracy_m: acc });
@@ -530,6 +535,10 @@ function applyPosition(coords) {
     true
   );
   $("btn-start").disabled = false;
+  const help = $("location-help");
+  if (help) help.textContent = acc > 500
+    ? "대략적인 위치예요. 휴대폰의 정확한 위치를 켜거나 아래에서 지역을 직접 선택해 주세요."
+    : "이 위치를 기준으로 거리와 주변 가게를 찾아요.";
 
   if (
     state.sessionId &&
@@ -541,6 +550,7 @@ function applyPosition(coords) {
 }
 
 function requestLocation(force = false) {
+  state.cancelLocation?.();
   const epoch = ++state.locationEpoch;
   if (state.watchId != null) navigator.geolocation?.clearWatch(state.watchId);
   state.watchId = null;
@@ -551,57 +561,54 @@ function requestLocation(force = false) {
       return;
     }
     setLocStatus("현재 위치 확인 중…");
-    const opts = force ? GEO_OPTS_FORCE : GEO_OPTS;
     let settled = false;
+    let precise = force;
+    let hardTimer;
     const finish = (coords) => {
       if (settled) return;
       settled = true;
+      clearTimeout(hardTimer);
+      if (state.cancelLocation === cancel) state.cancelLocation = null;
       resolve(coords);
     };
-    // 일부 웹뷰는 timeout 옵션을 무시하고 영구 대기 → 하드 타임아웃
-    const hardMs = (opts.timeout || 8000) + 1500;
-    const hardTimer = setTimeout(() => {
-      if (settled) return;
-      if (epoch !== state.locationEpoch) { finish(null); return; }
-      if (state.locationReady && state.lat != null) {
+    const cancel = () => finish(null);
+    state.cancelLocation = cancel;
+    let attempt = 0;
+    const failed = (err) => {
+      if (settled || epoch !== state.locationEpoch) { finish(null); return; }
+      clearTimeout(hardTimer);
+      if (!precise && err.code !== 1) { precise = true; locate(); return; }
+      const help = $("location-help");
+      if (help) help.textContent = err.code === 1
+        ? "브라우저 주소창의 사이트 설정에서 위치를 허용하고, 휴대폰 설정의 위치 서비스도 켜 주세요. 인앱 브라우저라면 Safari 또는 Chrome에서 열어 주세요."
+        : "실내에서는 확인이 늦을 수 있어요. Wi-Fi·위치 서비스를 켜고 다시 확인하거나 아래에서 지역을 검색해 주세요.";
+      if (state.locationReady && state.lat != null && state.lng != null) {
+        setLocStatus(`${state.locationLabel || "이전 위치"} 유지 중 · 새 위치 확인에 실패했어요`, true);
         finish({ latitude: state.lat, longitude: state.lng });
         return;
       }
-      const reason = isInAppBrowser()
-        ? "인앱 브라우저에서 위치가 막혀 있어요"
-        : "위치 확인이 너무 오래 걸려요";
-      useFallbackLocation(reason);
+      useFallbackLocation(err.code === 1 ? "위치 권한이 없어요" : err.code === 3 ? "위치 확인 시간이 초과됐어요" : "위치를 가져오지 못했어요");
       finish(null);
-    }, hardMs);
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        clearTimeout(hardTimer);
-        if (settled || epoch !== state.locationEpoch) { finish(null); return; }
-        applyPosition(pos.coords);
-        finish(pos.coords);
-      },
-      (err) => {
-        clearTimeout(hardTimer);
-        if (settled || epoch !== state.locationEpoch) { finish(null); return; }
-        if (state.locationReady && state.lat != null && state.lng != null) {
-          console.warn("geo refresh failed, using cached", err);
-          finish({ latitude: state.lat, longitude: state.lng });
-          return;
-        }
-        let reason = "위치를 가져오지 못했어요";
-        if (err.code === 1) {
-          reason = isInAppBrowser()
-            ? "카톡/인앱에선 위치 권한이 막히는 경우가 많아요"
-            : "위치 권한이 없어요";
-        } else if (err.code === 3) {
-          reason = "위치 확인 시간이 초과됐어요";
-        }
-        useFallbackLocation(reason);
-        finish(null);
-      },
-      opts
-    );
+    };
+    const locate = () => {
+      const id = ++attempt;
+      const opts = precise ? GEO_OPTS_FORCE : GEO_OPTS;
+      if (precise) setLocStatus("정확한 위치를 다시 확인하고 있어요…");
+      // Some webviews ignore the platform timeout. Also reject late first-attempt callbacks.
+      hardTimer = setTimeout(() => { if (id === attempt) failed({code:3}); }, opts.timeout + 1500);
+      try {
+        navigator.geolocation.getCurrentPosition((pos) => {
+          if (id !== attempt || settled || epoch !== state.locationEpoch) { if (epoch !== state.locationEpoch) finish(null); return; }
+          clearTimeout(hardTimer);
+          const coords = pos.coords;
+          if (!Number.isFinite(coords.latitude) || !Number.isFinite(coords.longitude) || Math.abs(coords.latitude) > 90 || Math.abs(coords.longitude) > 180) { failed({code:2}); return; }
+          if (!precise && coords.accuracy > 500) { precise = true; locate(); return; }
+          applyPosition(coords);
+          finish(coords);
+        }, err => { if (id === attempt) failed(err); }, opts);
+      } catch (_) { failed({code:2}); }
+    };
+    locate();
   });
 }
 
@@ -609,7 +616,12 @@ function startWatchingLocation() {
   if (!navigator.geolocation || state.watchId != null || state.locationSource === "manual") return;
   const epoch = state.locationEpoch;
   state.watchId = navigator.geolocation.watchPosition(
-    (pos) => { if (epoch === state.locationEpoch && state.locationSource !== "manual") applyPosition(pos.coords); },
+    (pos) => {
+      if (epoch !== state.locationEpoch || state.locationSource === "manual") return;
+      // A coarse background result must not replace an already precise fix.
+      if (state.locationAccuracy && pos.coords.accuracy > Math.max(500, state.locationAccuracy * 2)) return;
+      applyPosition(pos.coords);
+    },
     () => {},
     { enableHighAccuracy: false, maximumAge: 15000, timeout: 20000 }
   );
@@ -948,10 +960,8 @@ async function performLocationAndWeather(force = true) {
   try {
     await requestLocation(force);
     if (!state.locationReady) return;
-    setLocStatus(state.locationSource === "manual"
-      ? `${state.locationLabel} 주변 · 직접 선택한 위치 유지`
-      : "현재 위치 주변으로 맞췄어요.", true);
-    await applySmartIntent();
+    // Weather must not keep location retry and the next step waiting.
+    void applySmartIntent().catch(() => {});
     if (state.locationSource === "gps") startWatchingLocation();
   } catch (err) {
     console.error(err);

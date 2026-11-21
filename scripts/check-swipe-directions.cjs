@@ -12,5 +12,11 @@ const target={closest:()=>null};async function drag(x,y=0,t=target){events.mouse
   context.swipe=async()=>false;await drag(-150);assert.equal(card.style.transform,'');assert.equal(context.state.gestureSettling,false);
   context.swipe=async a=>{actions.push(a);return true};delayAnimation=true;const pending=drag(-150);assert.equal(context.state.gestureSettling,true);await drag(150);assert.equal(actions.length,3);identity='b';finishAnimation();await pending;assert.equal(actions.length,3);assert.equal(context.state.gestureSettling,false);
   const html=fs.readFileSync('web/index.html','utf8');assert(html.includes('왼쪽으로 밀면 다른 가게, 오른쪽으로 밀면 선택'));
+  const buttons={'btn-nope':{textContent:'다른 가게',dataset:{}},'btn-go':{textContent:'여기로 할게',dataset:{}},'btn-undo':{}};
+  const busyContext={$:id=>buttons[id],setFeedHint(){}};vm.createContext(busyContext);
+  const busyStart=source.indexOf('function setSwipeBusy('),busyEnd=source.indexOf('\nfunction ',busyStart+1);
+  vm.runInContext(source.slice(busyStart,busyEnd),busyContext);
+  busyContext.setSwipeBusy(true,'nope');busyContext.setSwipeBusy(true,'nope');busyContext.setSwipeBusy(false);
+  assert.equal(buttons['btn-nope'].textContent,'다른 가게');assert.equal(buttons['btn-go'].disabled,false);
   console.log('PASS swipe: tilt/fly/next entry, left skips/right selects, vertical/short/control/cancel/busy guards, reduced motion, failed request reset, settling lock and stale-card protection');
 })().catch(e=>{console.error(e);process.exitCode=1});
