@@ -310,7 +310,7 @@ function setupManualLocation() {
 }
 
 const SWIPE_HINT_KEY = "jh_swipe_hint_seen";
-const SWIPE_HINT_COPY = "카드를 좌우로 넘겨 비교하고, 가운데 버튼으로 정하세요.";
+const SWIPE_HINT_COPY = "왼쪽으로 밀면 다음 가게, 오른쪽으로 밀면 이전 가게예요. 가운데 버튼으로 정하세요.";
 
 function swipeHintSeen() {
   try {
@@ -3172,7 +3172,7 @@ function setSwipeDir(dx) {
     dir.textContent = "";
     return;
   }
-  const go = dx > 0;
+  const go = dx < 0;
   dir.textContent = go ? "다른 가게" : "이전 가게";
   dir.classList.remove("hidden");
   dir.classList.add(go ? "is-go" : "is-pass");
@@ -3245,10 +3245,10 @@ function setupSwipeGestures() {
       resetCard();
       return;
     }
-    const action = dx > 0 ? "nope" : "undo", direction = dx > 0 ? 1 : -1;
+    const action = dx < 0 ? "nope" : "undo", direction = dx > 0 ? 1 : -1;
     if (action === "undo" && !state.canUndo) {
       resetCard();
-      setFeedHint("첫 번째 가게예요. 오른쪽으로 넘겨 다른 가게를 볼 수 있어요.");
+      setFeedHint("첫 번째 가게예요. 왼쪽으로 넘겨 다른 가게를 볼 수 있어요.");
       return;
     }
     const cardId = currentCard()?.card_id, sessionId = state.sessionId, intent = state.intent;
