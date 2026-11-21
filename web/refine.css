@@ -175,3 +175,16 @@ body{font-family:"IBM Plex Sans KR","Pretendard","Apple SD Gothic Neo",sans-seri
 #screen-feed .swipe-dir{top:36px;border-radius:8px;z-index:4}
 #app #screen-onboard #onboard-main .setup-row dd.location-help{flex:0 0 100%;max-width:100%;font-size:12px;line-height:1.65;color:#62626b;margin:4px 0}
 @media(max-height:740px){#screen-feed .card-photo{max-height:200px}#screen-feed .card-face{padding:16px}#screen-feed .bottom.actions .act{min-height:80px}#screen-feed #btn-nope:before,#screen-feed #btn-go:after{width:52px;height:52px}#screen-feed .swipe-cues{padding-top:8px}}
+
+/* Previous / decide / next. Only the centre button confirms a restaurant. */
+#screen-feed .bottom.actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:16px 24px 12px;align-items:end}
+#screen-feed #feed-undo-slot{display:contents}
+#screen-feed .bottom.actions .act{width:100%;min-width:0;min-height:88px;font-size:12px;gap:8px;justify-content:flex-end}
+#screen-feed #btn-undo:before,#screen-feed #btn-nope:before{display:grid;place-items:center;content:"←";width:52px;height:52px;border-radius:50%;background:#fff;border:1px solid #dedee1;color:#52525b;font-size:24px;font-weight:400;line-height:1;margin:0}
+#screen-feed #btn-nope:before{content:"→"}
+#screen-feed #btn-go{font-size:14px;color:#b83d12;font-weight:600}
+#screen-feed #btn-go:after{content:"✓";width:64px;height:64px;font-size:28px;background:#ed4d13;color:#fff}
+#screen-feed #btn-undo:disabled{opacity:.35;cursor:default}
+#screen-feed.is-adjust #btn-undo{border:1px solid #dedee1;border-radius:8px;min-height:44px;padding:8px 16px;background:#fff;font:inherit;color:var(--text)}
+#screen-feed.is-adjust #btn-undo:before{display:none}
+.detail-photo-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}.detail-photo-links a{font-size:13px;padding:10px 12px;border:1px solid #dedee1;border-radius:8px;color:var(--text);text-decoration:none}.detail-photo-note{font-size:12px;line-height:1.6;color:var(--text-2);margin:8px 0 0}

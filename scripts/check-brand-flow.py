@@ -1,4 +1,4 @@
-"""배달(브랜드) / 방문(주변) 두 덱과 3장 묶음 계약이 성립하는지 확인.
+"""배달(브랜드) / 방문(주변) 두 덱과 5장 묶음 계약이 성립하는지 확인.
 
 배달 카드는 거리를 만들어 내지 않아야 하고, 핸드오프는 반드시 브랜드 자사
 주문 URL로 나가야 한다. 방문은 가상 식당 폴백 없이 실상호만 쓴다.
@@ -46,10 +46,10 @@ check(gold is False, "골드 카드는 없다")
 top = pool[0]
 check(bool(top.get("taste_match")), f"취향(chicken)이 맨 앞에 온다 → {top['place_name']}")
 
-print("\n[배달] 피드 묶음 3장")
+print("\n[배달] 피드 묶음 5장")
 cards, radius, gold = engine.present_feed(s)
 check(len(cards) == 1, f"화면에는 한 장만 내려간다 (실제 {len(cards)})")
-check(cards[0]["pack_rank"] == 1 and cards[0]["pack_size"] == 3, "첫 장은 1/3")
+check(cards[0]["pack_rank"] == 1 and cards[0]["pack_size"] == engine.PACK_SIZE, "첫 장은 1/5")
 check(bool(cards[0].get("why")), f"why가 있다 → {cards[0].get('why')}")
 kinds = [c.get("kind") or c.get("category") for c in s.pack_cards]
 check(len(kinds) == len(set(kinds)), f"묶음 종류가 겹치지 않는다 → {kinds}")
@@ -64,19 +64,19 @@ check("배달앱" in handoff.get("note", ""), "배달앱을 안 거친다고 안
 print(f"       cta: {handoff['cta']}")
 print(f"       url: {handoff['url']}")
 
-print("\n[배달] 3장 거절 → 조정 → 돌아가기")
+print("\n[배달] 5장 거절 → 조정 → 돌아가기")
 s2 = engine.create_session(LAT, LNG, "delivery", "clear")
 last = None
-for i in range(3):
+for i in range(engine.PACK_SIZE):
     deck, _, _ = engine.present_feed(s2)
     check(len(deck) == 1, f"{i + 1}번째 카드가 있다")
     last = deck[0]
     p = engine.find_place(s2, last["menu_id"])
     exhausted = engine.apply_nope(s2, p)
-    if i < 2:
+    if i < engine.PACK_SIZE - 1:
         check(exhausted is False, f"{i + 1}장째는 아직 조정이 아니다")
     else:
-        check(exhausted is True, "3장 거절 후 조정이 열린다")
+        check(exhausted is True, "5장 거절 후 조정이 열린다")
 meta = engine.pack_meta(s2)
 check(meta["adjust_needed"], "adjust_needed")
 check(meta["can_undo"], "조정 화면에서도 돌아갈 수 있다")
@@ -100,7 +100,7 @@ for i in range(20):
     deck, _, _ = engine.present_feed(s3)
     if engine.pack_meta(s3)["adjust_needed"]:
         saw_adjust = True
-        check(i == 3, f"자동 리필 없이 3장 뒤에 조정 (실제 {i}번째)")
+        check(i == engine.PACK_SIZE, f"자동 리필 없이 5장 뒤에 조정 (실제 {i}번째)")
         break
     if not deck:
         check(False, f"{i}번째에 조정 없이 덱이 비었다")
@@ -108,7 +108,7 @@ for i in range(20):
     engine.apply_nope(s3, engine.find_place(s3, deck[0]["menu_id"]))
 else:
     check(False, "20장까지 조정이 열리지 않았다")
-check(saw_adjust, "3장 거절 후 조정이 열렸다")
+check(saw_adjust, "5장 거절 후 조정이 열렸다")
 
 print("\n[방문] 주변 덱")
 s4 = engine.create_session(LAT, LNG, "visit", "clear")
@@ -472,8 +472,8 @@ pm = analytics.product_metrics(rows)
 check(pm["median_open_to_first_recommend_s"] == 12.0, f"진입→추천 {pm['median_open_to_first_recommend_s']}")
 check(pm["median_first_recommend_to_choice_s"] == 9.0, f"추천→선택 {pm['median_first_recommend_to_choice_s']}")
 check(pm["first_pack_choose_rate"] == 50.0, f"첫 묶음 선택 {pm['first_pack_choose_rate']}")
-check(pm["first_pack_no_choice_rate"] == 50.0, "첫 3장 안 선택 50%")
-check(pm["first_pack_exhaust_rate"] == 50.0, "3장 모두 거절 50%")
+check(pm["first_pack_no_choice_rate"] == 50.0, "첫 5장 안 선택 50%")
+check(pm["first_pack_exhaust_rate"] == 50.0, "5장 모두 거절 50%")
 check(pm["choose_after_adjust_rate"] == 100.0, "조정 후 선택 100%")
 check(pm["match_to_handoff_rate"] == 50.0, "선택→클릭 50% (주문 완료 아님)")
 check(pm["revisit_rate"] == 50.0, "재방문 1/2 기기")
@@ -547,7 +547,7 @@ check(s_undo.nope_categories == after_one, "되돌린 뒤 다시 거절해도 �
 
 print("\n[조정] 가격 미확인은 저렴한 것으로 치지 않는다")
 s_price = engine.create_session(LAT, LNG, "delivery", "clear")
-for _ in range(3):
+for _ in range(engine.PACK_SIZE):
     deck, _, _ = engine.present_feed(s_price)
     engine.apply_nope(s_price, engine.find_place(s_price, deck[0]["menu_id"]))
 for c in s_price.undo_stack:
@@ -560,7 +560,7 @@ cheap_why = (cheap_feed[0].get("why") if cheap_feed else "") or ""
 check("가격을 확인한 곳이 없어" in cheap_why, f"미확인 가격 why → {cheap_why}")
 
 s_est = engine.create_session(LAT, LNG, "delivery", "clear")
-for _ in range(3):
+for _ in range(engine.PACK_SIZE):
     deck, _, _ = engine.present_feed(s_est)
     engine.apply_nope(s_est, engine.find_place(s_est, deck[0]["menu_id"]))
 engine.apply_adjust(s_est, "cheaper")
@@ -581,11 +581,11 @@ if visit_cards:
 print("\n[경계] 되돌리기 후 재거절/선택, 상황 변경, 0~2장")
 s_edge = engine.create_session(LAT, LNG, "delivery", "clear")
 last = None
-for _ in range(3):
+for _ in range(engine.PACK_SIZE):
     deck, _, _ = engine.present_feed(s_edge)
     last = deck[0]
     engine.apply_nope(s_edge, engine.find_place(s_edge, last["menu_id"]))
-check(engine.pack_meta(s_edge)["adjust_needed"], "3장 후 조정")
+check(engine.pack_meta(s_edge)["adjust_needed"], "5장 후 조정")
 pen_after_3 = dict(s_edge.nope_categories)
 check(engine.apply_undo(s_edge), "조정 중 되돌리기")
 restored, _, _ = engine.present_feed(s_edge)
@@ -605,7 +605,7 @@ check(back[0]["menu_id"] == d1[0]["menu_id"], "되돌린 후보를 고를 수 �
 check(handoff.get("url"), "최종 선택은 주문으로 이어진다")
 
 s_adj = engine.create_session(LAT, LNG, "delivery", "clear")
-for _ in range(3):
+for _ in range(engine.PACK_SIZE):
     deck, _, _ = engine.present_feed(s_adj)
     engine.apply_nope(s_adj, engine.find_place(s_adj, deck[0]["menu_id"]))
 old_pack = s_adj.pack_id

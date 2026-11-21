@@ -28,7 +28,7 @@ const state = {
   visitRadius: 700,
   packId: "",
   packRank: 0,
-  packSize: 3,
+  packSize: 5,
   adjustNeeded: false,
   canUndo: false,
   adjustOptions: [],
@@ -310,7 +310,7 @@ function setupManualLocation() {
 }
 
 const SWIPE_HINT_KEY = "jh_swipe_hint_seen";
-const SWIPE_HINT_COPY = "왼쪽으로 밀면 다른 가게, 오른쪽으로 밀면 선택해요.";
+const SWIPE_HINT_COPY = "카드를 좌우로 넘겨 비교하고, 가운데 버튼으로 정하세요.";
 
 function swipeHintSeen() {
   try {
@@ -357,25 +357,26 @@ function setSwipeBusy(busy, action) {
   const go = $("btn-go");
   const undo = $("btn-undo");
   if (undo) undo.disabled = !!busy;
-  [pass, go].forEach((btn) => {
+  [pass, go, undo].forEach((btn) => {
     if (btn) btn.disabled = !!busy;
   });
   if (busy) {
-    const target = action === "lets_go" ? go : pass;
+    const target = action === "lets_go" ? go : action === "undo" ? undo : pass;
     if (target && !target.dataset.label) target.dataset.label = target.textContent;
     if (target) target.textContent = "잠시만요…";
     setFeedHint(
-      action === "lets_go" ? "가게를 확정하는 중이에요." : "다음 카드를 가져오는 중이에요.",
+      action === "lets_go" ? "가게를 확정하는 중이에요." : action === "undo" ? "이전 가게를 가져오는 중이에요." : "다른 가게를 가져오는 중이에요.",
       "busy"
     );
     return;
   }
-  [pass, go].forEach((btn) => {
+  [pass, go, undo].forEach((btn) => {
     if (btn?.dataset.label) {
       btn.textContent = btn.dataset.label;
       delete btn.dataset.label;
     }
   });
+  if (undo) undo.disabled = !!busy || !state.canUndo || state.modeSwitching;
 }
 
 function show(id) {
@@ -1822,7 +1823,7 @@ function applyFeed(data, opts = {}) {
   state.radius = data.effective_radius_m;
   state.packId = data.pack_id || "";
   state.packRank = data.pack_rank || 0;
-  state.packSize = data.pack_size || 3;
+  state.packSize = data.pack_size || 5;
   state.adjustNeeded = !!data.adjust_needed;
   state.canUndo = !!data.can_undo;
   state.adjustOptions = data.adjust_options || [];
@@ -2298,8 +2299,8 @@ function renderCard() {
   }
   const pass = $("btn-nope");
   const go = $("btn-go");
-  if (pass) pass.textContent = view.pass;
-  if (go) go.textContent = view.go;
+  if (pass) pass.textContent = "다른 가게";
+  if (go) go.textContent = "그냥여기";
 
   const fact2 = $("card-fact2-key")?.parentElement;
   if (view.type === "brand") {
@@ -2399,8 +2400,9 @@ function returnToTasteFromAdjust() {
 function syncUndoBtn() {
   const btn = $("btn-undo");
   if (!btn) return;
-  const show = !!state.canUndo && !state.swiping;
-  btn.classList.toggle("hidden", !show);
+  const show = !!state.canUndo;
+  btn.disabled = !show || state.swiping || state.modeSwitching || state.gestureSettling;
+  btn.classList.toggle("hidden", !!state.adjustNeeded && !show);
   const host = state.adjustNeeded ? $("adjust-undo-slot") : $("feed-undo-slot");
   if (host && btn.parentElement !== host) host.appendChild(btn);
 }
@@ -2467,12 +2469,13 @@ async function submitAdjust(option) {
   }
 }
 
-async function undoCard() {
-  if (isDesignPreview()) return;
-  if (!state.sessionId || !state.canUndo || state.swiping) return;
+async function undoCard({fromGesture = false} = {}) {
+  if (isDesignPreview()) return false;
+  if (!state.sessionId || !state.canUndo || state.swiping || state.modeSwitching || (state.gestureSettling && !fromGesture)) return false;
   const req = beginReq();
   const actionId = actionIdFor(`undo:${state.packId}:${state.packRank}`);
   state.swiping = true;
+  setSwipeBusy(true, "undo");
   try {
     const data = await api("/v1/undo", {
       method: "POST",
@@ -2480,10 +2483,11 @@ async function undoCard() {
         sessionActionBody({ uid: state.uid || undefined, action_id: actionId })
       ),
     });
+    if (!isCurrentReq(req)) return false;
     if (data.stale) {
       settleAction();
       if (applyFeed(data, { req })) renderCard();
-      return;
+      return false;
     }
     settleAction();
     const shown = (data.cards && data.cards[0]) || {};
@@ -2494,12 +2498,16 @@ async function undoCard() {
       replay: true,
       logic_version: data.logic_version || state.logicVersion,
     });
-    if (applyFeed(data, { req, fromUndo: true })) renderCard();
+    if (!applyFeed(data, { req, fromUndo: true })) return false;
+    renderCard();
+    return true;
   } catch (err) {
     console.error(err);
-    setFeedHint("이전 후보를 불러오지 못했어요.", "error");
+    setFeedHint("이전 가게를 불러오지 못했어요. 다시 눌러 주세요.", "error");
+    return false;
   } finally {
     state.swiping = false;
+    setSwipeBusy(false);
     syncUndoBtn();
   }
 }
@@ -2534,7 +2542,7 @@ function showMatchThenHandoff(data) {
 /** @returns {Promise<boolean>} 카드가 실제로 넘어갔는지 */
 async function swipe(action, { fromGesture = false } = {}) {
   const card = currentCard();
-  if (isDesignPreview() || !card || state.swiping || (state.gestureSettling && !fromGesture)) return false;
+  if (isDesignPreview() || !card || state.swiping || state.modeSwitching || (state.gestureSettling && !fromGesture)) return false;
   const req = beginReq();
   const actionId = actionIdFor(`swipe:${action}:${card.menu_id}:${card.pack_id || state.packId}`);
   state.swiping = true;
@@ -2552,6 +2560,7 @@ async function swipe(action, { fromGesture = false } = {}) {
         })
       ),
     });
+    if (!isCurrentReq(req)) return false;
     if (data.stale) {
       settleAction();
       if (applyFeed(data, { req })) renderCard();
@@ -3163,8 +3172,7 @@ function setSwipeDir(dx) {
     return;
   }
   const go = dx > 0;
-  const view = cardPresentation(currentCard() || {});
-  dir.textContent = go ? view.go : view.pass;
+  dir.textContent = go ? "다른 가게" : "이전 가게";
   dir.classList.remove("hidden");
   dir.classList.add(go ? "is-go" : "is-pass");
   el.classList.add(go ? "is-go" : "is-pass");
@@ -3236,7 +3244,12 @@ function setupSwipeGestures() {
       resetCard();
       return;
     }
-    const action = dx > 0 ? "lets_go" : "nope", direction = dx > 0 ? 1 : -1;
+    const action = dx > 0 ? "nope" : "undo", direction = dx > 0 ? 1 : -1;
+    if (action === "undo" && !state.canUndo) {
+      resetCard();
+      setFeedHint("첫 번째 가게예요. 오른쪽으로 넘겨 다른 가게를 볼 수 있어요.");
+      return;
+    }
     const cardId = currentCard()?.card_id, sessionId = state.sessionId, intent = state.intent;
     state.gestureSettling = true;
     setSwipeBusy(true, action);
@@ -3251,15 +3264,18 @@ function setupSwipeGestures() {
       }
       if (currentCard()?.card_id !== cardId || state.sessionId !== sessionId || state.intent !== intent || state.modeSwitching) return;
       markSwipeHintSeen();
-      const moved = await swipe(action, {fromGesture:true});
+      const moved = action === "undo"
+        ? await undoCard({fromGesture:true})
+        : await swipe(action, {fromGesture:true});
       resetCard();
-      if (moved && action === 'nope' && currentCard() && !state.adjustNeeded && !prefersReducedMotion() && el.animate) {
+      if (moved && currentCard() && !state.adjustNeeded && !prefersReducedMotion() && el.animate) {
         el.animate([{transform:'translateY(14px) scale(.97)',opacity:.4},{transform:'none',opacity:1}],{duration:220,easing:'cubic-bezier(.2,.8,.2,1)'});
       }
     } finally {
       resetCard();
       state.gestureSettling = false;
       setSwipeBusy(false);
+      syncUndoBtn();
     }
   };
 
@@ -3292,11 +3308,11 @@ function setupCardKeys() {
     if (/INPUT|TEXTAREA|SELECT/.test(tag)) return;
     if (e.key === "ArrowLeft") {
       e.preventDefault();
-      $("btn-nope")?.focus();
+      $("btn-undo")?.focus();
     }
     if (e.key === "ArrowRight") {
       e.preventDefault();
-      $("btn-go")?.focus();
+      $("btn-nope")?.focus();
     }
   });
 }
@@ -3307,6 +3323,15 @@ function escapeHtml(s) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function placePhotoLinks(card) {
+  if (!card || card.is_brand) return "";
+  const query = encodeURIComponent([card.place_name, card.address].filter(Boolean).join(" "));
+  const kakaoId = /^kakao_(\d{1,30})$/.exec(String(card.place_id || ""))?.[1];
+  const kakao = kakaoId ? `https://place.map.kakao.com/${kakaoId}` : `https://map.kakao.com/?q=${query}`;
+  const naver = `https://map.naver.com/p/search/${query}`;
+  return `<div class="detail-photo-links"><a href="${kakao}" target="_blank" rel="noopener noreferrer">카카오맵 사진·후기 보기</a><a href="${naver}" target="_blank" rel="noopener noreferrer">네이버지도 가게 검색</a></div><p class="detail-photo-note">외부 지도에서 사진과 후기를 확인해요. 네이버에서는 같은 지점인지 확인해 주세요.</p>`;
 }
 
 function renderDetailModal(card) {
@@ -3368,6 +3393,7 @@ function renderDetailModal(card) {
         ? `<a class="detail-map-link" href="${escapeHtml(card.google_maps_url)}" target="_blank" rel="noopener">Google 지도에서 가게 보기</a>`
         : ""
     }
+    ${placePhotoLinks(card)}
     ${
       card.is_brand
         ? `<div class="sens-box">
@@ -3660,7 +3686,7 @@ function openDesignPreview() {
   state.intent = kind === "brand" || kind === "done-delivery" ? "delivery" : "visit";
   state.mealContext = "meal";
   state.radius = 700;
-  state.packSize = 3;
+  state.packSize = 5;
   state.inventorySource = state.intent === "delivery" ? "brand" : "kakao";
   state.sessionId = "design-preview";
   setToggleUI(state.intent);
@@ -3687,7 +3713,7 @@ function openDesignPreview() {
   if (kind === "adjust") {
     state.adjustNeeded = true;
     state.canUndo = true;
-    state.packRank = 3;
+    state.packRank = 5;
     state.adjustOptions = [
       { id: "again", label: "조건 그대로 다시" },
       { id: "closer", label: "더 가까운 곳" },

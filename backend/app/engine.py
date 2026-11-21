@@ -114,7 +114,7 @@ class Session:
     adjust_needed: bool = False
     adjust_filters: dict = field(default_factory=dict)
     last_radius_m: int = 0
-    last_pack_size: int = 3
+    last_pack_size: int = 5
     long_hate_cats: dict[str, float] = field(default_factory=dict)
     long_prefer_cats: dict[str, float] = field(default_factory=dict)
     recent_repeat_cats: set[str] = field(default_factory=set)
@@ -833,7 +833,7 @@ def _attach_verified_visit_menus(session: Session, cards: list[dict]) -> list[di
         return cards
 
 
-PACK_SIZE = 3
+PACK_SIZE = 5
 LOGIC_VERSION = "meal-context-v2.visit-menu"
 
 TASTE_KO = {

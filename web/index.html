@@ -27,7 +27,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/styles.css?v=20261106-location6" />
-  <link rel="stylesheet" href="/static/refine.css?v=20261121-deck1" />
+  <link rel="stylesheet" href="/static/refine.css?v=20261121-nav5" />
 </head>
 <body>
   <!-- 진입 인트로: 첫 페인트를 브랜드로 채우고, 그 사이 init()이 끝난다 -->
@@ -159,7 +159,7 @@
           </div>
         </div>
         <p class="feed-meta">
-          <span id="feed-progress">추천 1/3</span>
+          <span id="feed-progress">추천 1/5</span>
           <span id="visit-radius" class="visit-radius hidden"></span>
         </p>
         <p class="copy hidden" id="feed-copy"></p>
@@ -218,15 +218,12 @@
         </div>
       </div>
 
-      <div class="swipe-cues" aria-label="카드를 왼쪽으로 밀면 다른 가게, 오른쪽으로 밀면 선택"><span>← 다른 가게</span><small>카드를 밀어보세요</small><span>선택 →</span></div>
-      <footer class="bottom actions">
+      <footer class="bottom actions" aria-label="식당 선택">
+        <div id="feed-undo-slot"><button type="button" id="btn-undo" class="act previous" disabled>이전 가게</button></div>
+        <button type="button" id="btn-go" class="act go">그냥여기</button>
         <button type="button" id="btn-nope" class="act pass">다른 가게</button>
-        <button type="button" id="btn-go" class="act go">여기로 할게</button>
       </footer>
       <p id="feed-hint" class="swipe-hint hidden" role="status"></p>
-      <div id="feed-undo-slot">
-        <button type="button" id="btn-undo" class="link-btn undo-btn hidden">이전 후보로</button>
-      </div>
     </section>
 
     <!-- MATCH FLASH (즉시 딥링크 전 폭죽) -->
@@ -374,6 +371,6 @@
   <script src="/static/story.js?v=20260930-receipt2"></script>
   <script src="/static/instagram.js?v=20260926-ig1"></script>
   <script src="/static/analytics-client.js?v=20261118-attribution1"></script>
-  <script src="/static/app.js?v=20261121-deck1"></script>
+  <script src="/static/app.js?v=20261121-nav5"></script>
 </body>
 </html>

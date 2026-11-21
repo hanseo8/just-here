@@ -209,7 +209,7 @@ def product_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 rank = int(props.get("rank") or 0)
             except (TypeError, ValueError):
                 rank = 0
-            if pack == s["first_pack_id"] and rank in (1, 2, 3) and not s["exhausted_first"]:
+            if pack == s["first_pack_id"] and rank in (1, 2, 3, 4, 5) and not s["exhausted_first"]:
                 s["chose_first_pack"] = True
         elif ev == "match_done":
             if not s["match_ts"]:

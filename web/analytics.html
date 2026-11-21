@@ -313,8 +313,8 @@
       $("product").innerHTML = [
         ["진입 → 첫 추천", fmtSec(p.median_open_to_first_recommend_s), "기기별 중앙값"],
         ["첫 추천 → 선택", fmtSec(p.median_first_recommend_to_choice_s), "세션 중앙값"],
-        ["첫 3장 안 선택", `${p.first_pack_choose_rate ?? 0}%`, `${p.sessions_with_shown || 0}세션`],
-        ["3장 모두 거절", `${p.first_pack_exhaust_rate ?? 0}%`, "첫 묶음 기준"],
+        ["첫 묶음 안 선택", `${p.first_pack_choose_rate ?? 0}%`, `${p.sessions_with_shown || 0}세션`],
+        ["첫 묶음 모두 넘김", `${p.first_pack_exhaust_rate ?? 0}%`, "첫 묶음 기준"],
         ["조정 후 선택", `${p.choose_after_adjust_rate ?? 0}%`, `${p.sessions_adjusted || 0}회 조정`],
         ["선택 → 지도·주문", `${p.match_to_handoff_rate ?? 0}%`, "클릭이지 결제 완료 아님"],
         ["재방문", `${p.revisit_rate ?? 0}%`, `${p.devices_revisited || 0} / ${p.devices_seen || 0}기기`],
@@ -330,8 +330,8 @@
           <tbody>
             <tr><td>오픈 → 세션</td><td class="num">${c.open_to_session || 0}%</td></tr>
             <tr><td>세션 → 매칭</td><td class="num">${c.session_to_match || 0}%</td></tr>
-            <tr><td>첫 3장 안 선택</td><td class="num">${c.first_pack_choose_rate || 0}%</td></tr>
-            <tr><td>3장 모두 거절</td><td class="num">${c.pack_exhausted_rate || 0}%</td></tr>
+            <tr><td>첫 묶음 안 선택</td><td class="num">${c.first_pack_choose_rate || 0}%</td></tr>
+            <tr><td>첫 묶음 모두 넘김</td><td class="num">${c.pack_exhausted_rate || 0}%</td></tr>
             <tr><td>조정 후 선택</td><td class="num">${c.match_after_adjust || 0}%</td></tr>
             <tr><td>선택 → 지도·주문 클릭</td><td class="num">${c.match_to_handoff || 0}%</td></tr>
             <tr><td>재방문</td><td class="num">${c.revisit_rate || 0}%</td></tr>
