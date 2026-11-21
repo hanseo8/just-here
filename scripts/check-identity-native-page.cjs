@@ -1,5 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
-const script=fs.readFileSync('web/identity-native.js','utf8'), id='jh-identity-'+'x'.repeat(32),state='a'.repeat(64);
+const script=fs.readFileSync('web/identity-native.js','utf8'), id='jh'+'a'.repeat(32),state='a'.repeat(64);
 function page({search='',hash=''}={}){
  const els={},requests=[];const get=k=>els[k]??={hidden:true};
  const c={document:{getElementById:get},location:{search,hash,pathname:'/static/identity-native.html'},history:{replaceState(){}},URLSearchParams,Date,Number,JSON,Promise,Error,encodeURIComponent,decodeURIComponent,setTimeout,clearTimeout,window:{PortOne:{requestIdentityVerification:async args=>{requests.push(args);return {identityVerificationId:id}}}}};

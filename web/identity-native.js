@@ -1,7 +1,7 @@
 /* No authentication credentials are accepted here. This page only hosts the provider UI. */
 (function(){
   const status=document.getElementById('state'),button=document.getElementById('begin'),back=document.getElementById('return');
-  const validId=s=>typeof s==='string'&&/^jh-identity-[-_A-Za-z0-9]{20,64}$/.test(s);
+  const validId=s=>typeof s==='string'&&/^(?:jh[0-9a-f]{32}|jh-identity-[-_A-Za-z0-9]{20,64})$/.test(s);
   const validState=s=>typeof s==='string'&&/^[a-f0-9]{64}$/.test(s);
   const q=new URLSearchParams(location.search);
   function returnLink(id,state){back.href='justthis://identity-complete?attempt_id='+encodeURIComponent(id)+'&state='+encodeURIComponent(state);back.hidden=false}

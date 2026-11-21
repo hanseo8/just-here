@@ -49,7 +49,8 @@ def start(store, uid):
     if not configured():
         raise ValueError('phone_identity_not_configured')
     now = int(time.time())
-    ident = 'jh-identity-' + secrets.token_urlsafe(24)
+    # KCP V2 accepts only ASCII alphanumeric IDs, at most 40 characters.
+    ident = 'jh' + secrets.token_hex(16)
     with rewards._LOCK, store._db() as db:
         db.execute('BEGIN IMMEDIATE')
         if db.execute('SELECT COUNT(*) FROM reward_identity_attempts WHERE uid=? AND created_at>?', (uid,now-3600)).fetchone()[0] >= 3:

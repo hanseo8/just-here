@@ -1,5 +1,6 @@
 """Phone identity: trusted provider result, account binding, duplicate recovery and reward gates."""
 import os
+import re
 import tempfile
 import time
 from pathlib import Path
@@ -24,7 +25,9 @@ with tempfile.TemporaryDirectory() as raw:
     def begin(uid,headers):
         r=client.post('/v1/rewards/identity/start',json={'uid':uid,'consent':True},headers=headers)
         assert r.status_code==200,r.text
-        return r.json()['identityVerificationId']
+        ident = r.json()['identityVerificationId']
+        assert re.fullmatch(r'[A-Za-z0-9]{1,40}', ident), 'KCP V2 request ID incompatible'
+        return ident
     def result(ident,di='private-DI-for-person-one',kind='LIVE'):
         return {'id':ident,'status':'VERIFIED','channel':{'key':'channel-test','type':kind},
                 'verifiedCustomer':{'di':di,'phoneNumber':'01012345678','name':'DO NOT STORE'}}
