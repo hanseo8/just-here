@@ -75,5 +75,7 @@ for(const name of ['useFallbackLocation','openManualLocation','locationSearchSta
  c.applySmartIntent=async()=>{};
  const cancelled=c.requestLocation(true);await c.selectManualLocation({name:'강남역',lat:37.498,lng:127.028});
  await cancelled;assert.equal(c.state.cancelLocation,null);
+ c.TASTE_CATEGORIES=[];c.syncFulfillment=()=>{};c.state.tasteChoices=[];c.state.intent='delivery';c.state.intentReason='늦은 시간이라 배달 추천';
+ vm.runInContext(fn('openFulfillment'),c);c.openFulfillment();assert.equal(c.state.intentReason,'');assert.equal(c.state.intent,'visit');
  console.log('PASS location UI: automatic entry and shared CTA request, fallback only after failure, denied/timeout guards, stale GPS/weather ignored, manual coordinates retained, safe results, no sensitive analytics and clear CTA states');
 })().catch(e=>{console.error(e);process.exitCode=1});

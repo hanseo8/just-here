@@ -831,6 +831,7 @@ async function finishTasteWithTone(tone) {
 
 function openFulfillment() {
   state.intentChoice = (state.intentChoice || 0) + 1;
+  state.intentReason = "";
   $("taste-step-cat").classList.add("hidden");
   $("taste-step-tone").classList.add("hidden");
   $("fulfillment-step").classList.remove("hidden");
@@ -1410,7 +1411,7 @@ async function init() {
       openTasteFlow();
     };
   }
-  document.querySelectorAll('[data-fulfillment]').forEach(b=>{b.onclick=()=>{state.intentChoice=(state.intentChoice||0)+1;state.intent=b.dataset.fulfillment;syncFulfillment();};});
+  document.querySelectorAll('[data-fulfillment]').forEach(b=>{b.onclick=()=>{state.intentChoice=(state.intentChoice||0)+1;state.intent=b.dataset.fulfillment;state.intentReason='';syncFulfillment();};});
   $("visit-range").oninput=e=>{state.visitRadius=Number(e.target.value);syncFulfillment();};
   $("btn-fulfillment-start").onclick=submitFulfillment;
   $("btn-fulfillment-back").onclick=()=>{$("fulfillment-step").classList.add("hidden");backToTasteCategories();};
@@ -3705,7 +3706,7 @@ function openDesignPreview() {
     if (kind === "distance") {
       openFulfillment();
       $("visit-range").oninput=e=>{state.visitRadius=Number(e.target.value);syncFulfillment();};
-      document.querySelectorAll('[data-fulfillment]').forEach(b=>{b.onclick=()=>{state.intent=b.dataset.fulfillment;syncFulfillment();};});
+      document.querySelectorAll('[data-fulfillment]').forEach(b=>{b.onclick=()=>{state.intent=b.dataset.fulfillment;state.intentReason='';syncFulfillment();};});
     }
     return true;
   }
